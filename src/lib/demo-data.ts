@@ -74,9 +74,11 @@ export interface DemoTeam {
 
 export type DemoMatchStatus = 'scheduled' | 'in_progress' | 'completed' | 'forfeited'
 
-/** One duty roster row, already resolved to a player name (never an id/PII). */
+/** One duty roster row, resolved to a display name plus the stable player id. */
 export interface DemoDutyAssignment {
   role: DutyAssignment['role']
+  /** Synthetic demo player id (e.g. `w-candy-p1`) — stable, and not PII. */
+  playerId: string
   playerName: string
   source: DutyAssignment['source']
 }
@@ -317,6 +319,7 @@ function buildDivision(
     const list = dutiesByMatchId.get(assignment.matchId) ?? []
     list.push({
       role: assignment.role,
+      playerId: assignment.player ?? '',
       playerName: assignment.player ? nameByPlayerId.get(assignment.player) ?? assignment.player : '',
       source: assignment.source,
     })

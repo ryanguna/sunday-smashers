@@ -84,6 +84,13 @@ export type PublicMatchStatus = 'scheduled' | 'in_progress' | 'completed' | 'for
 
 export interface PublicDutyAssignment {
   role: 'umpire_scorer' | 'scoresheet' | 'line_judge'
+  /**
+   * The officiating player's `profiles.id`. Prefer this over `playerName` when
+   * attributing duties to a person: display names are `nickname || full_name`
+   * and are not unique, so two entrants sharing one would have their duties
+   * merged. Empty string only where the demo dataset has no id for the row.
+   */
+  playerId: string
   playerName: string
   source: 'derived' | 'fallback' | 'manual' | 'unassigned'
 }
@@ -329,6 +336,7 @@ async function loadRealBundles(): Promise<AdaptedDemoBundle[] | null> {
       const list = dutiesByMatch.get(d.match_id) ?? []
       list.push({
         role: d.duty_role,
+        playerId: d.player_id,
         playerName: playerNameById.get(d.player_id) ?? '',
         source: d.source_match_id ? 'derived' : 'manual',
       })
