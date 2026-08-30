@@ -6,6 +6,7 @@ import { teamDisplayName } from '@/lib/public-data'
 import {
   dutyRoleBlurb,
   dutyRoleLabel,
+  scoringConsoleHref,
   stageLabel,
   type CountdownView,
   type PlayerDuty,
@@ -26,6 +27,7 @@ export interface NextDutyCardProps {
  */
 export function NextDutyCard({ duty, countdown, className }: NextDutyCardProps) {
   const live = duty?.match.status === 'in_progress'
+  const consoleHref = scoringConsoleHref(duty)
 
   return (
     <section
@@ -106,6 +108,22 @@ export function NextDutyCard({ duty, countdown, className }: NextDutyCardProps) 
               {duty.match.deuce ? '' : ', no deuce'}
             </span>
           </p>
+
+          {consoleHref && (
+            <Link
+              href={consoleHref}
+              className="mt-4 flex w-full items-center justify-center gap-2 rounded-[var(--radius-pill)] bg-[var(--color-brand-mint-dark)] px-5 py-3 text-base font-extrabold text-white shadow-[var(--shadow-soft)] transition-transform hover:scale-[1.02] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--color-plum)]"
+            >
+              <span aria-hidden="true">📋</span>
+              {live ? 'Score this match now' : 'Open the scoring console'}
+            </Link>
+          )}
+
+          {!consoleHref && duty.role === 'line_judge' && (
+            <p className="mt-3 rounded-[var(--radius-lg)] bg-white/70 px-3 py-2 text-xs font-semibold text-[var(--color-ink-muted)]">
+              Line judges don&rsquo;t drive the console — the umpire/scorer on your pair runs the scoring.
+            </p>
+          )}
 
           <Link
             href="/rules"

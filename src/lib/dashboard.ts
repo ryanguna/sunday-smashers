@@ -115,6 +115,33 @@ export function dutyRoleBlurb(role: DutyRole): string {
   return DUTY_ROLE_BLURBS[role]
 }
 
+/**
+ * Roles the live-scoring console lets you drive. Line judges have no console
+ * permission, so linking them through would only end in a rejection.
+ */
+export const SCORING_DUTY_ROLES: readonly DutyRole[] = ['umpire_scorer', 'scoresheet']
+
+export function canDriveScoring(role: DutyRole): boolean {
+  return SCORING_DUTY_ROLES.includes(role)
+}
+
+/**
+ * Deep link to the live-scoring console for a duty, or `null` when the duty
+ * isn't actionable (wrong role, or the match is already done — nobody should
+ * be invited into a console for a finished game).
+ *
+ * Match ids contain `#` in demo data (`Court 5#16`), so the id MUST be
+ * percent-encoded or the link 404s.
+ */
+export function scoringConsoleHref(duty: PlayerDuty | null | undefined): string | null {
+  if (!duty) return null
+  if (!canDriveScoring(duty.role)) return null
+  if (duty.match.status !== 'scheduled' && duty.match.status !== 'in_progress') return null
+  const id = duty.match.id.trim()
+  if (!id) return null
+  return `/scoring/${encodeURIComponent(id)}`
+}
+
 /** "First to 15 — no deuce", the rule that applies to this match's stage. */
 export function pointsToWinLabel(match: Pick<PublicMatch, 'pointsToWin' | 'deuce'>): string {
   return `First to ${match.pointsToWin}${match.deuce ? '' : ' — no deuce'}`

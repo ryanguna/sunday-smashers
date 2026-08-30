@@ -1,8 +1,15 @@
 import { Card, CardBody, EmptyState } from '@/components/ui'
+import Link from 'next/link'
 import { ShuttlecockIcon } from '@/components/icons'
 import { MatchCard } from '@/components/results/MatchCard'
 import { cn } from '@/lib/cn'
-import { dutyRoleLabel, stageLabel, type PlayerDuty, type PlayerFixture } from '@/lib/dashboard'
+import {
+  dutyRoleLabel,
+  scoringConsoleHref,
+  stageLabel,
+  type PlayerDuty,
+  type PlayerFixture,
+} from '@/lib/dashboard'
 
 export interface FixturesListProps {
   fixtures: PlayerFixture[]
@@ -144,7 +151,9 @@ export function DutiesList({ duties, className }: DutiesListProps) {
           </p>
         ) : (
           <ul className="mt-3 space-y-2">
-            {duties.map((duty, index) => (
+            {duties.map((duty, index) => {
+              const consoleHref = scoringConsoleHref(duty)
+              return (
               <li
                 key={`${duty.match.id}-${duty.role}-${index}`}
                 className={cn(
@@ -162,13 +171,22 @@ export function DutiesList({ duties, className }: DutiesListProps) {
                   {duty.match.teamA?.name ?? duty.match.sourceA ?? 'TBC'} v{' '}
                   {duty.match.teamB?.name ?? duty.match.sourceB ?? 'TBC'}
                 </span>
+                {consoleHref && (
+                  <Link
+                    href={consoleHref}
+                    className="ml-auto rounded-[var(--radius-pill)] bg-[var(--color-brand-mint-dark)] px-3 py-1 text-xs font-extrabold text-white hover:opacity-90"
+                  >
+                    Open the scoring console →
+                  </Link>
+                )}
                 {duty.clash && (
                   <span className="w-full text-xs font-extrabold text-[var(--color-danger)]">
                     Clashes with one of your matches — tell the desk!
                   </span>
                 )}
               </li>
-            ))}
+              )
+            })}
           </ul>
         )}
       </CardBody>

@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   ARRIVE_BEFORE_MINUTES,
   buildPlayerDashboard,
+  canDriveScoring,
   dashboardStage,
   demoClock,
   distanceToCut,
@@ -25,6 +26,7 @@ import {
   recordFor,
   registrationStatusView,
   rewindSchedule,
+  scoringConsoleHref,
   stageLabel,
   standingsFromMatches,
   TOP_FOUR_CUT,
@@ -332,6 +334,51 @@ describe('playerDuties', () => {
       }),
     ]
     expect(playerDuties(clashing, IVY, candy.id)[0].clash).toBe(true)
+  })
+})
+
+describe('scoringConsoleHref', () => {
+  const dutyFor = (role: 'umpire_scorer' | 'scoresheet' | 'line_judge', status: PublicMatch['status'] = 'scheduled') =>
+    playerDuties(
+      [
+        match({
+          id: 'Court 5#16',
+          slotIndex: 16,
+          status,
+          teamA: jingle,
+          teamB: berry,
+          duties: [{ role, playerId: 'w-candy-p1', playerName: 'Ivy Novak', source: 'derived' }],
+        }),
+      ],
+      IVY,
+      null,
+    )[0]
+
+  it('links an umpire/scorer to the console with the match id percent-encoded', () => {
+    // Demo match ids contain '#', which would otherwise be read as a fragment.
+    expect(scoringConsoleHref(dutyFor('umpire_scorer'))).toBe('/scoring/Court%205%2316')
+  })
+
+  it('links the scoresheet keeper too', () => {
+    expect(scoringConsoleHref(dutyFor('scoresheet'))).toBe('/scoring/Court%205%2316')
+  })
+
+  it('never links a line judge — they have no console permission', () => {
+    expect(scoringConsoleHref(dutyFor('line_judge'))).toBeNull()
+    expect(canDriveScoring('line_judge')).toBe(false)
+    expect(canDriveScoring('umpire_scorer')).toBe(true)
+    expect(canDriveScoring('scoresheet')).toBe(true)
+  })
+
+  it('links a match already in progress, but not one that has finished', () => {
+    expect(scoringConsoleHref(dutyFor('umpire_scorer', 'in_progress'))).toBe('/scoring/Court%205%2316')
+    expect(scoringConsoleHref(dutyFor('umpire_scorer', 'completed'))).toBeNull()
+    expect(scoringConsoleHref(dutyFor('umpire_scorer', 'forfeited'))).toBeNull()
+  })
+
+  it('handles a missing duty', () => {
+    expect(scoringConsoleHref(null)).toBeNull()
+    expect(scoringConsoleHref(undefined)).toBeNull()
   })
 })
 
