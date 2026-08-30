@@ -327,7 +327,7 @@ export function ScoringConsole({
             variant="ghost"
             className="min-h-[3.5rem]"
             disabled={!canScore}
-            aria-label={`Undo the ${endKindLabel(board.ending.kind).toLowerCase()} and carry on scoring`}
+            aria-label={`Back to scoring — undo the ${endKindLabel(board.ending.kind).toLowerCase()} result`}
             onClick={() => run({ type: 'resume' })}
           >
             Back to scoring
