@@ -57,3 +57,5 @@ next-env.d.ts
 /*.png
 /shots/
 /dev-server.log
+/*-dev.log
+/.*-dev.log
