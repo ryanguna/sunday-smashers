@@ -383,6 +383,12 @@ export function applyScoresheetCommand(
     }
 
     case 'reopen': {
+      // Only a disputed sheet reopens. `draft → awaiting_signature` is a legal
+      // edge, but it belongs to `open`; reaching it with `reopen` would wipe a
+      // sheet nobody has disagreed with.
+      if (state.status !== 'disputed') {
+        return fail('illegal_transition', illegalMessage(state.status, 'awaiting_signature'))
+      }
       if (!canTransition(state.status, 'awaiting_signature')) {
         return fail('illegal_transition', illegalMessage(state.status, 'awaiting_signature'))
       }
@@ -805,15 +811,23 @@ export function rallySourceNote(source: RallySource): RallySourceNote {
  * `rallySourceNote('reconstructed')` so nobody mistakes it for the real thing.
  */
 export function reconstructRallies(scoreA: number, scoreB: number, seedKey: string): RallyEvent[] {
-  const total = Math.max(0, scoreA) + Math.max(0, scoreB)
+  const finalA = Math.max(0, scoreA)
+  const finalB = Math.max(0, scoreB)
+  const total = finalA + finalB
   if (total === 0) return []
 
-  let remainingA = Math.max(0, scoreA)
-  let remainingB = Math.max(0, scoreB)
+  // The last rally must belong to whoever finished ahead, or the printed log
+  // shows play carrying on past the winning point — the first thing a pair
+  // querying a sheet would notice.
+  const winner: ScoringSide | null = finalA === finalB ? null : finalA > finalB ? 'a' : 'b'
+  let remainingA = winner === 'a' ? finalA - 1 : finalA
+  let remainingB = winner === 'b' ? finalB - 1 : finalB
+  const body = total - (winner ? 1 : 0)
+
   let seed = hashString(seedKey) || 1
   const rallies: RallyEvent[] = []
 
-  for (let i = 0; i < total; i++) {
+  for (let i = 0; i < body; i++) {
     // xorshift32 — small, deterministic, no dependency.
     seed ^= seed << 13
     seed ^= seed >>> 17
@@ -829,6 +843,8 @@ export function reconstructRallies(scoreA: number, scoreB: number, seedKey: stri
     else remainingB--
     rallies.push({ seq: i + 1, side, at: null })
   }
+
+  if (winner) rallies.push({ seq: body + 1, side: winner, at: null })
 
   return rallies
 }
@@ -894,7 +910,6 @@ export function formatStamp(ms: number | null, timeZone: string): string {
 
 export interface InboxItem {
   matchId: string
-  status: ScoresheetStatus
   divisionName: string
   stageLabel: string
   court: string
@@ -903,16 +918,27 @@ export interface InboxItem {
   teamBName: string
   /** "15–9", already reflecting forfeit/walkover normalisation. */
   scoreLine: string
-  /** "Played out", "Forfeit", "Retired"… */
+  /** "Played out", "Forfeit", "Walkover (no-show)", "Retired". */
   outcomeLabel: string
   endingKind: MatchEndKind | null
-  signatureCount: number
-  signedNames: readonly string[]
-  disputeReason: string | null
-  /** When it started waiting for whoever it is waiting on. */
-  waitingSince: number | null
+  /**
+   * The sheet itself, so the inbox can re-run the state machine rather than
+   * trust a status copied out of it — and so demo mode can overlay a locally
+   * advanced sheet onto the server's copy without the two disagreeing.
+   */
+  sheet: SheetState
+  /** When the result was declared — the clock a sheet ages from. */
+  resultAt: number | null
   /** Ordering hint — earlier slots first, so the queue reads like the day. */
   slotIndex: number
+}
+
+/** How long the sheet has been waiting on whoever it is currently waiting on. */
+export function waitingSince(sheet: SheetState, resultAt: number | null): number | null {
+  if (sheet.status === 'submitted') return sheet.submittedAt ?? resultAt
+  if (sheet.status === 'verified') return sheet.verifiedAt ?? resultAt
+  const last = sheet.trail.length > 0 ? sheet.trail[sheet.trail.length - 1].at : null
+  return last ?? resultAt
 }
 
 export interface InboxGroups {
@@ -928,12 +954,12 @@ export interface InboxGroups {
 }
 
 export function groupInbox(items: readonly InboxItem[]): InboxGroups {
+  const queuedAt = (item: InboxItem) => waitingSince(item.sheet, item.resultAt) ?? Number.MAX_SAFE_INTEGER
   const byQueueOrder = (a: InboxItem, b: InboxItem) =>
-    (a.waitingSince ?? Number.MAX_SAFE_INTEGER) - (b.waitingSince ?? Number.MAX_SAFE_INTEGER) ||
-    a.slotIndex - b.slotIndex ||
-    a.court.localeCompare(b.court)
+    queuedAt(a) - queuedAt(b) || a.slotIndex - b.slotIndex || a.court.localeCompare(b.court)
 
-  const pick = (status: ScoresheetStatus) => items.filter((i) => i.status === status).sort(byQueueOrder)
+  const pick = (status: ScoresheetStatus) =>
+    items.filter((i) => i.sheet.status === status).sort(byQueueOrder)
 
   return {
     disputed: pick('disputed'),
@@ -941,7 +967,7 @@ export function groupInbox(items: readonly InboxItem[]): InboxGroups {
     awaitingSignature: pick('awaiting_signature'),
     notStarted: pick('draft'),
     verified: items
-      .filter((i) => i.status === 'verified')
+      .filter((i) => i.sheet.status === 'verified')
       .sort((a, b) => b.slotIndex - a.slotIndex || a.court.localeCompare(b.court)),
   }
 }
@@ -958,7 +984,7 @@ export interface InboxCounts {
 }
 
 export function inboxCounts(items: readonly InboxItem[]): InboxCounts {
-  const count = (status: ScoresheetStatus) => items.filter((i) => i.status === status).length
+  const count = (status: ScoresheetStatus) => items.filter((i) => i.sheet.status === status).length
   const verified = count('verified')
   return {
     total: items.length,

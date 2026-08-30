@@ -1,0 +1,109 @@
+/*
+ * The paper fallback.
+ *
+ * The committee will want a printed copy for the records, and if the wifi in
+ * the hall gives up they will want a blank-ish one to fill in by hand. So the
+ * printed sheet is a real document: site chrome gone, ink-friendly colours,
+ * and page breaks placed so a signature block is never orphaned from the
+ * result it belongs to.
+ */
+
+.page {
+  color: #1b1230;
+}
+
+@media print {
+  /*
+   * Site chrome has no business on a filed document. These are global
+   * selectors on purpose — `src/app/globals.css` is not mine to edit, and a
+   * CSS Module is the only place I can reach the header and footer from.
+   */
+  :global(body) {
+    background: #fff !important;
+  }
+
+  /*
+   * Only the site's own header/footer — direct children of `<body>` in
+   * `src/app/layout.tsx`. Scoped that tightly on purpose: an unqualified
+   * `header { display: none }` also swallowed the scoresheet's own masthead,
+   * which is the part that says which match this piece of paper is for.
+   */
+  :global(body > header),
+  :global(body > footer),
+  :global([data-print-hide]) {
+    display: none !important;
+  }
+
+  :global(body > div) {
+    flex: none !important;
+  }
+
+  :global(main) {
+    padding: 0 !important;
+    margin: 0 !important;
+    max-width: none !important;
+  }
+
+  .page {
+    padding: 0;
+    margin: 0;
+    font-size: 10.5pt;
+    line-height: 1.35;
+    color: #000;
+    background: #fff;
+  }
+
+  /* Every card the sheet is built from: flat, bordered, ink-only. */
+  .page section,
+  .page div[class*='rounded'] {
+    box-shadow: none !important;
+    background-image: none !important;
+  }
+
+  /* Keep a heading with what follows it, and never split a signature block. */
+  .page h1,
+  .page h2,
+  .page h3 {
+    break-after: avoid-page;
+    page-break-after: avoid;
+  }
+
+  .keepTogether {
+    break-inside: avoid-page;
+    page-break-inside: avoid;
+  }
+
+  /*
+   * The rally table is the only part allowed to run over a page. Repeating the
+   * header row means page two is still readable on its own.
+   */
+  .rallyTable thead {
+    display: table-header-group;
+  }
+
+  .rallyTable tr {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+
+  /*
+   * The signature block and the footer go on their own page when they would
+   * otherwise be split across one — a signature separated from the result it
+   * agrees to is exactly the ambiguity this whole feature exists to remove.
+   */
+  .signatureBlock {
+    break-before: auto;
+    break-inside: avoid-page;
+    page-break-inside: avoid;
+  }
+
+  .pageBreakBefore {
+    break-before: page;
+    page-break-before: always;
+  }
+}
+
+@page {
+  size: A4 portrait;
+  margin: 14mm 12mm;
+}
