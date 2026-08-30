@@ -113,6 +113,13 @@ export interface PublicMatch {
   scoreB: number
   pointsToWin: number
   deuce: boolean
+  /**
+   * Hard ceiling on the score when deuce is enabled (e.g. 30 in a 21-up game),
+   * or `null` for none. Needed by the scoring console to decide when a game
+   * ends at the cap rather than on a two-point margin — it previously had to
+   * load this separately because it was dropped here.
+   */
+  cap: number | null
   forfeitedBy: TeamId | null
   winnerTeamId: TeamId | null
   duties: PublicDutyAssignment[]
@@ -183,6 +190,8 @@ function demoMatchToPublic(match: DemoMatch, teamsById: Map<TeamId, PublicTeam>)
     scoreB: match.scoreB,
     pointsToWin: match.pointsToWin,
     deuce: match.deuce,
+    // The demo rules run no-deuce throughout, so a cap can never be reached.
+    cap: null,
     forfeitedBy: match.forfeitedBy,
     winnerTeamId: match.winnerTeamId,
     duties: match.duties,
@@ -482,6 +491,7 @@ function matchRowToPublic(
     scoreB: m.score_b,
     pointsToWin: rules.pointsToWin,
     deuce: rules.deuce,
+    cap: m.cap ?? null,
     forfeitedBy: m.forfeited_by_team_id,
     winnerTeamId: m.winner_team_id,
     duties: dutiesByMatch.get(m.id) ?? [],

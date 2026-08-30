@@ -83,6 +83,7 @@ function match(partial: Partial<PublicMatch> & { id: string; slotIndex: number }
     scoreB: 0,
     pointsToWin: 15,
     deuce: false,
+    cap: null,
     forfeitedBy: null,
     winnerTeamId: null,
     duties: [],

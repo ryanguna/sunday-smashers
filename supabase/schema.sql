@@ -66,7 +66,10 @@ exception when duplicate_object then null; end $$;
 
 do $$ begin
   create type public.match_status as enum
-    ('scheduled', 'in_progress', 'completed', 'forfeited', 'walkover', 'cancelled');
+    ('scheduled', 'in_progress', 'completed', 'forfeited', 'walkover', 'cancelled', 'retired');
+  -- 'retired' is last, not beside the other non-completions: migration 0006
+  -- appends it to existing databases, and enum sort order must match between a
+  -- freshly-created project and an upgraded one or `order by status` diverges.
 exception when duplicate_object then null; end $$;
 
 do $$ begin
@@ -547,7 +550,7 @@ create table if not exists public.score_events (
   sequence integer not null, -- monotonically increasing per match; enables ordered replay + undo
   side text not null check (side in ('a', 'b')), -- which team the point/action applies to
   event_type text not null default 'point'
-    check (event_type in ('point', 'undo', 'forfeit', 'game_start', 'game_end')),
+    check (event_type in ('point', 'undo', 'forfeit', 'walkover', 'retire', 'game_start', 'game_end')),
   score_a_after integer not null check (score_a_after >= 0),
   score_b_after integer not null check (score_b_after >= 0),
   scored_by uuid references auth.users (id) on delete set null,

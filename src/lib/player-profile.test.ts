@@ -55,6 +55,7 @@ function match(overrides: Partial<PublicMatch> & Pick<PublicMatch, 'id'>): Publi
     scoreB: 9,
     pointsToWin: 15,
     deuce: false,
+    cap: null,
     forfeitedBy: null,
     winnerTeamId: tinsel.id,
     duties: [],

@@ -367,3 +367,42 @@ Assertions 8–10 matter: an earlier draft revoked `anon` but never granted
 `authenticated`, so the admin policy was unreachable and an admin would have
 got `permission denied` rather than the board. RLS narrows privileges; it never
 grants them. Privileges are now explicit rather than left to Supabase defaults.
+
+## Migration 0006 — retirement as a first-class outcome
+
+Badminton distinguishes three things `match_status` collapsed into two:
+
+- **forfeit** — a pair does not play (no-show, ineligible)
+- **walkover** — the opponent withdrew before play started
+- **retire** — the pair *started* and stopped mid-game (injury, illness)
+
+There was no `'retired'`, so the scoring console recorded a retirement as
+`status='forfeited'` with the distinction carried in `forfeit_reason` prose
+(`'Retired: rolled an ankle'`). That is better than smuggling a marker into an
+unrelated column, but it makes "how many pairs retired?" a text search, and it
+mislabels the pair publicly — being carried off injured is not a forfeit, and
+on a club day that distinction is one people care about.
+
+It also scores differently: a forfeit/walkover normalises to
+`points_to_win`–0, while a retirement keeps the score actually played. Sharing
+one status makes that rule impossible to express in SQL.
+
+`score_events.event_type` gained `'walkover'` and `'retire'` for the same
+reason — the rally log is the source of truth the console replays, so a
+terminal event must be distinguishable rather than inferred from prose.
+
+### Verification (disposable Postgres 16)
+
+| # | Assertion | Result |
+|---|---|---|
+| 1 | Fresh `schema.sql` loads clean and contains `retired` | pass |
+| 2 | `0006` applies to a database built from the *previous* `schema.sql` | pass |
+| 3 | `score_events_event_type_check` accepts the two new values | pass |
+| 4 | Enum sort order identical between a fresh install and an upgraded one | pass |
+
+Assertion 4 caught a real hazard. `alter type ... add value` appends, so an
+upgraded database ordered `… cancelled, retired` while a freshly-created one
+ordered `… retired, cancelled`. Any `order by status` would then sort
+differently in production than in a fresh environment — the kind of divergence
+that only shows up once. `schema.sql` now declares `retired` last to match
+what the migration produces.

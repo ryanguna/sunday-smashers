@@ -28,9 +28,13 @@ export type MatchStatus =
   | 'scheduled'
   | 'in_progress'
   | 'completed'
+  /** Did not play: no-show, ineligible. Normalised to points_to_win-0. */
   | 'forfeited'
+  /** Opponent withdrew before play started. Normalised to points_to_win-0. */
   | 'walkover'
   | 'cancelled'
+  /** Started and stopped mid-game (injury). Keeps the score actually played. */
+  | 'retired'
 export type DutyRole = 'umpire_scorer' | 'scoresheet' | 'line_judge'
 export type ScoresheetStatus = 'draft' | 'awaiting_signature' | 'submitted' | 'verified' | 'disputed'
 export type AwardType =

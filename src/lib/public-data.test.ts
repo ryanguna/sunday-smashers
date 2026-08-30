@@ -73,6 +73,7 @@ function makeMatch(overrides: Partial<PublicMatch>): PublicMatch {
     scoreB: 0,
     pointsToWin: 15,
     deuce: false,
+    cap: null,
     forfeitedBy: null,
     winnerTeamId: null,
     duties: [],
