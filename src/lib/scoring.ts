@@ -174,8 +174,9 @@ export function createScoringState(
 }
 
 /**
- * Builds a console config from a public fixture. `cap` is passed separately
- * because `PublicMatch` does not (yet) carry the `matches.cap` column.
+ * Builds a console config from a public fixture. Rules come straight off the
+ * record — `pointsToWin`, `deuce` and `cap` — so nothing here assumes 15 or 21.
+ * `options.cap` exists only to override a fixture that has no cap of its own.
  */
 export function scoringConfigFromMatch(
   match: PublicMatch,
@@ -191,7 +192,7 @@ export function scoringConfigFromMatch(
     rules: rulesFromMatch({
       pointsToWin: match.pointsToWin,
       deuce: match.deuce,
-      cap: options?.cap ?? null,
+      cap: options?.cap ?? match.cap,
     }),
     teamA: toScoringTeam(match.teamA, match.sourceA, 'Pair A'),
     teamB: toScoringTeam(match.teamB, match.sourceB, 'Pair B'),
@@ -695,7 +696,26 @@ export function scoreAnnouncement(board: ScoreboardState, config: MatchScoringCo
 
 /** Match status values the console can write. Mirrors the `match_status` enum. */
 export type ScoringMatchStatus =
-  'scheduled' | 'in_progress' | 'completed' | 'forfeited' | 'walkover'
+  | 'scheduled'
+  | 'in_progress'
+  | 'completed'
+  | 'forfeited'
+  | 'walkover'
+  | 'retired'
+
+/** Each ending has its own `match_status`, so nothing has to parse a reason string. */
+const END_KIND_STATUS: Record<MatchEndKind, ScoringMatchStatus> = {
+  forfeit: 'forfeited',
+  walkover: 'walkover',
+  retired: 'retired',
+}
+
+/** ...and its own `score_events.event_type`, for the same reason. */
+const END_KIND_EVENT: Record<MatchEndKind, ScoreEventInsert['event_type']> = {
+  forfeit: 'forfeit',
+  walkover: 'walkover',
+  retired: 'retire',
+}
 
 export interface MatchScorePatch {
   status: ScoringMatchStatus
@@ -709,9 +729,12 @@ export interface MatchScorePatch {
 /**
  * The `matches` row update for a scoreboard.
  *
- * NOTE for the schema owner: `match_status` has no `'retired'` member, so a
- * retirement is written as `'forfeited'` with the reason text making the
- * distinction. See the report accompanying this feature.
+ * The three early endings map to three distinct statuses. That keeps the
+ * scoring difference honest — a forfeit and a walkover normalise to
+ * `pointsToWin`-0, a retirement keeps the score actually played — and it
+ * stops the public results page calling an injured pair a forfeit.
+ * `forfeit_reason` therefore holds the plain note, with no label smuggled
+ * into it.
  */
 export function matchScorePatch(
   board: ScoreboardState,
@@ -731,23 +754,25 @@ export function matchScorePatch(
   }
 
   const ending = board.ending
-  const status: ScoringMatchStatus = !ending
-    ? 'completed'
-    : ending.kind === 'walkover'
-      ? 'walkover'
-      : 'forfeited'
 
   return {
-    status,
+    status: ending ? END_KIND_STATUS[ending.kind] : 'completed',
     score_a: scoreForSide(board, 'a'),
     score_b: scoreForSide(board, 'b'),
     winner_team_id: board.winner ? teamIdFor(board.winner) : null,
-    forfeited_by_team_id: ending ? teamIdFor(ending.side) : null,
-    forfeit_reason: ending ? formatEndingReason(ending) : null,
+    // A retirement is not a forfeit, so the pair that stopped is recorded on
+    // the reason rather than blamed in `forfeited_by_team_id`.
+    forfeited_by_team_id:
+      ending && ending.kind !== 'retired' ? teamIdFor(ending.side) : null,
+    forfeit_reason: ending ? (ending.reason || null) : null,
   }
 }
 
-/** "Retired: rolled an ankle" — the human record kept on `matches.forfeit_reason`. */
+/**
+ * "Retired: rolled an ankle" — a self-describing line for the `score_events`
+ * audit log. `matches.forfeit_reason` gets the plain note instead, because
+ * `matches.status` already says which kind of ending it was.
+ */
 export function formatEndingReason(ending: MatchEnding): string {
   const label = endKindLabel(ending.kind)
   return ending.reason ? `${label}: ${ending.reason}` : label
@@ -758,7 +783,7 @@ export interface ScoreEventInsert {
   match_id: string
   sequence: number
   side: ScoringSide
-  event_type: 'point' | 'undo' | 'forfeit' | 'game_start' | 'game_end'
+  event_type: 'point' | 'undo' | 'forfeit' | 'walkover' | 'retire' | 'game_start' | 'game_end'
   score_a_after: number
   score_b_after: number
   note: string | null
@@ -809,7 +834,7 @@ export function scoreEventInserts(state: ScoringState): ScoreEventInsert[] {
       match_id: config.matchId,
       sequence: ++sequence,
       side: board.ending.side,
-      event_type: 'forfeit',
+      event_type: END_KIND_EVENT[board.ending.kind],
       score_a_after: board.awardedA,
       score_b_after: board.awardedB,
       note: formatEndingReason(board.ending),
@@ -868,12 +893,15 @@ export function restoreFromScoreEvents(
     servingSide: start?.side ?? config.baseline.servingSide,
   }
 
-  const forfeit = ordered.find((r) => r.event_type === 'forfeit')
-  const ending: MatchEnding | null = forfeit
+  const stop = ordered.find(
+    (r) =>
+      r.event_type === 'forfeit' || r.event_type === 'walkover' || r.event_type === 'retire',
+  )
+  const ending: MatchEnding | null = stop
     ? {
-        kind: endKindFromNote(forfeit.note),
-        side: forfeit.side,
-        reason: reasonFromNote(forfeit.note),
+        kind: endKindFromEvent(stop.event_type, stop.note),
+        side: stop.side,
+        reason: reasonFromNote(stop.note),
         at: null,
       }
     : null
@@ -891,14 +919,38 @@ export function restoreFromScoreEvents(
   )
 }
 
-function endKindFromNote(note: string | null | undefined): MatchEndKind {
+/**
+ * The event type is authoritative. Rows written before `'walkover'`/`'retire'`
+ * existed all say `'forfeit'`, so those still fall back to the note's label
+ * prefix rather than silently mislabelling an old retirement.
+ */
+function endKindFromEvent(
+  eventType: ScoreEventInsert['event_type'],
+  note: string | null | undefined,
+): MatchEndKind {
+  if (eventType === 'walkover') return 'walkover'
+  if (eventType === 'retire') return 'retired'
   const label = (note ?? '').split(':')[0].trim().toLowerCase()
   return MATCH_END_KINDS.find((k) => k.label.toLowerCase() === label)?.kind ?? 'forfeit'
 }
 
+/**
+ * Recovers the umpire's own words from a log note.
+ *
+ * Notes written by this module are `"<label>: <reason>"`, but a note may also
+ * be a plain reason with no label at all, so only a recognised label prefix is
+ * stripped — anything else is returned whole rather than thrown away.
+ */
 function reasonFromNote(note: string | null | undefined): string {
-  const index = (note ?? '').indexOf(':')
-  return index === -1 ? '' : (note ?? '').slice(index + 1).trim()
+  const text = (note ?? '').trim()
+  if (!text) return ''
+
+  const index = text.indexOf(':')
+  const isLabel = (value: string) =>
+    MATCH_END_KINDS.some((k) => k.label.toLowerCase() === value.trim().toLowerCase())
+
+  if (index !== -1 && isLabel(text.slice(0, index))) return text.slice(index + 1).trim()
+  return isLabel(text) ? '' : text
 }
 
 // ---------------------------------------------------------------------------

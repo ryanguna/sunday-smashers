@@ -129,8 +129,10 @@ export async function loadScoringMatch(matchId: string): Promise<ScoringMatchDat
     (a) => a.match.id === match.id,
   )
 
-  const { cap, startedAtMs, events } = await loadMatchScoringRow(match.id)
-  const config = scoringConfigFromMatch(match, { cap })
+  const { startedAtMs, events } = await loadMatchScoringRow(match.id)
+  // Rules, including `cap`, come off the fixture itself — one fetch, one
+  // source of truth.
+  const config = scoringConfigFromMatch(match)
 
   return {
     demo,
@@ -149,7 +151,8 @@ export async function loadScoringMatch(matchId: string): Promise<ScoringMatchDat
 /**
  * Demo mode has no `started_at`, so a match that the fixture data says is in
  * progress gets its scheduled start time — enough for an honest match clock.
- */function demoStartedAt(demo: boolean, match: PublicMatch): number | null {
+ */
+function demoStartedAt(demo: boolean, match: PublicMatch): number | null {
   if (!demo || match.status !== 'in_progress') return null
   const iso = matchStartIso(match)
   if (!iso) return null
@@ -158,24 +161,23 @@ export async function loadScoringMatch(matchId: string): Promise<ScoringMatchDat
 }
 
 interface MatchScoringRow {
-  /** `matches.cap` — `PublicMatch` does not carry it. */
-  cap: number | null
   startedAtMs: number | null
   events: StoredScoreEvent[]
 }
 
 /**
- * The bits of the real `matches` / `score_events` rows that the public shape
- * doesn't expose. Demo mode never touches Supabase; any failure here degrades
- * to "no cap, no clock, no history" rather than breaking the console.
+ * The two things the public fixture shape doesn't carry: when the match
+ * actually started, and its point-by-point log. Demo mode never touches
+ * Supabase; any failure here degrades to "no clock, no history" rather than
+ * breaking the console.
  */
 async function loadMatchScoringRow(matchId: string): Promise<MatchScoringRow> {
-  if (!isSupabaseConfigured()) return { cap: null, startedAtMs: null, events: [] }
+  if (!isSupabaseConfigured()) return { startedAtMs: null, events: [] }
 
   try {
     const supabase = await createClient()
     const [{ data: row }, { data: events }] = await Promise.all([
-      supabase.from('matches').select('cap, started_at').eq('id', matchId).maybeSingle(),
+      supabase.from('matches').select('started_at').eq('id', matchId).maybeSingle(),
       supabase
         .from('score_events')
         .select('sequence, side, event_type, score_a_after, score_b_after, note')
@@ -185,12 +187,11 @@ async function loadMatchScoringRow(matchId: string): Promise<MatchScoringRow> {
 
     const started = row?.started_at ? new Date(row.started_at).getTime() : null
     return {
-      cap: row?.cap ?? null,
       startedAtMs: started != null && Number.isFinite(started) ? started : null,
       events: (events ?? []) as StoredScoreEvent[],
     }
   } catch {
-    return { cap: null, startedAtMs: null, events: [] }
+    return { startedAtMs: null, events: [] }
   }
 }
 

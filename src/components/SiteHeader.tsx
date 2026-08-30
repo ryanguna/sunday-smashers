@@ -14,6 +14,7 @@ const NAV_LINKS = [
   { href: '/standings', label: 'Standings' },
   { href: '/live', label: 'Live' },
   { href: '/players', label: 'Players' },
+  { href: '/awards', label: 'Awards' },
   { href: '/gallery', label: 'Gallery' },
 ]
 

@@ -10,6 +10,14 @@ import {
   TrophyIcon,
 } from '@/components/icons'
 import { CountdownSection } from '@/components/CountdownSection'
+import { AnnouncementsStrip } from '@/components/announcements'
+import { FeaturedPhotoStrip } from '@/components/gallery'
+import { loadFeaturedPhotos } from '@/components/gallery/data'
+import { WinnersShowcase } from '@/components/awards'
+import { getAnnouncementsFeed } from '@/lib/announcements'
+import { hasAnyWinners } from '@/lib/awards'
+import { announcementsClient } from './announcements/client'
+import { getPublicAwards } from './awards/data'
 import { PRE_REGISTRATION_OPENS_AT, TOURNAMENT_DATE_LABEL } from '@/lib/tournament'
 
 export const metadata: Metadata = {
@@ -73,7 +81,19 @@ const HOW_IT_WORKS = [
   },
 ] as const
 
-export default function HomePage() {
+export default async function HomePage() {
+  // The landing page doubles as the post-event front page, so it pulls in
+  // whatever is live right now. Each strip is self-effacing: announcements
+  // and photos render nothing when empty, and the podium only appears once
+  // a division has actually been crowned — before match day the countdown
+  // stays the hero rather than a row of "to be decided" placeholders.
+  const [{ now, announcements }, { views: awardViews }, featuredPhotos] = await Promise.all([
+    getAnnouncementsFeed(await announcementsClient()),
+    getPublicAwards(),
+    loadFeaturedPhotos(),
+  ])
+  const showWinners = hasAnyWinners(awardViews)
+
   return (
     <main className="relative overflow-hidden">
       <Snowfall />
@@ -119,6 +139,28 @@ export default function HomePage() {
         <div className="mx-auto mt-10 max-w-md">
           <CountdownSection />
         </div>
+      </section>
+
+      {showWinners ? (
+        <section
+          aria-labelledby="winners-heading"
+          className="relative z-10 mx-auto max-w-6xl px-4 pb-4 sm:px-6"
+        >
+          <SectionHeading
+            eyebrow="Champions"
+            title={<span id="winners-heading">On the podium</span>}
+          />
+          <div className="mt-6">
+            <WinnersShowcase divisions={awardViews} variant="compact" />
+          </div>
+        </section>
+      ) : null}
+
+      <section
+        aria-label="Latest announcements"
+        className="relative z-10 mx-auto max-w-6xl px-4 pb-4 sm:px-6"
+      >
+        <AnnouncementsStrip announcements={announcements} now={now} />
       </section>
 
       {/* ---------------------------------------------------------------- */}
@@ -249,6 +291,24 @@ export default function HomePage() {
           </Card>
         </div>
       </section>
+
+      {/* ---------------------------------------------------------------- */}
+      {/* Gallery teaser — renders nothing until photos are approved        */}
+      {/* ---------------------------------------------------------------- */}
+      {featuredPhotos.length > 0 ? (
+        <section
+          aria-labelledby="gallery-heading"
+          className="relative z-10 mx-auto max-w-6xl px-4 py-6 sm:px-6"
+        >
+          <SectionHeading
+            eyebrow="From the courts"
+            title={<span id="gallery-heading">Moments worth framing</span>}
+          />
+          <div className="mt-6">
+            <FeaturedPhotoStrip />
+          </div>
+        </section>
+      ) : null}
 
       {/* ---------------------------------------------------------------- */}
       {/* Closing CTA                                                      */}

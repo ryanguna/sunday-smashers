@@ -7,6 +7,7 @@ const FOOTER_LINKS = [
   { href: '/schedule', label: 'Schedule' },
   { href: '/standings', label: 'Standings' },
   { href: '/players', label: 'Players' },
+  { href: '/awards', label: 'Awards' },
   { href: '/gallery', label: 'Gallery' },
 ]
 

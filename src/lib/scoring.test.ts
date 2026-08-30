@@ -497,19 +497,86 @@ describe('match record mapping', () => {
     })
   })
 
-  it('maps a retirement onto the forfeited status with an explanatory reason', () => {
+  // The three-way distinction is the regression to guard: each ending has its
+  // own status, and only forfeit and walkover normalise to pointsToWin-0.
+  it('writes a forfeit as forfeited, normalised to the target', () => {
+    const state = play(points(createScoringState(config()), 'aab'), {
+      type: 'end_match',
+      kind: 'forfeit',
+      side: 'b',
+      reason: 'refused to play',
+    })
+    expect(matchScorePatch(deriveScoreboard(state), config())).toEqual({
+      status: 'forfeited',
+      score_a: 15,
+      score_b: 0,
+      winner_team_id: 'team-a',
+      forfeited_by_team_id: 'team-b',
+      forfeit_reason: 'refused to play',
+    })
+  })
+
+  it('writes a walkover as walkover, normalised to the target', () => {
+    const state = play(createScoringState(config()), {
+      type: 'end_match',
+      kind: 'walkover',
+      side: 'a',
+      reason: 'never arrived',
+    })
+    expect(matchScorePatch(deriveScoreboard(state), config())).toEqual({
+      status: 'walkover',
+      score_a: 0,
+      score_b: 15,
+      winner_team_id: 'team-b',
+      forfeited_by_team_id: 'team-a',
+      forfeit_reason: 'never arrived',
+    })
+  })
+
+  it('writes a retirement as retired and keeps the score actually played', () => {
     const state = play(points(createScoringState(config()), 'aab'), {
       type: 'end_match',
       kind: 'retired',
       side: 'b',
       reason: 'calf strain',
     })
-    expect(matchScorePatch(deriveScoreboard(state), config())).toMatchObject({
-      status: 'forfeited',
-      forfeited_by_team_id: 'team-b',
-      forfeit_reason: 'Retired: calf strain',
+    expect(matchScorePatch(deriveScoreboard(state), config())).toEqual({
+      status: 'retired',
+      score_a: 2,
+      score_b: 1,
       winner_team_id: 'team-a',
+      // An injured pair is not blamed for a forfeit.
+      forfeited_by_team_id: null,
+      forfeit_reason: 'calf strain',
     })
+  })
+
+  it('never smuggles the kind of ending into the reason column', () => {
+    for (const kind of ['forfeit', 'walkover', 'retired'] as const) {
+      const state = play(points(createScoringState(config()), 'ab'), {
+        type: 'end_match',
+        kind,
+        side: 'b',
+      })
+      const patch = matchScorePatch(deriveScoreboard(state), config())
+      expect(patch.forfeit_reason).toBeNull()
+      expect(patch.status).toBe(
+        kind === 'forfeit' ? 'forfeited' : kind === 'walkover' ? 'walkover' : 'retired',
+      )
+    }
+  })
+
+  it('gives the three endings three different statuses', () => {
+    const statuses = (['forfeit', 'walkover', 'retired'] as const).map((kind) => {
+      const state = play(points(createScoringState(config()), 'aab'), {
+        type: 'end_match',
+        kind,
+        side: 'b',
+      })
+      return matchScorePatch(deriveScoreboard(state), config()).status
+    })
+    expect(new Set(statuses).size).toBe(3)
+    expect(statuses).toEqual(['forfeited', 'walkover', 'retired'])
   })
 })
 
@@ -531,6 +598,40 @@ describe('score_events log', () => {
       event_type: 'game_end',
       side: 'a',
       score_a_after: 15,
+    })
+  })
+
+  it('logs each ending under its own event_type', () => {
+    const kinds = [
+      ['forfeit', 'forfeit'],
+      ['walkover', 'walkover'],
+      ['retired', 'retire'],
+    ] as const
+    for (const [kind, eventType] of kinds) {
+      const state = play(points(createScoringState(config()), 'ab'), {
+        type: 'end_match',
+        kind,
+        side: 'b',
+      })
+      expect(scoreEventInserts(state).map((r) => r.event_type).slice(-2)).toEqual([
+        eventType,
+        'game_end',
+      ])
+    }
+  })
+
+  it('logs a retirement at the score actually played', () => {
+    const state = play(points(createScoringState(config()), 'aab'), {
+      type: 'end_match',
+      kind: 'retired',
+      side: 'b',
+      reason: 'calf strain',
+    })
+    expect(scoreEventInserts(state).at(-2)).toMatchObject({
+      event_type: 'retire',
+      note: 'Retired: calf strain',
+      score_a_after: 2,
+      score_b_after: 1,
     })
   })
 
@@ -594,6 +695,49 @@ describe('restoring from the server event log', () => {
     const board = deriveScoreboard(restoreFromScoreEvents(cfg, []))
     expect([board.scoreA, board.scoreB]).toEqual([9, 4])
     expect(board.canUndo).toBe(false)
+  })
+
+  it('reads the ending off the event type, not the note', () => {
+    const restored = restoreFromScoreEvents(config(), [
+      { sequence: 1, side: 'a', event_type: 'game_start', score_a_after: 0, score_b_after: 0 },
+      { sequence: 2, side: 'a', event_type: 'point', score_a_after: 1, score_b_after: 0 },
+      {
+        sequence: 3,
+        side: 'b',
+        event_type: 'retire',
+        score_a_after: 1,
+        score_b_after: 0,
+        note: 'twisted knee',
+      },
+    ])
+    expect(restored.ending).toMatchObject({ kind: 'retired', side: 'b', reason: 'twisted knee' })
+    expect(deriveScoreboard(restored).scoreA).toBe(1)
+  })
+
+  it('reads a walkover off its own event type', () => {
+    const restored = restoreFromScoreEvents(config(), [
+      { sequence: 1, side: 'a', event_type: 'game_start', score_a_after: 0, score_b_after: 0 },
+      { sequence: 2, side: 'a', event_type: 'walkover', score_a_after: 0, score_b_after: 15 },
+    ])
+    expect(deriveScoreboard(restored).outcome).toBe('walkover')
+    expect(deriveScoreboard(restored).winner).toBe('b')
+  })
+
+  it('still understands a legacy row that wrote a retirement as a forfeit', () => {
+    // Rows written before migration 0006 only had 'forfeit' to work with.
+    const restored = restoreFromScoreEvents(config(), [
+      { sequence: 1, side: 'a', event_type: 'game_start', score_a_after: 0, score_b_after: 0 },
+      { sequence: 2, side: 'a', event_type: 'point', score_a_after: 1, score_b_after: 0 },
+      {
+        sequence: 3,
+        side: 'b',
+        event_type: 'forfeit',
+        score_a_after: 1,
+        score_b_after: 0,
+        note: 'Retired: rolled an ankle',
+      },
+    ])
+    expect(restored.ending).toMatchObject({ kind: 'retired', reason: 'rolled an ankle' })
   })
 
   it('tolerates a log that arrives out of order', () => {
@@ -872,6 +1016,20 @@ describe('officiating assignments', () => {
       useCurrentScore: false,
     })
     expect(fresh.baseline.scoreA).toBe(0)
+  })
+
+  it('takes the cap straight off the fixture, with no separate lookup', () => {
+    const cfg = scoringConfigFromMatch(match({ pointsToWin: 21, deuce: true, cap: 30 }))
+    expect(cfg.rules).toEqual({ pointsToWin: 21, deuce: true, cap: 30 })
+    expect(deriveScoreboard(createScoringState(cfg)).cap).toBe(30)
+  })
+
+  it('leaves the cap off when the fixture has none', () => {
+    expect(scoringConfigFromMatch(match({ cap: null })).rules).not.toHaveProperty('cap')
+  })
+
+  it('lets an explicit option override a fixture with no cap of its own', () => {
+    expect(scoringConfigFromMatch(match({ cap: null }), { cap: 25 }).rules.cap).toBe(25)
   })
 
   it('falls back to the bracket placeholder when a team is undecided', () => {
