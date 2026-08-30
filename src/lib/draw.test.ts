@@ -559,3 +559,60 @@ describe('full tournament simulation', () => {
     expect(placings.fourth).toBe(teams[2])
   })
 })
+
+describe('retirements count towards the standings', () => {
+  // A retirement stops mid-game and keeps the score actually played, so that
+  // score is short of pointsToWin. Without an explicit winner the match looks
+  // indistinguishable from one still in progress and gets skipped — which
+  // would quietly cost a pair a win in the table that decides the top four.
+  it('honours an explicit winner when the score is short of the target', () => {
+    const match: PlayedMatch = { teamA: 'a', teamB: 'b', pointsA: 7, pointsB: 13, winner: 'b' }
+
+    expect(matchWinner(match, DEFAULT_ELIMS_RULES)).toBe('b')
+    // Without the explicit winner the same scoreline is undecidable.
+    expect(matchWinner({ ...match, winner: undefined }, DEFAULT_ELIMS_RULES)).toBeNull()
+  })
+
+  it('awards the win to the pair that stayed on court, even if they were behind', () => {
+    // The pair that retired was *ahead* at 13-7. The score must not decide it.
+    const match: PlayedMatch = { teamA: 'a', teamB: 'b', pointsA: 13, pointsB: 7, winner: 'b' }
+    expect(matchWinner(match, DEFAULT_ELIMS_RULES)).toBe('b')
+  })
+
+  it('includes the retired match in the table rather than dropping it', () => {
+    const standings = computeStandings(
+      ['a', 'b'],
+      [{ teamA: 'a', teamB: 'b', pointsA: 7, pointsB: 13, winner: 'b' }],
+      DEFAULT_ELIMS_RULES,
+    )
+
+    const a = standings.find((r) => r.teamId === 'a')!
+    const b = standings.find((r) => r.teamId === 'b')!
+    expect(b.wins).toBe(1)
+    expect(a.losses).toBe(1)
+    expect(b.played).toBe(1)
+    // The played score is preserved — a retirement is not normalised the way
+    // a forfeit is, and neither pair is credited with a forfeit.
+    expect(b.pointsFor).toBe(13)
+    expect(a.pointsFor).toBe(7)
+    expect(a.forfeits).toBe(0)
+  })
+
+  it('still lets a forfeit take precedence over an explicit winner', () => {
+    const match: PlayedMatch = {
+      teamA: 'a',
+      teamB: 'b',
+      pointsA: 5,
+      pointsB: 3,
+      forfeitedBy: 'b',
+      winner: 'b',
+    }
+    expect(matchWinner(match, DEFAULT_ELIMS_RULES)).toBe('a')
+  })
+
+  it('rejects a winner that is not in the match', () => {
+    expect(() =>
+      matchWinner({ teamA: 'a', teamB: 'b', pointsA: 7, pointsB: 13, winner: 'c' }),
+    ).toThrow(/not a participant/)
+  })
+})

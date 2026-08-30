@@ -33,6 +33,7 @@ import type {
   PublicMatch,
   PublicTeam,
 } from '@/lib/public-data'
+import { isMatchDecided } from '@/lib/public-data'
 import { TOURNAMENT_DATE } from '@/lib/tournament'
 import type { PaymentStatus, RegistrationStatus } from '@/lib/supabase/types'
 
@@ -407,13 +408,20 @@ export function standingsFromMatches(
     }
     if (match.stage !== 'elims') continue
     if (!match.teamA || !match.teamB) continue
-    if (match.status !== 'completed' && match.status !== 'forfeited') continue
+    // Anything with a result counts. This deliberately includes retirements
+    // and walkovers: they have a winner, and dropping them would understate a
+    // pair's win count — the very number that decides the top four.
+    if (!isMatchDecided(match.status)) continue
     played.push({
       teamA: match.teamA.id,
       teamB: match.teamB.id,
       pointsA: match.scoreA,
       pointsB: match.scoreB,
       forfeitedBy: match.forfeitedBy,
+      // Essential for a retirement, whose score stops short of the target and
+      // so cannot decide itself. Also covers the case where the pair that
+      // retired was ahead at the time.
+      winner: match.winnerTeamId,
     })
   }
 

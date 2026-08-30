@@ -36,6 +36,18 @@ export interface PlayedMatch {
   pointsA: number
   pointsB: number
   forfeitedBy?: TeamId | null
+  /**
+   * Explicit result, for matches the score alone cannot decide.
+   *
+   * A **retirement** stops mid-game and keeps the score actually played, so
+   * that score is short of `pointsToWin` and `evaluateGame` correctly reports
+   * the game as incomplete. Without this field such a match looks identical to
+   * one still in progress and gets skipped, silently vanishing from the
+   * standings — including from the win count that decides who makes the semis.
+   *
+   * Ignored when `forfeitedBy` is set, since a forfeit already names a loser.
+   */
+  winner?: TeamId | null
 }
 
 export interface StageRules {
@@ -178,6 +190,16 @@ export function matchWinner(match: PlayedMatch, rules?: StageRules): TeamId | nu
     throw new Error(
       `forfeitedBy "${match.forfeitedBy}" is not a participant of this match`,
     )
+  }
+
+  // An explicitly recorded winner beats anything derived from the score. This
+  // is what lets a retirement count: the score is legitimately short of the
+  // target, so deriving would report "not finished yet" and drop the match.
+  if (match.winner) {
+    if (match.winner !== match.teamA && match.winner !== match.teamB) {
+      throw new Error(`winner "${match.winner}" is not a participant of this match`)
+    }
+    return match.winner
   }
 
   if (rules) {
