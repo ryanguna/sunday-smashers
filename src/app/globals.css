@@ -1,1 +1,308 @@
 @import "tailwindcss";
+
+/* ============================================================
+   Sunday Smashers — Christmas Mini Tournament Design System
+   Pastel Christmas x Badminton visual language.
+   ============================================================ */
+
+@theme {
+  /* ---- Fonts ---- */
+  --font-script: var(--font-script), "Pacifico", cursive;
+  --font-heading: var(--font-heading), "Baloo 2", ui-rounded, system-ui, sans-serif;
+  --font-body: var(--font-body), "Nunito", ui-sans-serif, system-ui, sans-serif;
+
+  /* ---- Brand pastel palette (poster-matched) ---- */
+  --color-brand-pink: #ff8fc7;
+  --color-brand-pink-light: #ffd6ec;
+  --color-brand-pink-dark: #e85aa3;
+
+  --color-brand-lilac: #b8a0f0;
+  --color-brand-lilac-light: #e3d8ff;
+  --color-brand-lilac-dark: #8e6fe0;
+
+  --color-brand-mint: #7fe0c0;
+  --color-brand-mint-light: #d3fbec;
+  --color-brand-mint-dark: #38b48a;
+
+  --color-brand-sky: #7ec8f2;
+  --color-brand-sky-light: #d6efff;
+  --color-brand-sky-dark: #3f9bd9;
+
+  --color-brand-gold: #ffc861;
+  --color-brand-gold-light: #ffe9bd;
+  --color-brand-gold-dark: #e0a020;
+
+  --color-brand-holly: #3f8f5f;
+  --color-brand-berry: #d9435e;
+
+  --color-frost: #fbfbff;
+  --color-frost-100: #f5f3ff;
+  --color-frost-200: #eef1fb;
+
+  /* ---- Ink / body text tones (WCAG AA on pastels) ---- */
+  --color-ink: #2c2144;
+  --color-ink-soft: #4a3d68;
+  --color-ink-muted: #6a5d8a;
+  --color-plum: #3a1f4d;
+
+  /* ---- Semantic (still festive) ---- */
+  --color-success: #2f9e6b;
+  --color-success-bg: #d9f6e6;
+  --color-warn: #c98a12;
+  --color-warn-bg: #fff1d1;
+  --color-danger: #d63a5c;
+  --color-danger-bg: #ffe1e8;
+  --color-info: #3f8fd9;
+  --color-info-bg: #dff1ff;
+
+  /* ---- Radii ---- */
+  --radius-sm: 0.5rem;
+  --radius-md: 0.9rem;
+  --radius-lg: 1.5rem;
+  --radius-xl: 2.25rem;
+  --radius-pill: 999px;
+
+  /* ---- Shadows ---- */
+  --shadow-soft: 0 4px 14px -4px rgba(120, 80, 160, 0.18), 0 2px 4px -1px rgba(120, 80, 160, 0.1);
+  --shadow-lift: 0 14px 34px -10px rgba(120, 80, 160, 0.32), 0 4px 10px -4px rgba(120, 80, 160, 0.18);
+  --shadow-glow-pink: 0 8px 24px -6px rgba(255, 143, 199, 0.55);
+  --shadow-glow-mint: 0 8px 24px -6px rgba(127, 224, 192, 0.55);
+
+  /* ---- Named gradients ---- */
+  --gradient-candy: linear-gradient(120deg, var(--color-brand-pink) 0%, var(--color-brand-lilac) 50%, var(--color-brand-sky) 100%);
+  --gradient-mint-sky: linear-gradient(120deg, var(--color-brand-mint) 0%, var(--color-brand-sky) 100%);
+  --gradient-gold: linear-gradient(120deg, var(--color-brand-gold) 0%, var(--color-brand-pink) 100%);
+  --gradient-wash: radial-gradient(120% 120% at 10% 0%, #fff7fb 0%, #f5f3ff 35%, #eaf7f2 65%, #eaf4fb 100%);
+  --gradient-festive-border: linear-gradient(135deg, var(--color-brand-pink), var(--color-brand-lilac), var(--color-brand-mint), var(--color-brand-sky));
+
+  /* ---- Motion ---- */
+  --ease-bounce: cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+/* ============================================================
+   Base styles
+   ============================================================ */
+
+html {
+  scroll-behavior: smooth;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+}
+
+body {
+  background: var(--gradient-wash);
+  background-attachment: fixed;
+  color: var(--color-ink);
+  font-family: var(--font-body);
+  min-height: 100dvh;
+  -webkit-font-smoothing: antialiased;
+}
+
+h1, h2, h3, h4, h5, h6 {
+  font-family: var(--font-heading);
+  color: var(--color-plum);
+}
+
+::selection {
+  background: var(--color-brand-pink-light);
+  color: var(--color-plum);
+}
+
+:focus-visible {
+  outline: 3px solid var(--color-brand-lilac-dark);
+  outline-offset: 2px;
+  border-radius: var(--radius-sm);
+}
+
+/* ============================================================
+   Keyframes — delight, all reduced-motion aware at call sites
+   ============================================================ */
+
+@keyframes ss-snowfall {
+  0% {
+    transform: translate3d(0, -10vh, 0) rotate(0deg);
+    opacity: 0;
+  }
+  10% {
+    opacity: 1;
+  }
+  90% {
+    opacity: 1;
+  }
+  100% {
+    transform: translate3d(0, 110vh, 0) rotate(200deg);
+    opacity: 0;
+  }
+}
+
+@keyframes ss-drift {
+  0%,
+  100% {
+    transform: translateX(0);
+  }
+  50% {
+    transform: translateX(18px);
+  }
+}
+
+@keyframes ss-bob {
+  0%,
+  100% {
+    transform: translateY(0) rotate(-4deg);
+  }
+  50% {
+    transform: translateY(-10px) rotate(4deg);
+  }
+}
+
+@keyframes ss-twinkle {
+  0%,
+  100% {
+    opacity: 0.25;
+    transform: scale(0.85);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.15);
+  }
+}
+
+@keyframes ss-shimmer {
+  0% {
+    background-position: 0% 50%;
+  }
+  100% {
+    background-position: 200% 50%;
+  }
+}
+
+@keyframes ss-lift {
+  from {
+    transform: translateY(0);
+  }
+  to {
+    transform: translateY(-4px);
+  }
+}
+
+@keyframes ss-confetti-fall {
+  0% {
+    transform: translate3d(0, -10%, 0) rotate(0deg);
+    opacity: 1;
+  }
+  100% {
+    transform: translate3d(var(--ss-confetti-x, 0), 100vh, 0) rotate(540deg);
+    opacity: 0;
+  }
+}
+
+@keyframes ss-pop-in {
+  0% {
+    transform: scale(0.9);
+    opacity: 0;
+  }
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+@keyframes ss-fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+/* ============================================================
+   Motion utility classes
+   ============================================================ */
+
+.animate-snowfall {
+  animation: ss-snowfall linear infinite;
+}
+
+.animate-drift {
+  animation: ss-drift ease-in-out infinite;
+}
+
+.animate-bob {
+  animation: ss-bob ease-in-out infinite;
+}
+
+.animate-twinkle {
+  animation: ss-twinkle ease-in-out infinite;
+}
+
+.animate-shimmer {
+  background-size: 200% auto;
+  animation: ss-shimmer linear infinite;
+}
+
+.animate-confetti {
+  animation: ss-confetti-fall ease-in forwards;
+}
+
+.animate-pop-in {
+  animation: ss-pop-in 0.25s var(--ease-bounce) both;
+}
+
+.animate-fade-in {
+  animation: ss-fade-in 0.2s ease-out both;
+}
+
+.hover-lift {
+  transition: transform 0.2s var(--ease-bounce), box-shadow 0.2s ease;
+}
+
+.hover-lift:hover {
+  transform: translateY(-4px);
+  box-shadow: var(--shadow-lift);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-snowfall,
+  .animate-drift,
+  .animate-bob,
+  .animate-twinkle,
+  .animate-shimmer,
+  .animate-confetti,
+  .animate-pop-in,
+  .animate-fade-in {
+    animation: none !important;
+  }
+
+  .hover-lift,
+  * {
+    scroll-behavior: auto;
+  }
+
+  .hover-lift:hover {
+    transform: none;
+  }
+}
+
+/* Candy-cane striped border utility for festive cards */
+.border-candy-stripe {
+  border-image: repeating-linear-gradient(
+      -45deg,
+      var(--color-brand-pink) 0 10px,
+      #ffffff 10px 20px
+    )
+    12;
+  border-style: solid;
+  border-width: 4px;
+}
+
+/* Frosted glass utility */
+.bg-frost-glass {
+  background: rgba(255, 255, 255, 0.55);
+  backdrop-filter: blur(14px) saturate(140%);
+  -webkit-backdrop-filter: blur(14px) saturate(140%);
+}
