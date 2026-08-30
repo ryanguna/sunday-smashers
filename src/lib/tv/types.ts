@@ -84,21 +84,20 @@ export interface TvBracket {
   teamNames: Record<TeamId, string>
 }
 
-export interface TvAnnouncement {
-  id: string
-  message: string
-  emphasis?: 'info' | 'gold' | 'berry'
-}
-
 /** Everything needed to render one court's TV page. */
 export interface CourtSnapshot {
   court: CourtId
   courtLabel: string
   live: TvLiveMatch | null
   upNext: TvUpcomingMatch | null
+  /**
+   * The 2-3 fixtures scheduled on this court after `upNext`, for the
+   * "later on this court" list in the side panel. No duty roster attached
+   * (only the immediate next match needs one displayed courtside).
+   */
+  laterOnCourt: Pick<TvUpcomingMatch, 'matchId' | 'stageLabel' | 'teamA' | 'teamB' | 'scheduledLabel'>[]
   standings: TvStandings[]
   bracket: TvBracket[]
-  announcements: TvAnnouncement[]
 }
 
 /** Summary used by the `/tv` overview grid — one tile per court. */

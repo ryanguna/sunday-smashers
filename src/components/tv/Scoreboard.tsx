@@ -5,6 +5,7 @@ import { useSearchParams } from 'next/navigation'
 import { evaluateGame } from '@/lib/draw'
 import { subscribeToCourt } from '@/lib/tv/data'
 import type { CourtSnapshot, TvConnectionStatus, TvLiveMatch, TvUpcomingMatch } from '@/lib/tv/types'
+import type { Announcement } from '@/lib/announcements'
 import { ConnectionIndicator } from './ConnectionIndicator'
 import { ScoreDigits } from './ScoreDigits'
 import { ElapsedClock } from './ElapsedClock'
@@ -14,8 +15,9 @@ import { RotatingPanel } from './RotatingPanel'
 import { UpNextPanel } from './panels/UpNextPanel'
 import { StandingsPanel } from './panels/StandingsPanel'
 import { BracketPanel } from './panels/BracketPanel'
-import { AnnouncementsPanel } from './panels/AnnouncementsPanel'
+import { RulesPanel } from './panels/RulesPanel'
 import { SponsorPanel } from './panels/SponsorPanel'
+import { AnnouncementsTvPanel } from '@/components/announcements'
 import { Confetti } from '@/components/ui/Confetti'
 import { ShuttlecockIcon, SnowflakeIcon } from '@/components/icons'
 
@@ -23,6 +25,8 @@ export interface ScoreboardProps {
   initial: CourtSnapshot
   /** Matches on other courts, used only for the idle-state schedule carousel. */
   venueUpcoming: TvUpcomingMatch[]
+  /** Published announcements, for the rotating side panel. Server-fetched. */
+  announcements: Announcement[]
 }
 
 /**
@@ -30,7 +34,7 @@ export interface ScoreboardProps {
  * Client component: subscribes to live updates, drives score-change and win
  * animations, and rotates the side panels.
  */
-export function Scoreboard({ initial, venueUpcoming }: ScoreboardProps) {
+export function Scoreboard({ initial, venueUpcoming, announcements }: ScoreboardProps) {
   const [rawSnapshot, setRawSnapshot] = useState(initial)
   const [status, setStatus] = useState<TvConnectionStatus>('demo')
   const [celebrate, setCelebrate] = useState(false)
@@ -54,7 +58,7 @@ export function Scoreboard({ initial, venueUpcoming }: ScoreboardProps) {
     return unsubscribe
   }, [initial.court])
 
-  const { live, upNext, standings, bracket, announcements, courtLabel } = snapshot
+  const { live, upNext, laterOnCourt, standings, bracket, courtLabel } = snapshot
 
   // Detect a just-completed match to fire the confetti celebration once.
   useEffect(() => {
@@ -76,13 +80,23 @@ export function Scoreboard({ initial, venueUpcoming }: ScoreboardProps) {
   }, [live])
 
   const slides = useMemo(() => {
-    const s: React.ReactNode[] = [<UpNextPanel key="upnext" upNext={upNext} />]
+    const s: React.ReactNode[] = [<UpNextPanel key="upnext" upNext={upNext} laterOnCourt={laterOnCourt} />]
     for (const st of standings) s.push(<StandingsPanel key={`st-${st.division}`} standings={st} />)
     for (const b of bracket) s.push(<BracketPanel key={`br-${b.division}`} bracket={b} />)
-    s.push(<AnnouncementsPanel key="announce" announcements={announcements} />)
+    s.push(<RulesPanel key="rules" />)
+    s.push(
+      <AnnouncementsTvPanel
+        key="announce"
+        announcements={announcements}
+        limit={1}
+        excerptChars={70}
+        title="Notices"
+        className="h-full"
+      />,
+    )
     s.push(<SponsorPanel key="sponsor" />)
     return s
-  }, [upNext, standings, bracket, announcements])
+  }, [upNext, laterOnCourt, standings, bracket, announcements])
 
   if (!live) {
     return <IdleView courtLabel={courtLabel} upcoming={upNext ? [upNext, ...venueUpcoming] : venueUpcoming} />
@@ -165,18 +179,16 @@ export function Scoreboard({ initial, venueUpcoming }: ScoreboardProps) {
               teamName={live.teamA.name}
               players={live.teamA.players}
               serving={live.status === 'live' && live.server === 'a'}
-              align="right"
             />
             <span aria-hidden="true" />
             <TeamHeader
               teamName={live.teamB.name}
               players={live.teamB.players}
               serving={live.status === 'live' && live.server === 'b'}
-              align="left"
             />
           </div>
 
-          <div className="flex min-h-0 flex-1 flex-col justify-center gap-[2.5vh]">
+          <div className="flex min-h-0 flex-1 flex-col justify-center gap-[1.4vh]">
             <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-[2vw]">
               <ScoreDigits
                 value={live.pointsA}
@@ -196,7 +208,7 @@ export function Scoreboard({ initial, venueUpcoming }: ScoreboardProps) {
             </div>
 
             {live.status === 'live' && (
-              <div className="flex items-center justify-center gap-3 text-frost/70">
+              <div className="-mt-[1.6vh] flex items-center justify-center gap-3 text-frost/70">
                 <span aria-hidden="true" className="text-[clamp(1.2rem,2vw,2rem)]">
                   ⏱
                 </span>
@@ -211,15 +223,21 @@ export function Scoreboard({ initial, venueUpcoming }: ScoreboardProps) {
             )}
 
             <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-[2vw]">
-              <PointsProgress score={live.pointsA} target={live.pointsToWin} align="right" won={winningSide === 'a'} />
+              <PointsProgress score={live.pointsA} target={live.pointsToWin} won={winningSide === 'a'} />
               <MatchPointBadge live={live} />
-              <PointsProgress score={live.pointsB} target={live.pointsToWin} align="left" won={winningSide === 'b'} />
+              <PointsProgress score={live.pointsB} target={live.pointsToWin} won={winningSide === 'b'} />
             </div>
           </div>
         </div>
 
-        <aside className="flex min-h-[24vh] flex-col rounded-[var(--radius-xl)] bg-white/6 p-[1.4vw] backdrop-blur">
-          <RotatingPanel slides={slides} autoRotate={autoRotate} className="flex h-full flex-col" />
+        <aside className="relative flex min-h-[24vh] flex-col overflow-hidden rounded-[var(--radius-xl)] bg-white/6 p-[1.4vw] backdrop-blur">
+          <RotatingPanel slides={slides} autoRotate={autoRotate} className="flex h-full min-h-0 flex-col overflow-hidden" />
+          {/* Soft fade so any slide content taller than the panel (e.g. a long announcement
+              rendered by another team's component) trails off gracefully instead of a hard clip. */}
+          <div
+            aria-hidden
+            className="pointer-events-none absolute inset-x-0 bottom-0 h-[6vh] rounded-b-[var(--radius-xl)] bg-gradient-to-t from-[var(--color-plum)]/90 to-transparent"
+          />
         </aside>
       </div>
 
@@ -236,23 +254,24 @@ function TeamHeader({
   teamName,
   players,
   serving,
-  align,
 }: {
   teamName: string
   players: readonly [string, string]
   serving: boolean
-  align: 'left' | 'right'
 }) {
   return (
-    <div
-      className={`flex flex-col gap-2 ${align === 'right' ? 'items-end text-right' : 'items-start text-left'}`}
-    >
-      {serving && (
-        <span
-          className={`animate-pop-in flex items-center gap-1.5 rounded-[var(--radius-pill)] bg-[var(--color-brand-mint)] px-3 py-1 text-[clamp(0.65rem,0.9vw,0.95rem)] font-extrabold uppercase tracking-widest text-[var(--color-plum)] shadow-[var(--shadow-glow-mint)] ${align === 'right' ? 'flex-row-reverse' : ''}`}
-        >
+    <div className="flex flex-col items-center gap-2 text-center">
+      {serving ? (
+        <span className="animate-pop-in flex items-center gap-1.5 rounded-[var(--radius-pill)] bg-[var(--color-brand-mint)] px-3 py-1 text-[clamp(0.65rem,0.9vw,0.95rem)] font-extrabold uppercase tracking-widest text-[var(--color-plum)] shadow-[var(--shadow-glow-mint)]">
           <ShuttlecockIcon className="animate-bob h-[1.4em] w-[1.4em]" aria-hidden="true" />
           Serving
+        </span>
+      ) : (
+        // Reserves the serve-badge's line height on the non-serving side so
+        // the two team columns stay vertically aligned regardless of who's
+        // serving.
+        <span aria-hidden="true" className="invisible text-[clamp(0.65rem,0.9vw,0.95rem)] leading-[1.9]">
+          &nbsp;
         </span>
       )}
       <h2
@@ -271,17 +290,15 @@ function TeamHeader({
 function PointsProgress({
   score,
   target,
-  align,
   won,
 }: {
   score: number
   target: number
-  align: 'left' | 'right'
   won: boolean
 }) {
   const pct = Math.max(0, Math.min(100, (score / target) * 100))
   return (
-    <div className={`flex flex-col gap-2 ${align === 'right' ? 'items-end' : 'items-start'}`}>
+    <div className="mx-auto flex w-full max-w-[22rem] flex-col items-center gap-2">
       <div className="h-[1.6vh] w-full min-w-[10rem] overflow-hidden rounded-[var(--radius-pill)] bg-white/12">
         <div
           className={`h-full rounded-[var(--radius-pill)] transition-[width] duration-500 ${won ? 'bg-[var(--color-brand-gold)]' : 'bg-[var(--color-brand-mint)]'}`}

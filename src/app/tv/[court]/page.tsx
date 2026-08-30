@@ -1,6 +1,7 @@
 import type { Metadata } from 'next'
 import { Suspense } from 'react'
 import { getAllCourtOverviews, getCourtSnapshot } from '@/lib/tv/data'
+import { getPublishedAnnouncements } from '@/lib/announcements'
 import { Scoreboard } from '@/components/tv/Scoreboard'
 import type { TvUpcomingMatch } from '@/lib/tv/types'
 
@@ -27,9 +28,10 @@ export const dynamic = 'force-dynamic'
  */
 export default async function TvCourtPage({ params }: PageProps) {
   const { court } = await params
-  const [snapshot, overviews] = await Promise.all([
+  const [snapshot, overviews, announcements] = await Promise.all([
     getCourtSnapshot(court),
     getAllCourtOverviews(),
+    getPublishedAnnouncements(),
   ])
 
   const venueUpcoming: TvUpcomingMatch[] = overviews
@@ -38,7 +40,7 @@ export default async function TvCourtPage({ params }: PageProps) {
 
   return (
     <Suspense fallback={null}>
-      <Scoreboard initial={snapshot} venueUpcoming={venueUpcoming} />
+      <Scoreboard initial={snapshot} venueUpcoming={venueUpcoming} announcements={announcements} />
     </Suspense>
   )
 }

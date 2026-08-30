@@ -1,4 +1,4 @@
-import type { TvUpcomingMatch } from '@/lib/tv/types'
+import type { TvUpcomingMatch, CourtSnapshot } from '@/lib/tv/types'
 import { HollyIcon } from '@/components/icons'
 
 const ROLE_LABEL: Record<string, string> = {
@@ -7,41 +7,76 @@ const ROLE_LABEL: Record<string, string> = {
   line_judge: 'Line Judge',
 }
 
-export function UpNextPanel({ upNext }: { upNext: TvUpcomingMatch | null }) {
+export function UpNextPanel({
+  upNext,
+  laterOnCourt = [],
+}: {
+  upNext: TvUpcomingMatch | null
+  laterOnCourt?: CourtSnapshot['laterOnCourt']
+}) {
   if (!upNext) {
     return (
       <PanelShell title="Up Next">
-        <p className="text-frost/60">No further matches scheduled on this court yet.</p>
+        <p className="text-[clamp(0.95rem,1.3vw,1.3rem)] text-frost/60">
+          No further matches scheduled on this court yet.
+        </p>
       </PanelShell>
     )
   }
 
   return (
     <PanelShell title="Up Next on This Court">
-      <p className="mb-1 text-sm font-semibold uppercase tracking-wide text-[var(--color-brand-gold)]">
-        {upNext.stageLabel}
-      </p>
-      <p className="mb-4 text-[clamp(1.1rem,1.6vw,1.6rem)] font-extrabold leading-tight">
-        {upNext.teamA.name} <span className="text-frost/50">vs</span> {upNext.teamB.name}
-      </p>
+      <div className="flex h-full flex-col justify-center gap-[clamp(1rem,2.2vh,2rem)]">
+        <div>
+          <p className="mb-1.5 text-[clamp(0.8rem,1.05vw,1.05rem)] font-semibold uppercase tracking-wide text-[var(--color-brand-gold)]">
+            {upNext.stageLabel}
+          </p>
+          <p className="mb-4 text-[clamp(1.3rem,1.9vw,1.9rem)] font-extrabold leading-tight">
+            {upNext.teamA.name} <span className="text-frost/50">vs</span> {upNext.teamB.name}
+          </p>
 
-      <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-frost/50">
-        Duty Roster
-      </p>
-      <ul className="space-y-1.5">
-        {upNext.duties.map((duty, i) => (
-          <li
-            key={`${duty.role}-${i}`}
-            className="flex items-center justify-between rounded-[var(--radius-md)] bg-white/8 px-3 py-2 text-sm"
-          >
-            <span className="text-frost/70">{ROLE_LABEL[duty.role] ?? duty.role}</span>
-            <span className="font-bold">{duty.playerName}</span>
-          </li>
-        ))}
-      </ul>
-      {upNext.duties.length === 0 && (
-        <p className="text-sm text-frost/50">Duty roster to be confirmed.</p>
-      )}
+          <p className="mb-2 text-[clamp(0.7rem,0.95vw,0.95rem)] font-semibold uppercase tracking-wider text-frost/50">
+            Duty Roster
+          </p>
+          <ul className="space-y-2">
+            {upNext.duties.map((duty, i) => (
+              <li
+                key={`${duty.role}-${i}`}
+                className="flex items-center justify-between rounded-[var(--radius-md)] bg-white/8 px-3.5 py-2.5 text-[clamp(0.9rem,1.15vw,1.15rem)]"
+              >
+                <span className="text-frost/70">{ROLE_LABEL[duty.role] ?? duty.role}</span>
+                <span className="font-bold">{duty.playerName}</span>
+              </li>
+            ))}
+          </ul>
+          {upNext.duties.length === 0 && (
+            <p className="text-[clamp(0.9rem,1.1vw,1.1rem)] text-frost/50">Duty roster to be confirmed.</p>
+          )}
+        </div>
+
+        {laterOnCourt.length > 0 && (
+          <div className="border-t border-white/10 pt-[clamp(0.75rem,1.6vh,1.5rem)]">
+            <p className="mb-2 text-[clamp(0.7rem,0.95vw,0.95rem)] font-semibold uppercase tracking-wider text-frost/50">
+              Later on This Court
+            </p>
+            <ul className="space-y-2">
+              {laterOnCourt.map((m) => (
+                <li
+                  key={m.matchId}
+                  className="flex items-center justify-between gap-3 rounded-[var(--radius-md)] bg-white/5 px-3.5 py-2.5"
+                >
+                  <span className="text-[clamp(0.7rem,0.9vw,0.9rem)] font-semibold uppercase tracking-wide text-frost/40">
+                    {m.scheduledLabel}
+                  </span>
+                  <span className="truncate text-[clamp(0.85rem,1.05vw,1.05rem)] font-bold">
+                    {m.teamA.name} <span className="font-normal text-frost/50">vs</span> {m.teamB.name}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+      </div>
     </PanelShell>
   )
 }

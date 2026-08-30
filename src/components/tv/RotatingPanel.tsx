@@ -32,7 +32,7 @@ export function RotatingPanel({ slides, intervalMs = 12_000, autoRotate = true, 
 
   return (
     <div className={className}>
-      <div key={safeIndex} className="animate-fade-in h-full">
+      <div key={safeIndex} className="animate-fade-in min-h-0 flex-1 overflow-hidden">
         {slides[safeIndex]}
       </div>
       {slides.length > 1 && (

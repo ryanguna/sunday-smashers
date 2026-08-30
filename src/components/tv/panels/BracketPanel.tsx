@@ -12,16 +12,16 @@ export function BracketPanel({ bracket }: { bracket: TvBracket }) {
 
   return (
     <PanelShell title={`Bracket · ${bracket.divisionLabel}`}>
-      <div className="grid grid-cols-1 gap-2 text-sm">
+      <div className="flex h-full flex-col justify-center gap-[clamp(0.6rem,1.4vh,1.25rem)]">
         {[...semis, ...knockout].map((fixture) => (
           <div
             key={fixture.key}
-            className="rounded-[var(--radius-md)] bg-white/8 px-3 py-2"
+            className="rounded-[var(--radius-md)] bg-white/8 px-4 py-3"
           >
-            <p className="mb-1 text-[0.65rem] font-semibold uppercase tracking-wider text-[var(--color-brand-gold)]">
+            <p className="mb-1 text-[clamp(0.7rem,0.9vw,0.9rem)] font-semibold uppercase tracking-wider text-[var(--color-brand-gold)]">
               {fixture.label}
             </p>
-            <p className="font-bold leading-snug">
+            <p className="text-[clamp(1rem,1.3vw,1.3rem)] font-bold leading-snug">
               {label(bracket, fixture.teamA, fixture.sourceA)}{' '}
               <span className="font-normal text-frost/50">vs</span>{' '}
               {label(bracket, fixture.teamB, fixture.sourceB)}

@@ -17,7 +17,6 @@ import {
 } from '@/lib/draw'
 import type {
   CourtSnapshot,
-  TvAnnouncement,
   TvBracket,
   TvDutyAssignment,
   TvStandings,
@@ -146,13 +145,6 @@ const DEMO_DUTIES: TvDutyAssignment[] = [
   { role: 'line_judge', playerName: 'Jai' },
 ]
 
-const ANNOUNCEMENTS: TvAnnouncement[] = [
-  { id: 'a1', message: '🎄 Welcome to the Sunday Smashers Christmas Mini Tournament!', emphasis: 'gold' },
-  { id: 'a2', message: 'Please check the duty roster — next match players officiate this one.', emphasis: 'info' },
-  { id: 'a3', message: 'Late or no-show players forfeit their match — be courtside 5 minutes early.', emphasis: 'berry' },
-  { id: 'a4', message: '🏸 Mulled wine and mince pies at the clubhouse between rounds!', emphasis: 'gold' },
-]
-
 export function getDemoCourtSnapshot(court: string): CourtSnapshot {
   const bothStandings = [mensStandings(), womensStandings()]
   const bothBrackets = [mensBracket(), womensBracket()]
@@ -181,9 +173,24 @@ export function getDemoCourtSnapshot(court: string): CourtSnapshot {
           { role: 'line_judge', playerName: 'Hana' },
         ],
       },
+      laterOnCourt: [
+        {
+          matchId: 'w-baubl-vs-w-candy-2',
+          stageLabel: 'Elimination',
+          teamA: teamById.get('w-baubl')!,
+          teamB: teamById.get('w-candy')!,
+          scheduledLabel: 'Then',
+        },
+        {
+          matchId: 'w-ginger-vs-w-snow-2',
+          stageLabel: 'Elimination',
+          teamA: teamById.get('w-ginger')!,
+          teamB: teamById.get('w-snow')!,
+          scheduledLabel: 'After that',
+        },
+      ],
       standings: bothStandings,
       bracket: bothBrackets,
-      announcements: ANNOUNCEMENTS,
     }
   }
 
@@ -229,9 +236,24 @@ export function getDemoCourtSnapshot(court: string): CourtSnapshot {
       scheduledLabel: 'Next up',
       duties: DEMO_DUTIES,
     },
+    laterOnCourt: [
+      {
+        matchId: 'm-carol-vs-m-sleigh-2',
+        stageLabel: 'Elimination',
+        teamA: teamById.get('m-carol')!,
+        teamB: teamById.get('m-sleigh')!,
+        scheduledLabel: 'Then',
+      },
+      {
+        matchId: 'm-tinsel-vs-m-frost-2',
+        stageLabel: 'Elimination',
+        teamA: teamById.get('m-tinsel')!,
+        teamB: teamById.get('m-frost')!,
+        scheduledLabel: 'After that',
+      },
+    ],
     standings: bothStandings,
     bracket: bothBrackets,
-    announcements: ANNOUNCEMENTS,
   }
 }
 
