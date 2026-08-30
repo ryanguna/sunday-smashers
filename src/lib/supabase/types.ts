@@ -280,9 +280,28 @@ export type AwardRow = {
   team_id: string | null
   player_id: string | null
   award_type: AwardType
+  /** Stable key for configurable awards (migration 0005). Mirrors `award_type` for placings. */
+  award_key: string
   citation: string | null
   is_published: boolean
   created_at: string
+}
+
+/** Committee readiness board (migration 0005). Distinct from `checklist_items`. */
+export type CommitteeChecklistRow = {
+  id: string
+  tournament_id: string
+  category: string
+  label: string
+  owner: string | null
+  notes: string | null
+  due_on: string | null
+  is_done: boolean
+  done_at: string | null
+  done_by: string | null
+  position: number
+  created_at: string
+  updated_at: string
 }
 
 export type PhotoRow = {
@@ -424,6 +443,11 @@ export type Database = {
         Partial<AnnouncementRow>
       >
       awards: TableDef<AwardRow, Insertable<AwardRow, 'division_id' | 'award_type'>, Partial<AwardRow>>
+      committee_checklist: TableDef<
+        CommitteeChecklistRow,
+        Insertable<CommitteeChecklistRow, 'tournament_id' | 'category' | 'label'>,
+        Partial<CommitteeChecklistRow>
+      >
       photos: TableDef<PhotoRow, Insertable<PhotoRow, 'tournament_id' | 'storage_path'>, Partial<PhotoRow>>
       checklist_items: TableDef<
         ChecklistItemRow,
