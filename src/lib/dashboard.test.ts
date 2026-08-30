@@ -7,12 +7,15 @@ import {
   demoClock,
   distanceToCut,
   dutyRoleLabel,
+  endKindFor,
   findPlayerTeam,
   fixtureCountdown,
   formatCountdown,
   formatMoney,
   gamesRemaining,
+  isDecidedOutcome,
   isDoubleBooked,
+  isWinOutcome,
   liveFixture,
   matchStartIso,
   nextDuty,
@@ -334,6 +337,93 @@ describe('playerDuties', () => {
       }),
     ]
     expect(playerDuties(clashing, IVY, candy.id)[0].clash).toBe(true)
+  })
+})
+
+describe('retirements and walkovers', () => {
+  // The retiring pair (candy) was AHEAD when they pulled out, so the scoreline
+  // says they won while winnerTeamId says they didn't. The result is authority.
+  const retiredWhileAhead = match({
+    id: 'ret',
+    slotIndex: 6,
+    status: 'retired',
+    teamA: candy,
+    teamB: cocoa,
+    scoreA: 12,
+    scoreB: 7,
+    winnerTeamId: cocoa.id,
+  })
+
+  it('records a loss for a pair that retired while ahead', () => {
+    const [fixture] = playerFixtures([retiredWhileAhead], candy.id)
+    expect(fixture.outcome).toBe('loss')
+    expect(fixture.endKind).toBe('retired')
+    expect(isWinOutcome(fixture.outcome)).toBe(false)
+    // Their own score is still the higher one — the scoreline must not decide it.
+    expect(fixture.yourScore).toBeGreaterThan(fixture.theirScore)
+  })
+
+  it('records the win for the pair that stayed on court', () => {
+    const [fixture] = playerFixtures([retiredWhileAhead], cocoa.id)
+    expect(fixture.outcome).toBe('win')
+    expect(fixture.endKind).toBe('retired')
+    expect(isWinOutcome(fixture.outcome)).toBe(true)
+  })
+
+  it('counts a retirement in the standings, to the pair that did not retire', () => {
+    const rows = standingsFromMatches([retiredWhileAhead], 'womens_doubles')
+    expect(rows.find((r) => r.teamId === cocoa.id)?.wins).toBe(1)
+    expect(rows.find((r) => r.teamId === candy.id)?.wins).toBe(0)
+    expect(rows.find((r) => r.teamId === candy.id)?.losses).toBe(1)
+  })
+
+  it('treats a walkover as an awarded result, not a contest', () => {
+    const walkover = match({
+      id: 'wo',
+      slotIndex: 8,
+      status: 'walkover',
+      teamA: candy,
+      teamB: berry,
+      scoreA: 0,
+      scoreB: 0,
+      winnerTeamId: candy.id,
+    })
+    expect(playerFixtures([walkover], candy.id)[0].outcome).toBe('forfeit_win')
+    expect(playerFixtures([walkover], berry.id)[0].outcome).toBe('forfeit_loss')
+    expect(playerFixtures([walkover], candy.id)[0].endKind).toBe('walkover')
+  })
+
+  it('never leaves a decided match looking upcoming', () => {
+    for (const status of ['completed', 'forfeited', 'walkover', 'retired'] as const) {
+      const m = match({ id: `s-${status}`, slotIndex: 9, status, teamA: candy, teamB: berry, winnerTeamId: candy.id })
+      const [fixture] = playerFixtures([m], candy.id)
+      expect(isDecidedOutcome(fixture.outcome)).toBe(true)
+    }
+  })
+
+  it('reads the end kind off the status', () => {
+    expect(endKindFor({ status: 'retired', forfeitedBy: null })).toBe('retired')
+    expect(endKindFor({ status: 'walkover', forfeitedBy: null })).toBe('walkover')
+    expect(endKindFor({ status: 'forfeited', forfeitedBy: candy.id })).toBe('forfeit')
+    expect(endKindFor({ status: 'completed', forfeitedBy: null })).toBe('normal')
+  })
+
+  it('does not offer a scoring console link for a retired match', () => {
+    const duty = playerDuties(
+      [
+        match({
+          id: 'Court 4#20',
+          slotIndex: 20,
+          status: 'retired',
+          teamA: jingle,
+          teamB: berry,
+          duties: [{ role: 'umpire_scorer', playerId: 'w-candy-p1', playerName: 'Ivy Novak', source: 'derived' }],
+        }),
+      ],
+      IVY,
+      null,
+    )[0]
+    expect(scoringConsoleHref(duty)).toBeNull()
   })
 })
 

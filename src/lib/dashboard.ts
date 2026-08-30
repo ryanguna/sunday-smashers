@@ -65,6 +65,36 @@ export interface PlayerIdentity {
 
 export type FixtureOutcome = 'upcoming' | 'live' | 'win' | 'loss' | 'forfeit_win' | 'forfeit_loss'
 
+/**
+ * *How* a decided match ended, carried alongside the outcome rather than
+ * folded into it. A player should be able to tell "we beat them" from "they
+ * went home injured" or "they never showed up", but the outcome union is
+ * consumed elsewhere (`/players`) with exhaustive `Record<FixtureOutcome, …>`
+ * maps, so the nuance rides on its own field instead of widening that union.
+ */
+export type FixtureEndKind = 'normal' | 'forfeit' | 'walkover' | 'retired'
+
+const WIN_OUTCOMES: readonly FixtureOutcome[] = ['win', 'forfeit_win']
+const LOSS_OUTCOMES: readonly FixtureOutcome[] = ['loss', 'forfeit_loss']
+
+/** A win by any route — played out or awarded. */
+export function isWinOutcome(outcome: FixtureOutcome): boolean {
+  return WIN_OUTCOMES.includes(outcome)
+}
+
+/** Anything that isn't still to come or in play. Never re-list statuses inline. */
+export function isDecidedOutcome(outcome: FixtureOutcome): boolean {
+  return isWinOutcome(outcome) || LOSS_OUTCOMES.includes(outcome)
+}
+
+/** Reads a match's end kind off its public status. */
+export function endKindFor(match: Pick<PublicMatch, 'status' | 'forfeitedBy'>): FixtureEndKind {
+  if (match.status === 'retired') return 'retired'
+  if (match.status === 'walkover') return 'walkover'
+  if (match.status === 'forfeited' || match.forfeitedBy != null) return 'forfeit'
+  return 'normal'
+}
+
 export interface PlayerFixture {
   match: PublicMatch
   /** Which side of the match card the player's pair sits on. */
@@ -74,6 +104,8 @@ export interface PlayerFixture {
   yourScore: number
   theirScore: number
   outcome: FixtureOutcome
+  /** Why the match ended the way it did — 'normal' unless something unusual happened. */
+  endKind: FixtureEndKind
 }
 
 export type DutyRole = PublicDutyAssignment['role']
@@ -137,7 +169,7 @@ export function canDriveScoring(role: DutyRole): boolean {
 export function scoringConsoleHref(duty: PlayerDuty | null | undefined): string | null {
   if (!duty) return null
   if (!canDriveScoring(duty.role)) return null
-  if (duty.match.status !== 'scheduled' && duty.match.status !== 'in_progress') return null
+  if (isMatchDecided(duty.match.status)) return null
   const id = duty.match.id.trim()
   if (!id) return null
   return `/scoring/${encodeURIComponent(id)}`
@@ -175,12 +207,26 @@ export function compareByStartTime(a: PublicMatch, b: PublicMatch): number {
 }
 
 function outcomeFor(match: PublicMatch, teamId: TeamId, side: 'A' | 'B'): FixtureOutcome {
-  if (match.status === 'in_progress') return 'live'
-  if (match.status === 'scheduled') return 'upcoming'
-  const won = match.winnerTeamId != null ? match.winnerTeamId === teamId : side === 'A' ? match.scoreA > match.scoreB : match.scoreB > match.scoreA
-  if (match.status === 'forfeited' || match.forfeitedBy != null) {
-    return match.forfeitedBy === teamId ? 'forfeit_loss' : 'forfeit_win'
+  if (!isMatchDecided(match.status)) {
+    return match.status === 'in_progress' ? 'live' : 'upcoming'
   }
+  const forfeited = match.status === 'forfeited' || match.forfeitedBy != null
+  // `winnerTeamId` is the authority. A retirement stops short of the target
+  // score and the retiring pair can even be ahead when they pull out, so the
+  // scoreline cannot decide the match. Fall back to it only when nothing
+  // better was recorded.
+  const won =
+    match.winnerTeamId != null
+      ? match.winnerTeamId === teamId
+      : forfeited && match.forfeitedBy != null
+        ? match.forfeitedBy !== teamId
+        : side === 'A'
+          ? match.scoreA > match.scoreB
+          : match.scoreB > match.scoreA
+  // A walkover is awarded, never contested, so it reads as a forfeit result.
+  // A retirement was played out up to the point someone stopped, so it keeps
+  // the plain win/loss shape — `endKind` carries the reason.
+  if (forfeited || match.status === 'walkover') return won ? 'forfeit_win' : 'forfeit_loss'
   return won ? 'win' : 'loss'
 }
 
@@ -202,6 +248,7 @@ export function playerFixtures(matches: readonly PublicMatch[], teamId: TeamId |
         yourScore: side === 'A' ? match.scoreA : match.scoreB,
         theirScore: side === 'A' ? match.scoreB : match.scoreA,
         outcome: outcomeFor(match, teamId, side),
+        endKind: endKindFor(match),
       }
     })
 }
@@ -511,13 +558,11 @@ export type Podium = 'champion' | 'runner_up' | 'third' | 'fourth' | null
 export function podiumFor(fixtures: readonly PlayerFixture[], teamId: TeamId | null): Podium {
   if (!teamId) return null
   const decided = (stage: MatchStage) =>
-    fixtures.find(
-      (f) => f.match.stage === stage && (f.outcome === 'win' || f.outcome === 'loss' || f.outcome === 'forfeit_win' || f.outcome === 'forfeit_loss'),
-    )
+    fixtures.find((f) => f.match.stage === stage && isDecidedOutcome(f.outcome))
   const final = decided('final')
-  if (final) return final.outcome === 'win' || final.outcome === 'forfeit_win' ? 'champion' : 'runner_up'
+  if (final) return isWinOutcome(final.outcome) ? 'champion' : 'runner_up'
   const third = decided('third_place')
-  if (third) return third.outcome === 'win' || third.outcome === 'forfeit_win' ? 'third' : 'fourth'
+  if (third) return isWinOutcome(third.outcome) ? 'third' : 'fourth'
   return null
 }
 
@@ -659,7 +704,7 @@ export function dashboardStage(input: {
 }): DashboardStage {
   if (!input.registered && !input.hasTeam) return 'not-registered'
   if (input.fixtures.length === 0) return 'awaiting-draw'
-  const anyPending = input.fixtures.some((f) => f.outcome === 'upcoming' || f.outcome === 'live')
+  const anyPending = input.fixtures.some((f) => !isDecidedOutcome(f.outcome))
   return anyPending ? 'tournament-day' : 'finished'
 }
 
@@ -716,11 +761,11 @@ export function buildPlayerDashboard(input: DashboardInput): PlayerDashboard {
     .filter((p) => p.id !== player.id && p.name.trim().toLowerCase() !== player.name.trim().toLowerCase())
     .map((p) => p.name)
 
-  const lastResult = [...fixtures].reverse().find((f) => f.outcome === 'win' || f.outcome === 'forfeit_win')
+  const lastResult = [...fixtures].reverse().find((f) => isWinOutcome(f.outcome))
   const celebrate =
     podium === 'champion' ||
     podium === 'third' ||
-    (lastResult != null && fixtures.every((f) => f.outcome !== 'upcoming' && f.outcome !== 'live'))
+    (lastResult != null && fixtures.every((f) => isDecidedOutcome(f.outcome)))
 
   return {
     stage: dashboardStage({ registered: registration?.status != null, hasTeam: team != null, fixtures }),

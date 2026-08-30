@@ -3,10 +3,14 @@ import Link from 'next/link'
 import { ShuttlecockIcon } from '@/components/icons'
 import { MatchCard } from '@/components/results/MatchCard'
 import { cn } from '@/lib/cn'
+import { showsScore } from '@/lib/public-data'
 import {
   dutyRoleLabel,
+  isDecidedOutcome,
+  isWinOutcome,
   scoringConsoleHref,
   stageLabel,
+  type FixtureEndKind,
   type PlayerDuty,
   type PlayerFixture,
 } from '@/lib/dashboard'
@@ -26,6 +30,20 @@ const OUTCOME_LABEL: Record<PlayerFixture['outcome'], string> = {
   forfeit_loss: 'Forfeited',
 }
 
+/** Overrides the plain outcome label when the match ended out of the ordinary. */
+const END_KIND_LABEL: Partial<Record<FixtureEndKind, Record<'won' | 'lost', string>>> = {
+  walkover: { won: 'Won — no-show', lost: 'Walkover given' },
+  retired: { won: 'Won — they retired', lost: 'Retired hurt' },
+}
+
+function outcomeLabel(fixture: PlayerFixture): string {
+  const override = END_KIND_LABEL[fixture.endKind]
+  if (override && isDecidedOutcome(fixture.outcome)) {
+    return override[isWinOutcome(fixture.outcome) ? 'won' : 'lost']
+  }
+  return OUTCOME_LABEL[fixture.outcome]
+}
+
 const OUTCOME_CLASS: Record<PlayerFixture['outcome'], string> = {
   upcoming: 'bg-[var(--color-info-bg)] text-[var(--color-info)]',
   live: 'bg-[var(--color-brand-pink-light)] text-[var(--color-brand-pink-dark)]',
@@ -38,8 +56,8 @@ const OUTCOME_CLASS: Record<PlayerFixture['outcome'], string> = {
 /** Every match this player plays, with the result and their score first. */
 export function FixturesList({ fixtures, duties, className }: FixturesListProps) {
   const dutyByMatchId = new Map(duties.map((d) => [d.match.id, d]))
-  const remaining = fixtures.filter((f) => f.outcome === 'upcoming' || f.outcome === 'live')
-  const played = fixtures.filter((f) => f.outcome !== 'upcoming' && f.outcome !== 'live')
+  const remaining = fixtures.filter((f) => !isDecidedOutcome(f.outcome))
+  const played = fixtures.filter((f) => isDecidedOutcome(f.outcome))
 
   const renderFixture = (fixture: PlayerFixture) => {
     const duty = dutyByMatchId.get(fixture.match.id)
@@ -52,12 +70,12 @@ export function FixturesList({ fixtures, duties, className }: FixturesListProps)
               OUTCOME_CLASS[fixture.outcome],
             )}
           >
-            {OUTCOME_LABEL[fixture.outcome]}
+            {outcomeLabel(fixture)}
           </span>
           <span className="text-xs font-semibold text-[var(--color-ink-muted)]">
             {stageLabel(fixture.match.stage)} · v {fixture.opponentName}
           </span>
-          {(fixture.outcome === 'win' || fixture.outcome === 'loss') && (
+          {isDecidedOutcome(fixture.outcome) && showsScore(fixture.match.status) && (
             <span className="text-xs font-extrabold text-[var(--color-plum)] tabular-nums">
               {fixture.yourScore}–{fixture.theirScore}
             </span>
