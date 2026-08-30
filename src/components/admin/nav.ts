@@ -122,6 +122,13 @@ export const ADMIN_NAV: AdminNavItem[] = [
     group: 'Content',
   },
   {
+    href: '/admin/gallery',
+    label: 'Gallery',
+    description: 'Approve, feature or bin photo uploads.',
+    icon: BaubleIcon,
+    group: 'Content',
+  },
+  {
     href: '/admin/awards',
     label: 'Awards',
     description: 'Champions, runners-up and sportsmanship gongs.',

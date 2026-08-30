@@ -74,6 +74,10 @@ do $$ begin
 exception when duplicate_object then null; end $$;
 
 do $$ begin
+  create type public.photo_moderation_status as enum ('pending', 'approved', 'rejected');
+exception when duplicate_object then null; end $$;
+
+do $$ begin
   create type public.scoresheet_status as enum
     ('draft', 'awaiting_signature', 'submitted', 'verified', 'disputed');
 exception when duplicate_object then null; end $$;
@@ -752,10 +756,53 @@ create table if not exists public.photos (
   storage_path text not null, -- path within the 'gallery' storage bucket
   caption text,
   uploaded_by uuid references auth.users (id) on delete set null,
+  -- `is_approved` is derived from `moderation_status` by the
+  -- sync_photo_moderation trigger below; both are kept so existing queries and
+  -- the partial indexes on is_approved stay valid.
   is_approved boolean not null default false,
+  moderation_status public.photo_moderation_status not null default 'pending',
+  is_featured boolean not null default false,
+  moderated_at timestamptz,
+  rejection_reason text,
   approved_by uuid references auth.users (id) on delete set null,
   created_at timestamptz not null default now()
 );
+
+-- Keeps is_approved and moderation_status consistent in both directions, and
+-- enforces that only an approved photo can be featured.
+create or replace function public.sync_photo_moderation()
+returns trigger
+language plpgsql
+as $$
+begin
+  if tg_op = 'UPDATE' and new.moderation_status is distinct from old.moderation_status then
+    new.is_approved := (new.moderation_status = 'approved');
+    new.moderated_at := now();
+  elsif tg_op = 'UPDATE' and new.is_approved is distinct from old.is_approved then
+    new.moderation_status := case when new.is_approved then 'approved' else 'pending' end::public.photo_moderation_status;
+    new.moderated_at := now();
+  elsif tg_op = 'INSERT' then
+    new.is_approved := (new.moderation_status = 'approved');
+  end if;
+
+  if not new.is_approved then
+    new.is_featured := false;
+  end if;
+
+  return new;
+end;
+$$;
+
+drop trigger if exists sync_photo_moderation on public.photos;
+create trigger sync_photo_moderation before insert or update on public.photos
+  for each row execute function public.sync_photo_moderation();
+
+create index if not exists idx_photos_featured
+  on public.photos (tournament_id, created_at desc)
+  where is_featured and is_approved;
+
+create index if not exists idx_photos_moderation_status
+  on public.photos (tournament_id, moderation_status);
 
 create index if not exists idx_photos_tournament_id on public.photos (tournament_id, is_approved);
 create index if not exists idx_photos_match_id on public.photos (match_id);
@@ -1468,9 +1515,16 @@ create policy "photos_insert_own_or_admin" on public.photos
 drop policy if exists "photos_update_admin_or_own_unmoderated" on public.photos;
 create policy "photos_update_admin_or_own_unmoderated" on public.photos
   for update using (
-    public.is_admin() or (uploaded_by = auth.uid() and not is_approved)
+    public.is_admin()
+    or (uploaded_by = auth.uid() and moderation_status = 'pending')
   ) with check (
-    public.is_admin() or (uploaded_by = auth.uid() and not is_approved)
+    public.is_admin()
+    or (
+      uploaded_by = auth.uid()
+      and moderation_status = 'pending'
+      and not is_approved
+      and not is_featured
+    )
   );
 
 drop policy if exists "photos_delete_own_or_admin" on public.photos;
@@ -1605,3 +1659,99 @@ create policy "scoresheet_photos_duty_write" on storage.objects
 drop policy if exists "scoresheet_photos_admin_delete" on storage.objects;
 create policy "scoresheet_photos_admin_delete" on storage.objects
   for delete using (bucket_id = 'scoresheet-photos' and public.is_admin());
+-- 0004_publish_draw_rpc.sql
+--
+-- Publishing a draw previously ran as `delete` followed by a separate multi-row
+-- `insert` from the client, because supabase-js cannot open a transaction. If
+-- the insert failed after the delete succeeded, the division was left with **no
+-- fixtures at all** — on tournament day that is unrecoverable without a manual
+-- rebuild.
+--
+-- This RPC does the whole swap inside a single server-side transaction, and
+-- refuses to destroy anything that has already been played unless explicitly
+-- forced.
+
+create or replace function public.publish_draw(
+  p_division_id uuid,
+  p_stage public.match_stage,
+  p_matches jsonb,
+  p_force boolean default false
+)
+returns integer
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  played_count integer;
+  inserted_count integer;
+begin
+  if not public.is_admin() then
+    raise exception 'Only admins may publish a draw'
+      using errcode = 'insufficient_privilege';
+  end if;
+
+  -- Refuse to blow away results unless the admin has explicitly confirmed.
+  select count(*) into played_count
+    from public.matches m
+   where m.division_id = p_division_id
+     and m.stage = p_stage
+     and (m.status <> 'scheduled' or m.score_a > 0 or m.score_b > 0);
+
+  if played_count > 0 and not p_force then
+    raise exception
+      'Refusing to replace % match(es) in this division that already have results. Re-run with force to override.',
+      played_count
+      using errcode = 'raise_exception';
+  end if;
+
+  delete from public.matches
+   where division_id = p_division_id
+     and stage = p_stage;
+
+  insert into public.matches (
+    division_id, stage, round, bracket_key,
+    team_a_id, team_b_id,
+    points_to_win, deuce_enabled, cap,
+    court_id, time_slot_id, next_match_id
+  )
+  select
+    p_division_id,
+    p_stage,
+    (r ->> 'round')::integer,
+    r ->> 'bracket_key',
+    nullif(r ->> 'team_a_id', '')::uuid,
+    nullif(r ->> 'team_b_id', '')::uuid,
+    coalesce((r ->> 'points_to_win')::integer, 15),
+    coalesce((r ->> 'deuce_enabled')::boolean, false),
+    nullif(r ->> 'cap', '')::integer,
+    nullif(r ->> 'court_id', '')::uuid,
+    nullif(r ->> 'time_slot_id', '')::uuid,
+    nullif(r ->> 'next_match_id', '')::uuid
+  from jsonb_array_elements(p_matches) as r;
+
+  get diagnostics inserted_count = row_count;
+
+  insert into public.audit_log (actor_id, action, entity_type, entity_id, metadata)
+  values (
+    auth.uid(),
+    'draw.published',
+    'division',
+    p_division_id,
+    jsonb_build_object(
+      'stage', p_stage,
+      'inserted', inserted_count,
+      'replaced_played', played_count,
+      'forced', p_force
+    )
+  );
+
+  return inserted_count;
+end;
+$$;
+
+revoke all on function public.publish_draw(uuid, public.match_stage, jsonb, boolean) from public, anon;
+grant execute on function public.publish_draw(uuid, public.match_stage, jsonb, boolean) to authenticated;
+
+comment on function public.publish_draw is
+  'Atomically replaces all matches for a division+stage. Admin-only. Refuses to destroy played matches unless p_force.';

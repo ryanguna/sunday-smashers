@@ -233,3 +233,49 @@ Postgres 16 container, not just by eye.
 | Signed-in player can look another up by nickname | pass |
 | `player_directory` exposes no contact columns | pass |
 | `anon` sees zero rows even after a blanket `GRANT SELECT` | pass |
+
+## Migration 0003 — photo moderation
+
+The gallery had no column for either "featured" or "rejected", so the feature
+flag was being encoded as a `[[featured]]` marker appended to `caption` (which
+risks leaking into captions and alt text) and rejection was inferred from
+`is_approved = false AND approved_by IS NOT NULL` (ambiguous, and it loses the
+reviewer on re-review).
+
+Added to `photos`: `moderation_status` (`pending` | `approved` | `rejected`),
+`is_featured`, `moderated_at` and `rejection_reason`. `is_approved` is retained
+and kept in sync **in both directions** by the `sync_photo_moderation` trigger,
+so existing queries and the partial indexes on `is_approved` remain valid. The
+trigger also enforces that **only an approved photo can be featured**, and the
+migration backfills any captions that carried the old marker.
+
+`photos_update_admin_or_own_unmoderated` was tightened so an uploader can still
+edit their own pending photo but can never approve or feature it themselves.
+
+| Assertion | Result |
+| --- | --- |
+| Featuring a pending photo is forced off | pass |
+| Approving syncs `is_approved` and stamps `moderated_at` | pass |
+| An approved photo can be featured | pass |
+| Rejecting un-features and un-approves | pass |
+
+## Migration 0004 — `publish_draw()` RPC
+
+Publishing a draw ran as a client-side `delete` followed by a separate
+multi-row `insert`, because supabase-js cannot open a transaction. If the insert
+failed after the delete succeeded, the division was left with **no fixtures at
+all** — unrecoverable on tournament day without a manual rebuild.
+
+`public.publish_draw(division_id, stage, matches jsonb, force boolean)` performs
+the whole swap in a single server-side transaction. It is `SECURITY DEFINER`,
+re-checks `is_admin()` itself, refuses to delete matches that already have
+results unless `force` is passed, writes a `draw.published` audit entry, and
+returns the number of fixtures inserted. Execute is granted to `authenticated`
+only and revoked from `public`/`anon`.
+
+| Assertion | Result |
+| --- | --- |
+| Non-admin calling `publish_draw` is rejected | pass |
+| Admin publish inserts fixtures and writes an audit row | pass |
+| Republish over played matches is refused without `force` | pass |
+| Republish with `force = true` succeeds | pass |
