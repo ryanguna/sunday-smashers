@@ -16,20 +16,25 @@ function seededValue(index: number, salt: number) {
   return x - Math.floor(x)
 }
 
+// All numeric style values are rounded to a fixed, short precision and
+// converted to strings *before* being used in JSX. This keeps the
+// server-rendered HTML byte-identical to what React renders on the
+// client — React truncates floats when serializing inline styles to
+// HTML, so passing raw (unrounded) numbers causes a hydration mismatch.
 const snowflakes = Array.from({ length: SNOWFLAKE_COUNT }, (_, i) => ({
   left: `${(seededValue(i, 1) * 100).toFixed(2)}%`,
   size: 10 + Math.round(seededValue(i, 2) * 14),
-  duration: 12 + seededValue(i, 3) * 14,
-  delay: -(seededValue(i, 4) * 20),
-  opacity: 0.25 + seededValue(i, 5) * 0.45,
+  duration: `${(12 + seededValue(i, 3) * 14).toFixed(2)}s`,
+  delay: `${(-(seededValue(i, 4) * 20)).toFixed(2)}s`,
+  opacity: (0.25 + seededValue(i, 5) * 0.45).toFixed(2),
 }))
 
 const shuttlecocks = Array.from({ length: SHUTTLECOCK_COUNT }, (_, i) => ({
   left: `${(8 + seededValue(i, 6) * 84).toFixed(2)}%`,
   size: 22 + Math.round(seededValue(i, 7) * 10),
-  duration: 22 + seededValue(i, 8) * 16,
-  delay: -(seededValue(i, 9) * 24),
-  opacity: 0.2 + seededValue(i, 10) * 0.25,
+  duration: `${(22 + seededValue(i, 8) * 16).toFixed(2)}s`,
+  delay: `${(-(seededValue(i, 9) * 24)).toFixed(2)}s`,
+  opacity: (0.2 + seededValue(i, 10) * 0.25).toFixed(2),
 }))
 
 export function Snowfall({ className }: { className?: string }) {
@@ -46,8 +51,8 @@ export function Snowfall({ className }: { className?: string }) {
           style={{
             left: flake.left,
             opacity: flake.opacity,
-            animationDuration: `${flake.duration}s`,
-            animationDelay: `${flake.delay}s`,
+            animationDuration: flake.duration,
+            animationDelay: flake.delay,
           }}
         />
       ))}
@@ -59,8 +64,8 @@ export function Snowfall({ className }: { className?: string }) {
           style={{
             left: bird.left,
             opacity: bird.opacity,
-            animationDuration: `${bird.duration}s`,
-            animationDelay: `${bird.delay}s`,
+            animationDuration: bird.duration,
+            animationDelay: bird.delay,
           }}
         />
       ))}
