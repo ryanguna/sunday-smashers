@@ -53,5 +53,7 @@ next-env.d.ts
 /*.mjs
 !eslint.config.mjs
 !postcss.config.mjs
+/*.cjs
 /*.png
+/shots/
 /dev-server.log
