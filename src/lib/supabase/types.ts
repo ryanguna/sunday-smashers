@@ -43,6 +43,7 @@ export type AwardType =
 export type PartnerInviteStatus = 'pending' | 'accepted' | 'declined' | 'expired' | 'cancelled'
 export type TournamentStatus = 'draft' | 'published' | 'in_progress' | 'completed' | 'archived'
 export type ChecklistItemType = 'loot_bag' | 'shirt' | 'medal' | 'trophy' | 'prize_money'
+export type PhotoModerationStatus = 'pending' | 'approved' | 'rejected'
 
 // ---------------------------------------------------------------------------
 // Table row helpers
@@ -294,6 +295,18 @@ export type PhotoRow = {
   is_approved: boolean
   approved_by: string | null
   created_at: string
+  moderation_status: PhotoModerationStatus
+  is_featured: boolean
+  moderated_at: string | null
+  rejection_reason: string | null
+}
+
+/** Signed-in-only, column-whitelisted view of profiles for partner lookup (migration 0002). */
+export type PlayerDirectoryRow = {
+  id: string
+  full_name: string
+  nickname: string | null
+  avatar_url: string | null
 }
 
 export type ChecklistItemRow = {
@@ -433,6 +446,10 @@ export type Database = {
         Row: StandingsViewRow
         Relationships: []
       }
+      player_directory: {
+        Row: PlayerDirectoryRow
+        Relationships: []
+      }
     }
     Functions: {
       is_admin: {
@@ -451,6 +468,20 @@ export type Database = {
         Args: { _match_id: string }
         Returns: boolean
       }
+      is_team_member: {
+        Args: { _team_id: string }
+        Returns: boolean
+      }
+      /** Atomic delete-then-insert of a stage's fixtures (migration 0004). Returns rows inserted. */
+      publish_draw: {
+        Args: {
+          p_division_id: string
+          p_stage: MatchStageEnum
+          p_matches: Json
+          p_force?: boolean
+        }
+        Returns: number
+      }
     }
     Enums: {
       user_role: UserRole
@@ -465,6 +496,7 @@ export type Database = {
       partner_invite_status: PartnerInviteStatus
       tournament_status: TournamentStatus
       checklist_item_type: ChecklistItemType
+      photo_moderation_status: PhotoModerationStatus
     }
     CompositeTypes: Record<string, never>
   }
