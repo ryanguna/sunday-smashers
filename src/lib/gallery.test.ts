@@ -48,15 +48,15 @@ import {
   validateUploadBatch,
   validateUploadFile,
   type GalleryPhoto,
-  type GalleryPhotoRow,
   type PhotoModerationStatus,
 } from './gallery'
+import type { PhotoRow } from '@/lib/supabase/types'
 
 // ---------------------------------------------------------------------------
 // helpers
 // ---------------------------------------------------------------------------
 
-function row(overrides: Partial<GalleryPhotoRow> = {}): GalleryPhotoRow {
+function row(overrides: Partial<PhotoRow> = {}): PhotoRow {
   return {
     id: 'photo-1',
     tournament_id: 'tournament-1',
@@ -299,7 +299,7 @@ describe('captions & rejection notes', () => {
 })
 
 describe('moderation', () => {
-  it('reads the status column', () => {
+  it('reads the status column, which is the only source of truth', () => {
     expect(photoStatus(row({ moderation_status: 'approved' }))).toBe('approved')
     expect(photoStatus(row({ moderation_status: 'pending', is_approved: false }))).toBe('pending')
     expect(
@@ -307,13 +307,11 @@ describe('moderation', () => {
     ).toBe('rejected')
   })
 
-  it('falls back to the legacy booleans when the column is absent', () => {
-    expect(photoStatus({ is_approved: true, approved_by: 'a' })).toBe('approved')
-    expect(photoStatus({ is_approved: false, approved_by: null })).toBe('pending')
-    expect(photoStatus({ is_approved: false, approved_by: 'a' })).toBe('rejected')
-    expect(photoStatus({ is_approved: true, approved_by: 'a', moderation_status: null })).toBe(
-      'approved'
-    )
+  it('ignores the trigger-maintained is_approved mirror if it ever disagrees', () => {
+    expect(photoStatus(row({ moderation_status: 'pending', is_approved: true }))).toBe('pending')
+    expect(
+      photoStatus(row({ moderation_status: 'approved', is_approved: false, approved_by: null }))
+    ).toBe('approved')
   })
 
   it('builds the column patch for each target status', () => {

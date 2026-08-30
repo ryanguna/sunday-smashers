@@ -22,7 +22,6 @@ import {
   moderationPatch,
   normaliseCaption,
   normaliseRejectionReason,
-  updatePhotoRow,
   type GalleryPhoto,
   type GallerySupabaseClient,
   type PhotoModerationStatus,
@@ -105,7 +104,10 @@ export function GalleryModeration({ photos: initialPhotos, matches }: GalleryMod
     // Writes `moderation_status` only: the database trigger derives
     // `is_approved`, stamps `moderated_at`, and un-features anything that
     // leaves the approved state.
-    const { error } = await updatePhotoRow(client()!, photo.id, moderationPatch(next, user.id, reason))
+    const { error } = await client()!
+      .from('photos')
+      .update(moderationPatch(next, user.id, reason))
+      .eq('id', photo.id)
     setBusyId(null)
     if (error) {
       toast({ title: 'Couldn’t save that', description: error.message, variant: 'danger' })
@@ -155,9 +157,10 @@ export function GalleryModeration({ photos: initialPhotos, matches }: GalleryMod
       return
     }
     setBusyId(photo.id)
-    const { error } = await updatePhotoRow(client()!, photo.id, {
-      is_featured: !photo.isFeatured,
-    })
+    const { error } = await client()!
+      .from('photos')
+      .update({ is_featured: !photo.isFeatured })
+      .eq('id', photo.id)
     setBusyId(null)
     if (error) {
       toast({ title: 'Couldn’t save that', description: error.message, variant: 'danger' })
@@ -206,10 +209,13 @@ export function GalleryModeration({ photos: initialPhotos, matches }: GalleryMod
       return
     }
     setBusyId(photo.id)
-    const { error } = await updatePhotoRow(client()!, photo.id, {
-      caption: normaliseCaption(draftCaption),
-      match_id: draftMatchId || null,
-    })
+    const { error } = await client()!
+      .from('photos')
+      .update({
+        caption: normaliseCaption(draftCaption),
+        match_id: draftMatchId || null,
+      })
+      .eq('id', photo.id)
     setBusyId(null)
     if (error) {
       toast({ title: 'Couldn’t save that', description: error.message, variant: 'danger' })

@@ -18,38 +18,32 @@
  *
  * ### How moderation is stored
  *
- * Migration `0003_photo_moderation.sql` gave `public.photos` real columns:
- * `moderation_status` (`pending | approved | rejected`), `is_featured`,
+ * `public.photos` carries real moderation columns (migration
+ * `0003_photo_moderation.sql`): `moderation_status`, `is_featured`,
  * `moderated_at` and `rejection_reason`. A trigger keeps the legacy
  * `is_approved` boolean in sync in both directions and forces `is_featured`
  * to false whenever a photo is not approved, so:
  *   - **write `moderation_status`, never `is_approved`** — writing both in
  *     one statement is ambiguous. `moderationPatch()` enforces this.
+ *   - `moderation_status` is the only source of truth the app reads
+ *     (`photoStatus()`); `is_approved` is treated as a database-owned mirror
+ *     that exists for the RLS policies and partial indexes.
  *   - the UI must not offer "feature" for anything that is not approved
  *     (`canFeature()`), rather than letting the database silently undo it.
  */
 
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { isSupabaseConfigured, supabaseUrl } from '@/lib/supabase/config'
-import type { Database, PhotoRow } from '@/lib/supabase/types'
+import type { Database, PhotoModerationStatus, PhotoRow } from '@/lib/supabase/types'
 
 export type GallerySupabaseClient = SupabaseClient<Database>
 
 /**
- * `photos` row including the moderation columns added by migration `0003`.
- *
- * `src/lib/supabase/types.ts` is hand-maintained and outside this feature's
- * ownership, so the extra columns are declared here and the query results are
- * widened to this shape. Once `PhotoRow` gains `moderation_status`,
- * `is_featured`, `moderated_at` and `rejection_reason` this alias can simply
- * become `PhotoRow`.
+ * Re-exported so gallery code has one import for everything it needs. The
+ * union itself is owned by `src/lib/supabase/types.ts`, where it mirrors the
+ * `public.photo_moderation_status` enum.
  */
-export type GalleryPhotoRow = PhotoRow & {
-  moderation_status: PhotoModerationStatus
-  is_featured: boolean
-  moderated_at: string | null
-  rejection_reason: string | null
-}
+export type { PhotoModerationStatus }
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -96,8 +90,6 @@ export const DEMO_TOURNAMENT_ID = '00000000-0000-4000-8000-000000000001'
 // ---------------------------------------------------------------------------
 // Shapes
 // ---------------------------------------------------------------------------
-
-export type PhotoModerationStatus = 'pending' | 'approved' | 'rejected'
 
 export const MODERATION_STATUSES: readonly PhotoModerationStatus[] = [
   'pending',
@@ -391,26 +383,25 @@ export function normaliseRejectionReason(reason: string | null | undefined): str
 // ---------------------------------------------------------------------------
 
 /**
- * Moderation status of a raw row. `moderation_status` is authoritative; the
- * `is_approved`/`approved_by` fallback only matters for rows read through an
- * older select that did not project the column.
+ * Moderation status of a raw row.
+ *
+ * `moderation_status` is the single source of truth — the
+ * `sync_photo_moderation` trigger derives `is_approved` from it, never the
+ * other way round from the app's point of view. Every gallery query selects
+ * `*`, so the column is always present.
  */
-export function photoStatus(
-  row: Pick<PhotoRow, 'is_approved' | 'approved_by'> & {
-    moderation_status?: PhotoModerationStatus | null
-  }
-): PhotoModerationStatus {
-  const declared = row.moderation_status
-  if (declared && MODERATION_STATUSES.includes(declared)) return declared
-  if (row.is_approved) return 'approved'
-  return row.approved_by ? 'rejected' : 'pending'
+export function photoStatus(row: Pick<PhotoRow, 'moderation_status'>): PhotoModerationStatus {
+  return row.moderation_status
 }
 
-export interface ModerationPatch {
-  moderation_status: PhotoModerationStatus
-  approved_by: string | null
-  rejection_reason: string | null
-}
+/**
+ * The columns a moderation action writes — derived from `PhotoRow` so it can
+ * never drift from the table.
+ */
+export type ModerationPatch = Pick<
+  PhotoRow,
+  'moderation_status' | 'approved_by' | 'rejection_reason'
+>
 
 /**
  * The column patch that moves a photo into `status`.
@@ -632,7 +623,7 @@ export interface ToGalleryPhotoOptions {
 }
 
 export function toGalleryPhoto(
-  row: GalleryPhotoRow,
+  row: PhotoRow,
   options: ToGalleryPhotoOptions = {}
 ): GalleryPhoto {
   const base = options.baseUrl ?? supabaseUrl
@@ -842,54 +833,10 @@ export function getDemoModerationQueue(now: Date | number = Date.parse('2026-12-
 // Data access (injected client, demo fallback)
 // ---------------------------------------------------------------------------
 
-/**
- * Minimal structural view of the `photos` table that knows about the columns
- * migration `0003` added.
- *
- * `Database` in `src/lib/supabase/types.ts` is hand-maintained and outside
- * this feature's ownership, so its `PhotoRow` has no `moderation_status` /
- * `is_featured` / `rejection_reason` yet and supabase-js's generics reject
- * both filtering and updating on them. Rather than sprinkling casts around
- * the components, every such query goes through this one narrow, documented
- * escape hatch. Delete it the moment `PhotoRow` gains the four columns.
- */
-interface LooseFilter extends PromiseLike<{ data: unknown[] | null; error: { message: string } | null }> {
-  eq(column: string, value: string | boolean): LooseFilter
-  order(column: string, options: { ascending: boolean }): LooseFilter
-  limit(count: number): LooseFilter
-}
-
-interface LoosePhotosTable {
-  select(columns: string): LooseFilter
-  update(values: Partial<GalleryPhotoRow>): {
-    eq(column: string, value: string): PromiseLike<{ error: { message: string } | null }>
-  }
-}
-
-function photosTable(client: GallerySupabaseClient): LoosePhotosTable {
-  return client.from('photos') as unknown as LoosePhotosTable
-}
-
-/**
- * Applies a moderation/caption patch to one photo.
- *
- * Callers should pass the result of `moderationPatch()` (which never writes
- * `is_approved` or `moderated_at` — the `sync_photo_moderation` trigger owns
- * those) or a caption/tag patch.
- */
-export async function updatePhotoRow(
-  client: GallerySupabaseClient,
-  photoId: string,
-  patch: Partial<GalleryPhotoRow>
-): Promise<{ error: { message: string } | null }> {
-  const { error } = await photosTable(client).update(patch).eq('id', photoId)
-  return { error: error ?? null }
-}
-
 async function fetchPhotoRows(
   client: GallerySupabaseClient | null | undefined,
   approvedOnly: boolean
-): Promise<GalleryPhotoRow[] | null> {
+): Promise<PhotoRow[] | null> {
   if (!client || !isSupabaseConfigured()) return null
   try {
     let query = client.from('photos').select('*').order('created_at', { ascending: false })
@@ -898,7 +845,7 @@ async function fetchPhotoRows(
     if (approvedOnly) query = query.eq('is_approved', true)
     const { data, error } = await query
     if (error || !data) return null
-    return data as unknown as GalleryPhotoRow[]
+    return data
   } catch {
     return null
   }
@@ -942,9 +889,7 @@ export async function getMyGalleryPhotos(
       .eq('uploaded_by', userId)
       .order('created_at', { ascending: false })
     if (error || !data) return []
-    return sortGalleryPhotos(
-      (data as unknown as GalleryPhotoRow[]).map((row) => toGalleryPhoto(row, options))
-    )
+    return sortGalleryPhotos(data.map((row) => toGalleryPhoto(row, options)))
   } catch {
     return []
   }
@@ -966,7 +911,8 @@ export async function getFeaturedGalleryPhotos(
     return featuredPhotos(getDemoGalleryPhotos(), cap)
   }
   try {
-    const { data, error } = await photosTable(client)
+    const { data, error } = await client
+      .from('photos')
       .select('*')
       .eq('is_featured', true)
       .eq('is_approved', true)
@@ -974,9 +920,7 @@ export async function getFeaturedGalleryPhotos(
       .limit(cap)
     if (error) return featuredPhotos(getDemoGalleryPhotos(), cap)
 
-    const starred = ((data ?? []) as unknown as GalleryPhotoRow[]).map((row) =>
-      toGalleryPhoto(row, options)
-    )
+    const starred = (data ?? []).map((row) => toGalleryPhoto(row, options))
     if (starred.length >= cap) return sortGalleryPhotos(starred).slice(0, cap)
 
     const topUp = await getPublicGalleryPhotos(client, options)
