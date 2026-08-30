@@ -1,7 +1,10 @@
 import type { Metadata } from 'next'
-import { Badge, Card, CardBody, EmptyState, SectionHeading, Snowfall } from '@/components/ui'
+import { EmptyState, SectionHeading, Snowfall } from '@/components/ui'
 import { HollyIcon } from '@/components/icons'
+import { DemoNotice, PairCard } from '@/components/players'
 import { getPlayersDirectory } from '@/lib/public-data'
+import { getPlayerDirectory } from '@/lib/player-profile'
+import { isSupabaseConfigured } from '@/lib/supabase/config'
 
 export const metadata: Metadata = {
   title: 'Players & Teams',
@@ -12,7 +15,8 @@ export const metadata: Metadata = {
 export const dynamic = 'force-dynamic'
 
 export default async function PlayersPage() {
-  const directory = await getPlayersDirectory()
+  const [directory, players] = await Promise.all([getPlayersDirectory(), getPlayerDirectory()])
+  const handleByPlayerId = new Map(players.map((p) => [p.playerId, p.handle]))
 
   const byDivision = new Map<string, typeof directory>()
   for (const entry of directory) {
@@ -29,8 +33,13 @@ export default async function PlayersPage() {
         <SectionHeading
           eyebrow="Players"
           title="Players & Teams"
-          description="Every pair entered in the tournament. For everyone's privacy, only names and public stats are shown here — no contact details."
+          description="Every pair entered in the tournament. Tap any name for their profile, stats and fixtures. For everyone's privacy, only names and public stats are shown here — no contact details."
         />
+        {!isSupabaseConfigured() && (
+          <div className="mt-4 flex justify-center">
+            <DemoNotice />
+          </div>
+        )}
       </section>
 
       <section aria-label="Teams directory" className="relative z-10 mx-auto max-w-5xl px-4 sm:px-6">
@@ -52,25 +61,11 @@ export default async function PlayersPage() {
                     .slice()
                     .sort((a, b) => (a.rank ?? 999) - (b.rank ?? 999))
                     .map((entry) => (
-                      <Card key={entry.team.id} variant="frosted">
-                        <CardBody className="flex flex-col gap-2">
-                          <div className="flex flex-wrap items-center justify-between gap-2">
-                            <p className="font-extrabold text-[var(--color-plum)]">{entry.team.name}</p>
-                            {entry.team.seed && (
-                              <Badge status="info">Seed #{entry.team.seed}</Badge>
-                            )}
-                          </div>
-                          <p className="text-sm text-[var(--color-ink-soft)]">
-                            {entry.team.players.map((p) => p.name).join(' & ')}
-                          </p>
-                          <div className="flex flex-wrap items-center gap-3 border-t border-black/5 pt-2 text-xs text-[var(--color-ink-muted)]">
-                            {entry.rank != null && <span>Rank #{entry.rank}</span>}
-                            <span>{entry.played} played</span>
-                            <span className="text-[var(--color-success)]">{entry.wins}W</span>
-                            <span className="text-[var(--color-danger)]">{entry.losses}L</span>
-                          </div>
-                        </CardBody>
-                      </Card>
+                      <PairCard
+                        key={entry.team.id}
+                        entry={entry}
+                        handleByPlayerId={handleByPlayerId}
+                      />
                     ))}
                 </div>
               </section>

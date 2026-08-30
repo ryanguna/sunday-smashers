@@ -127,7 +127,7 @@ export default async function DashboardPage() {
 
         <AnnouncementsStrip announcements={announcements} now={now} limit={3} />
 
-        <QuickLinks profileHref={team ? `/players#${team.id}` : null} />
+        <QuickLinks profileHref={team && profile ? `/players/${profile.id}` : null} />
 
         <ProfileCard profile={profile} demo={demo} />
       </div>
