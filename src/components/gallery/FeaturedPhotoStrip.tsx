@@ -1,8 +1,8 @@
 import Link from 'next/link'
 import { cn } from '@/lib/cn'
 import { SparkleIcon } from '@/components/icons'
-import { altTextFor, featuredPhotos, polaroidTilt } from '@/lib/gallery'
-import { loadGalleryPage } from './data'
+import { altTextFor, polaroidTilt } from '@/lib/gallery'
+import { loadFeaturedPhotos } from './data'
 import { PhotoImage } from './PhotoImage'
 
 /**
@@ -32,8 +32,7 @@ export async function FeaturedPhotoStrip({
   className,
   showLink = true,
 }: FeaturedPhotoStripProps) {
-  const { photos } = await loadGalleryPage()
-  const picks = featuredPhotos(photos, limit)
+  const picks = await loadFeaturedPhotos(limit)
 
   if (picks.length === 0) return null
 

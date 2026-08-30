@@ -9,13 +9,13 @@ import { DemoPhotoArt } from './DemoPhotoArt'
 /**
  * Renders a gallery photo.
  *
- * Real uploads go through `next/image` (lazy loading + responsive `sizes`),
- * but with `unoptimized` set: the Supabase Storage hostname is not in
- * `next.config.ts`'s `images.remotePatterns`, and this feature isn't allowed
- * to edit that file. See the README note in `src/components/gallery/index.ts`.
+ * Real uploads go through `next/image` with lazy loading, responsive `sizes`
+ * and full optimisation — the Supabase Storage hostname is allow-listed in
+ * `next.config.ts` via `images.remotePatterns`.
  *
- * Demo mode (and any image that fails to load) falls back to generated
- * festive SVG artwork rather than a broken-image icon.
+ * Demo mode (and any image that fails to load — including the case where the
+ * hostname isn't allow-listed, e.g. a mis-set env var) falls back to
+ * generated festive SVG artwork rather than a broken-image icon.
  */
 
 /** Deterministic aspect ratio so the masonry has pleasant variety. */
@@ -58,7 +58,6 @@ export function PhotoImage({
       src={photo.url}
       alt={alt}
       fill
-      unoptimized
       sizes={sizes}
       priority={priority}
       loading={priority ? undefined : 'lazy'}

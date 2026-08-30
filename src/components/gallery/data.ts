@@ -2,6 +2,7 @@ import { createClient } from '@/lib/supabase/client'
 import { isSupabaseConfigured } from '@/lib/supabase/config'
 import { getSchedule, teamDisplayName, type PublicMatch } from '@/lib/public-data'
 import {
+  getFeaturedGalleryPhotos,
   getGalleryTournamentId,
   getPublicGalleryPhotos,
   type GalleryPhoto,
@@ -65,4 +66,21 @@ export async function loadGalleryPage(): Promise<GalleryPageData> {
   ])
 
   return { photos, tournamentId, isDemo }
+}
+
+/**
+ * Just the highlights, for `FeaturedPhotoStrip`. Hits the
+ * `idx_photos_featured` partial index rather than loading the whole gallery.
+ */
+export async function loadFeaturedPhotos(limit = 6): Promise<GalleryPhoto[]> {
+  const client = galleryClient()
+
+  let matches: PublicMatch[] = []
+  try {
+    matches = await getSchedule()
+  } catch {
+    matches = []
+  }
+
+  return getFeaturedGalleryPhotos(client, limit, { matches: buildMatchIndex(matches) })
 }

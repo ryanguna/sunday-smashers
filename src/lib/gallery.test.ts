@@ -2,16 +2,16 @@ import { describe, expect, it } from 'vitest'
 import {
   ACCEPTED_IMAGE_TYPES,
   DEFAULT_GALLERY_FILTERS,
-  FEATURED_MARKER,
   GALLERY_BUCKET,
   MAX_CAPTION_LENGTH,
+  MAX_REJECTION_REASON_LENGTH,
   MAX_FILES_PER_UPLOAD,
   MAX_IMAGE_EDGE,
   MAX_UPLOAD_BYTES,
   altTextFor,
   artSeedFor,
   canTransition,
-  captionForStorage,
+  canFeature,
   countByStatus,
   dayKeyOf,
   dayLabel,
@@ -26,12 +26,12 @@ import {
   getDemoModerationQueue,
   hashString,
   isAcceptedImageType,
-  isFeaturedCaption,
   moderationBadgeStatus,
   moderationLabel,
   moderationPatch,
   normaliseCaption,
   normaliseMimeType,
+  normaliseRejectionReason,
   photoMatchesFilters,
   photoPublicUrl,
   photoStatus,
@@ -48,15 +48,15 @@ import {
   validateUploadBatch,
   validateUploadFile,
   type GalleryPhoto,
+  type GalleryPhotoRow,
   type PhotoModerationStatus,
 } from './gallery'
-import type { PhotoRow } from '@/lib/supabase/types'
 
 // ---------------------------------------------------------------------------
 // helpers
 // ---------------------------------------------------------------------------
 
-function row(overrides: Partial<PhotoRow> = {}): PhotoRow {
+function row(overrides: Partial<GalleryPhotoRow> = {}): GalleryPhotoRow {
   return {
     id: 'photo-1',
     tournament_id: 'tournament-1',
@@ -67,6 +67,10 @@ function row(overrides: Partial<PhotoRow> = {}): PhotoRow {
     is_approved: true,
     approved_by: 'admin-1',
     created_at: '2026-12-13T02:00:00.000Z',
+    moderation_status: 'approved',
+    is_featured: false,
+    moderated_at: '2026-12-13T02:05:00.000Z',
+    rejection_reason: null,
     ...overrides,
   }
 }
@@ -79,6 +83,8 @@ function photo(overrides: Partial<GalleryPhoto> = {}): GalleryPhoto {
     caption: 'Caption',
     status: 'approved',
     isFeatured: false,
+    rejectionReason: null,
+    moderatedAt: null,
     matchId: null,
     division: null,
     matchLabel: null,
@@ -263,14 +269,12 @@ describe('storage paths & urls', () => {
   })
 })
 
-describe('captions & the featured marker', () => {
-  it('detects and strips the marker', () => {
-    expect(isFeaturedCaption(`Great shot ${FEATURED_MARKER}`)).toBe(true)
-    expect(isFeaturedCaption('Great shot')).toBe(false)
-    expect(isFeaturedCaption(null)).toBe(false)
-    expect(displayCaption(`Great shot ${FEATURED_MARKER}`)).toBe('Great shot')
-    expect(displayCaption(FEATURED_MARKER)).toBeNull()
+describe('captions & rejection notes', () => {
+  it('collapses whitespace for display', () => {
+    expect(displayCaption('  Great   shot  ')).toBe('Great shot')
+    expect(displayCaption('   ')).toBeNull()
     expect(displayCaption(null)).toBeNull()
+    expect(displayCaption(undefined)).toBeNull()
   })
 
   it('normalises whitespace and caps length', () => {
@@ -279,41 +283,84 @@ describe('captions & the featured marker', () => {
     expect(normaliseCaption('x'.repeat(500))).toHaveLength(MAX_CAPTION_LENGTH)
   })
 
-  it('round-trips caption + featured through one column', () => {
-    expect(captionForStorage('Great shot', true)).toBe(`Great shot ${FEATURED_MARKER}`)
-    expect(captionForStorage(`Great shot ${FEATURED_MARKER}`, false)).toBe('Great shot')
-    expect(captionForStorage(null, true)).toBe(FEATURED_MARKER)
-    expect(captionForStorage('', false)).toBeNull()
-    const stored = captionForStorage('Great shot', true)
-    expect(displayCaption(stored)).toBe('Great shot')
-    expect(isFeaturedCaption(stored)).toBe(true)
+  it('keeps captions free of storage markers', () => {
+    // The old `[[featured]]` caption marker is gone — featuring lives in the
+    // `is_featured` column, so captions round-trip verbatim.
+    expect(normaliseCaption('Great shot')).toBe('Great shot')
+    expect(displayCaption(normaliseCaption('Great shot'))).toBe('Great shot')
+  })
+
+  it('normalises rejection notes', () => {
+    expect(normaliseRejectionReason('  too   blurry ')).toBe('too blurry')
+    expect(normaliseRejectionReason('')).toBeNull()
+    expect(normaliseRejectionReason(null)).toBeNull()
+    expect(normaliseRejectionReason('x'.repeat(999))).toHaveLength(MAX_REJECTION_REASON_LENGTH)
   })
 })
 
 describe('moderation', () => {
-  it('derives status from the row', () => {
+  it('reads the status column', () => {
+    expect(photoStatus(row({ moderation_status: 'approved' }))).toBe('approved')
+    expect(photoStatus(row({ moderation_status: 'pending', is_approved: false }))).toBe('pending')
+    expect(
+      photoStatus(row({ moderation_status: 'rejected', is_approved: false, approved_by: 'a' }))
+    ).toBe('rejected')
+  })
+
+  it('falls back to the legacy booleans when the column is absent', () => {
     expect(photoStatus({ is_approved: true, approved_by: 'a' })).toBe('approved')
     expect(photoStatus({ is_approved: false, approved_by: null })).toBe('pending')
     expect(photoStatus({ is_approved: false, approved_by: 'a' })).toBe('rejected')
+    expect(photoStatus({ is_approved: true, approved_by: 'a', moderation_status: null })).toBe(
+      'approved'
+    )
   })
 
   it('builds the column patch for each target status', () => {
     expect(moderationPatch('approved', 'admin-1')).toEqual({
-      is_approved: true,
+      moderation_status: 'approved',
       approved_by: 'admin-1',
+      rejection_reason: null,
     })
-    expect(moderationPatch('rejected', 'admin-1')).toEqual({
-      is_approved: false,
+    expect(moderationPatch('rejected', 'admin-1', '  Too blurry  ')).toEqual({
+      moderation_status: 'rejected',
       approved_by: 'admin-1',
+      rejection_reason: 'Too blurry',
     })
-    expect(moderationPatch('pending', 'admin-1')).toEqual({ is_approved: false, approved_by: null })
+    expect(moderationPatch('pending', 'admin-1')).toEqual({
+      moderation_status: 'pending',
+      approved_by: null,
+      rejection_reason: null,
+    })
   })
 
-  it('round-trips patch → status', () => {
+  it('never writes is_approved or moderated_at — the trigger owns those', () => {
+    for (const status of ['pending', 'approved', 'rejected'] as PhotoModerationStatus[]) {
+      const patch = moderationPatch(status, 'admin-1', 'why')
+      expect(Object.keys(patch).sort()).toEqual([
+        'approved_by',
+        'moderation_status',
+        'rejection_reason',
+      ])
+    }
+  })
+
+  it('only keeps a rejection note on a rejection', () => {
+    expect(moderationPatch('approved', 'admin-1', 'ignored').rejection_reason).toBeNull()
+    expect(moderationPatch('pending', 'admin-1', 'ignored').rejection_reason).toBeNull()
+  })
+
+  it('round-trips patch -> status', () => {
     const statuses: PhotoModerationStatus[] = ['pending', 'approved', 'rejected']
     for (const status of statuses) {
-      expect(photoStatus(moderationPatch(status, 'admin-1'))).toBe(status)
+      expect(photoStatus(row(moderationPatch(status, 'admin-1')))).toBe(status)
     }
+  })
+
+  it('only lets approved photos be featured', () => {
+    expect(canFeature('approved')).toBe(true)
+    expect(canFeature('pending')).toBe(false)
+    expect(canFeature('rejected')).toBe(false)
   })
 
   it('blocks no-op transitions', () => {
@@ -349,8 +396,8 @@ describe('alt text', () => {
     )
   })
 
-  it('ignores a marker-only caption', () => {
-    expect(altTextFor({ caption: FEATURED_MARKER, matchLabel: null, division: null })).toContain(
+  it('ignores a whitespace-only caption', () => {
+    expect(altTextFor({ caption: '   ', matchLabel: null, division: null })).toContain(
       'Sunday Smashers'
     )
   })
@@ -499,7 +546,7 @@ describe('featuredPhotos', () => {
 
 describe('toGalleryPhoto', () => {
   it('maps a row into the UI shape', () => {
-    const result = toGalleryPhoto(row({ caption: `Smash ${FEATURED_MARKER}` }), {
+    const result = toGalleryPhoto(row({ caption: 'Smash', is_featured: true }), {
       baseUrl: 'https://x.supabase.co',
     })
     expect(result).toMatchObject({
@@ -507,10 +554,34 @@ describe('toGalleryPhoto', () => {
       caption: 'Smash',
       isFeatured: true,
       status: 'approved',
+      rejectionReason: null,
+      moderatedAt: '2026-12-13T02:05:00.000Z',
       division: null,
       matchLabel: null,
       url: `https://x.supabase.co/storage/v1/object/public/${GALLERY_BUCKET}/photo-1/shot.jpg`,
     })
+  })
+
+  it('never reports an unapproved photo as featured', () => {
+    const result = toGalleryPhoto(
+      row({ moderation_status: 'pending', is_approved: false, approved_by: null, is_featured: true })
+    )
+    expect(result.status).toBe('pending')
+    expect(result.isFeatured).toBe(false)
+  })
+
+  it('surfaces the rejection note only on rejected photos', () => {
+    expect(
+      toGalleryPhoto(
+        row({
+          moderation_status: 'rejected',
+          is_approved: false,
+          approved_by: 'admin-1',
+          rejection_reason: '  Ceiling shot  ',
+        })
+      ).rejectionReason
+    ).toBe('Ceiling shot')
+    expect(toGalleryPhoto(row({ rejection_reason: 'stale note' })).rejectionReason).toBeNull()
   })
 
   it('resolves division + label from the match index', () => {
@@ -527,7 +598,10 @@ describe('toGalleryPhoto', () => {
   })
 
   it('reports pending for an unmoderated row', () => {
-    expect(toGalleryPhoto(row({ is_approved: false, approved_by: null })).status).toBe('pending')
+    expect(
+      toGalleryPhoto(row({ moderation_status: 'pending', is_approved: false, approved_by: null }))
+        .status
+    ).toBe('pending')
   })
 })
 

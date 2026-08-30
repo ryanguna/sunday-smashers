@@ -10,19 +10,11 @@
  * <FeaturedPhotoStrip limit={6} />
  * ```
  *
- * Note on images: real uploads render through `next/image` with
- * `unoptimized`, because the Supabase Storage hostname is not allow-listed
- * in `next.config.ts`. To turn optimisation on, add:
- *
- * ```ts
- * images: {
- *   remotePatterns: [
- *     { protocol: 'https', hostname: '<project-ref>.supabase.co', pathname: '/storage/v1/object/public/**' },
- *   ],
- * }
- * ```
- *
- * …and drop the `unoptimized` prop in `PhotoImage`.
+ * Note on images: real uploads render through `next/image` with full
+ * optimisation — `next.config.ts` allow-lists the Supabase Storage hostname
+ * via `images.remotePatterns`, derived from `NEXT_PUBLIC_SUPABASE_URL`. In
+ * demo mode there is no bucket, so photos fall back to generated festive SVG
+ * artwork and no remote image is ever requested.
  */
 export * from './DemoPhotoArt'
 export * from './FeaturedPhotoStrip'

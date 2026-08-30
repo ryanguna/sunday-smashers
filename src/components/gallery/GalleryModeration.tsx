@@ -1,44 +1,47 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useState } from 'react'
-import { Badge, Button, Card, CardBody, EmptyState, Modal, Spinner, useToast } from '@/components/ui'
+import { useMemo, useState } from 'react'
+import { Badge, Button, Card, CardBody, EmptyState, Modal, useToast } from '@/components/ui'
 import { HollyIcon, SparkleIcon } from '@/components/icons'
 import { AlertBanner } from '@/components/auth'
 import { cn } from '@/lib/cn'
 import { createClient } from '@/lib/supabase/client'
 import { isSupabaseConfigured } from '@/lib/supabase/config'
 import { useAuth } from '@/lib/useAuth'
-import { getSchedule, type PublicMatch } from '@/lib/public-data'
+import { type PublicMatch } from '@/lib/public-data'
 import {
   MAX_CAPTION_LENGTH,
+  MAX_REJECTION_REASON_LENGTH,
+  canFeature,
   canTransition,
-  captionForStorage,
   countByStatus,
   dayKeyOf,
   dayLabel,
-  getModerationQueue,
   moderationBadgeStatus,
   moderationLabel,
   moderationPatch,
   normaliseCaption,
+  normaliseRejectionReason,
+  updatePhotoRow,
   type GalleryPhoto,
   type GallerySupabaseClient,
   type PhotoModerationStatus,
 } from '@/lib/gallery'
-import { buildMatchIndex, matchLabel as labelForMatch } from './data'
+import { matchLabel as labelForMatch } from './data'
 import { PhotoImage } from './PhotoImage'
 
 /**
  * Admin moderation surface for `/admin/gallery`.
  *
  * Uploads land as **pending**; nothing reaches the public gallery until an
- * admin approves it here. Approve / reject / feature all write to the same
- * two columns the schema gives us (`is_approved`, `approved_by`) plus the
- * caption marker — see the header comment in `@/lib/gallery` for why.
+ * admin approves it here. Approve / reject / feature write the real
+ * moderation columns added by migration `0003` — `moderation_status`,
+ * `is_featured`, `rejection_reason` — and let the `sync_photo_moderation`
+ * trigger keep `is_approved` and `moderated_at` in step.
  *
- * Data is fetched in the browser (the admin's session cookie is what lets
- * RLS return unapproved rows), so this component never touches
- * `@/lib/supabase/server` and can stay a Client Component.
+ * The queue is fetched by the Server Component page and handed down as
+ * props, so this component owns no data-loading effect: it renders instantly
+ * and every state change happens in an event handler.
  */
 
 type StatusTab = PhotoModerationStatus | 'all'
@@ -55,37 +58,26 @@ function client(): GallerySupabaseClient | null {
   return createClient() as unknown as GallerySupabaseClient
 }
 
-export function GalleryModeration() {
-  const { user, isAdmin, loading: authLoading } = useAuth()
+export interface GalleryModerationProps {
+  /** Queue rendered on first paint, fetched by the Server Component page. */
+  photos: GalleryPhoto[]
+  /** Schedule used by the match-tag dropdown. */
+  matches: PublicMatch[]
+}
+
+export function GalleryModeration({ photos: initialPhotos, matches }: GalleryModerationProps) {
+  const { user, isAdmin } = useAuth()
   const { toast } = useToast()
   const configured = isSupabaseConfigured()
 
-  const [photos, setPhotos] = useState<GalleryPhoto[]>([])
-  const [loading, setLoading] = useState(true)
+  const [photos, setPhotos] = useState<GalleryPhoto[]>(initialPhotos)
   const [tab, setTab] = useState<StatusTab>('pending')
   const [busyId, setBusyId] = useState<string | null>(null)
   const [editing, setEditing] = useState<GalleryPhoto | null>(null)
   const [draftCaption, setDraftCaption] = useState('')
   const [draftMatchId, setDraftMatchId] = useState('')
-  const [matches, setMatches] = useState<PublicMatch[]>([])
-
-  const load = useCallback(async () => {
-    setLoading(true)
-    let schedule: PublicMatch[] = []
-    try {
-      schedule = await getSchedule()
-    } catch {
-      schedule = []
-    }
-    setMatches(schedule)
-    const queue = await getModerationQueue(client(), { matches: buildMatchIndex(schedule) })
-    setPhotos(queue)
-    setLoading(false)
-  }, [])
-
-  useEffect(() => {
-    load()
-  }, [load])
+  const [rejecting, setRejecting] = useState<GalleryPhoto | null>(null)
+  const [draftReason, setDraftReason] = useState('')
 
   const counts = useMemo(() => countByStatus(photos), [photos])
   const visible = useMemo(
@@ -99,28 +91,32 @@ export function GalleryModeration() {
     )
   }
 
-  async function moderate(photo: GalleryPhoto, next: PhotoModerationStatus) {
+  function demoToast(description: string) {
+    toast({ title: 'Demo mode', description, variant: 'warning' })
+  }
+
+  async function moderate(photo: GalleryPhoto, next: PhotoModerationStatus, reason: string | null = null) {
     if (!canTransition(photo.status, next)) return
     if (!configured || !user) {
-      toast({
-        title: 'Demo mode',
-        description: 'Connect Supabase to moderate for real — nothing was saved.',
-        variant: 'warning',
-      })
+      demoToast('Connect Supabase to moderate for real — nothing was saved.')
       return
     }
     setBusyId(photo.id)
-    const supabase = client()
-    const { error } = await supabase!
-      .from('photos')
-      .update(moderationPatch(next, user.id))
-      .eq('id', photo.id)
+    // Writes `moderation_status` only: the database trigger derives
+    // `is_approved`, stamps `moderated_at`, and un-features anything that
+    // leaves the approved state.
+    const { error } = await updatePhotoRow(client()!, photo.id, moderationPatch(next, user.id, reason))
     setBusyId(null)
     if (error) {
       toast({ title: 'Couldn’t save that', description: error.message, variant: 'danger' })
       return
     }
-    patchLocal(photo.id, { status: next })
+    patchLocal(photo.id, {
+      status: next,
+      isFeatured: next === 'approved' ? photo.isFeatured : false,
+      rejectionReason: next === 'rejected' ? normaliseRejectionReason(reason) : null,
+      moderatedAt: new Date().toISOString(),
+    })
     toast({
       title:
         next === 'approved'
@@ -132,21 +128,36 @@ export function GalleryModeration() {
     })
   }
 
+  function openRejector(photo: GalleryPhoto) {
+    setRejecting(photo)
+    setDraftReason(photo.rejectionReason ?? '')
+  }
+
+  async function confirmReject() {
+    const photo = rejecting
+    if (!photo) return
+    const reason = draftReason
+    setRejecting(null)
+    await moderate(photo, 'rejected', reason)
+  }
+
   async function toggleFeatured(photo: GalleryPhoto) {
-    if (!configured || !user) {
+    if (!canFeature(photo.status)) {
       toast({
-        title: 'Demo mode',
-        description: 'Featuring is disabled without a Supabase project.',
+        title: 'Approve it first',
+        description: 'Only photos that are on the tree can be featured.',
         variant: 'warning',
       })
       return
     }
+    if (!configured || !user) {
+      demoToast('Featuring is disabled without a Supabase project.')
+      return
+    }
     setBusyId(photo.id)
-    const supabase = client()
-    const { error } = await supabase!
-      .from('photos')
-      .update({ caption: captionForStorage(photo.caption, !photo.isFeatured) })
-      .eq('id', photo.id)
+    const { error } = await updatePhotoRow(client()!, photo.id, {
+      is_featured: !photo.isFeatured,
+    })
     setBusyId(null)
     if (error) {
       toast({ title: 'Couldn’t save that', description: error.message, variant: 'danger' })
@@ -161,11 +172,7 @@ export function GalleryModeration() {
 
   async function remove(photo: GalleryPhoto) {
     if (!configured || !user) {
-      toast({
-        title: 'Demo mode',
-        description: 'Deleting is disabled without a Supabase project.',
-        variant: 'warning',
-      })
+      demoToast('Deleting is disabled without a Supabase project.')
       return
     }
     if (!window.confirm('Delete this photo for good? This also removes the file from storage.')) {
@@ -194,23 +201,15 @@ export function GalleryModeration() {
     const photo = editing
     if (!photo) return
     if (!configured || !user) {
-      toast({
-        title: 'Demo mode',
-        description: 'Captions and tags can’t be saved without a Supabase project.',
-        variant: 'warning',
-      })
+      demoToast('Captions and tags can’t be saved without a Supabase project.')
       setEditing(null)
       return
     }
     setBusyId(photo.id)
-    const supabase = client()
-    const { error } = await supabase!
-      .from('photos')
-      .update({
-        caption: captionForStorage(draftCaption, photo.isFeatured),
-        match_id: draftMatchId || null,
-      })
-      .eq('id', photo.id)
+    const { error } = await updatePhotoRow(client()!, photo.id, {
+      caption: normaliseCaption(draftCaption),
+      match_id: draftMatchId || null,
+    })
     setBusyId(null)
     if (error) {
       toast({ title: 'Couldn’t save that', description: error.message, variant: 'danger' })
@@ -225,14 +224,6 @@ export function GalleryModeration() {
     })
     setEditing(null)
     toast({ title: 'Saved', variant: 'success' })
-  }
-
-  if (authLoading || loading) {
-    return (
-      <p className="flex items-center gap-2 text-[var(--color-ink-soft)]">
-        <Spinner size={20} /> Sorting through the shoebox of photos&hellip;
-      </p>
-    )
   }
 
   return (
@@ -286,9 +277,24 @@ export function GalleryModeration() {
         <ul className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
           {visible.map((photo) => (
             <li key={photo.id}>
-              <Card className="h-full">
+              <Card
+                className={cn(
+                  'h-full border-l-4',
+                  photo.status === 'approved' && 'border-l-[var(--color-brand-mint-dark)]',
+                  photo.status === 'rejected' && 'border-l-[var(--color-ink-muted)]',
+                  photo.status === 'pending' && 'border-l-[var(--color-brand-pink-dark)]',
+                  photo.isFeatured && 'shadow-[var(--shadow-glow-pink)]'
+                )}
+              >
                 <CardBody className="space-y-3">
-                  <div className="relative aspect-[4/3] w-full overflow-hidden rounded-[var(--radius-md)] bg-[var(--color-frost-200)]">
+                  <div
+                    className={cn(
+                      'relative aspect-[4/3] w-full overflow-hidden rounded-[var(--radius-md)] bg-[var(--color-frost-200)]',
+                      photo.status === 'rejected' && 'opacity-60 grayscale',
+                      photo.isFeatured &&
+                        'ring-2 ring-[var(--color-brand-pink-dark)] ring-offset-2 ring-offset-white'
+                    )}
+                  >
                     <PhotoImage photo={photo} sizes="(max-width: 640px) 90vw, 320px" />
                   </div>
 
@@ -316,6 +322,12 @@ export function GalleryModeration() {
                       {dayLabel(dayKeyOf(photo.createdAt))}
                       {photo.matchLabel ? ` · ${photo.matchLabel}` : ' · untagged'}
                     </p>
+                    {photo.status === 'rejected' && photo.rejectionReason && (
+                      <p className="mt-2 rounded-[var(--radius-sm)] bg-[var(--color-frost-200)] px-2 py-1.5 text-xs text-[var(--color-ink-soft)]">
+                        <span className="font-bold">Why: </span>
+                        {photo.rejectionReason}
+                      </p>
+                    )}
                   </div>
 
                   <div className="flex flex-wrap gap-2">
@@ -336,16 +348,32 @@ export function GalleryModeration() {
                         size="sm"
                         variant="secondary"
                         disabled={busyId === photo.id}
-                        onClick={() => moderate(photo, 'rejected')}
+                        onClick={() => openRejector(photo)}
                       >
                         Reject
+                      </Button>
+                    )}
+                    {photo.status === 'rejected' && (
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="ghost"
+                        disabled={busyId === photo.id}
+                        onClick={() => moderate(photo, 'pending')}
+                      >
+                        Back to queue
                       </Button>
                     )}
                     <Button
                       type="button"
                       size="sm"
                       variant="ghost"
-                      disabled={busyId === photo.id}
+                      disabled={busyId === photo.id || !canFeature(photo.status)}
+                      title={
+                        canFeature(photo.status)
+                          ? undefined
+                          : 'Only approved photos can be featured'
+                      }
                       onClick={() => toggleFeatured(photo)}
                     >
                       {photo.isFeatured ? 'Un-feature' : 'Feature'}
@@ -426,6 +454,41 @@ export function GalleryModeration() {
             </Button>
             <Button type="button" variant="primary" onClick={saveEdits}>
               Save
+            </Button>
+          </div>
+        </div>
+      </Modal>
+
+      <Modal
+        open={rejecting !== null}
+        onClose={() => setRejecting(null)}
+        title="Set this one aside"
+        description="Leave an optional note so the next elf knows why."
+      >
+        <div className="space-y-3">
+          <div>
+            <label
+              htmlFor="moderation-reason"
+              className="mb-1 block text-sm font-bold text-[var(--color-plum)]"
+            >
+              Reason <span className="font-normal text-[var(--color-ink-muted)]">(optional)</span>
+            </label>
+            <textarea
+              id="moderation-reason"
+              rows={3}
+              value={draftReason}
+              maxLength={MAX_REJECTION_REASON_LENGTH}
+              placeholder="Blurry, duplicate, ceiling shot…"
+              onChange={(event) => setDraftReason(event.target.value)}
+              className="w-full rounded-[var(--radius-md)] border border-[var(--color-brand-lilac-light)] px-3 py-2"
+            />
+          </div>
+          <div className="flex justify-end gap-2">
+            <Button type="button" variant="ghost" onClick={() => setRejecting(null)}>
+              Cancel
+            </Button>
+            <Button type="button" variant="secondary" onClick={confirmReject}>
+              Set aside
             </Button>
           </div>
         </div>

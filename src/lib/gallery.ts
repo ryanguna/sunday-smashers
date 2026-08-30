@@ -16,17 +16,17 @@
  * `next/headers`) and stays safe to import from Client Components and from
  * vitest's plain node environment.
  *
- * ### Two schema constraints worth knowing
+ * ### How moderation is stored
  *
- * `public.photos` (see `supabase/schema.sql`) has **no `is_featured` column
- * and no explicit `rejected` flag**, and this feature is not allowed to
- * change the schema. So:
- *   - *moderation status* is derived: `is_approved` → approved; otherwise
- *     `approved_by === null` → pending, `approved_by !== null` → rejected
- *     (an admin looked at it and said no).
- *   - *featured* is stored as a marker token appended to the caption
- *     (`FEATURED_MARKER`), stripped before display. `captionForStorage()` /
- *     `displayCaption()` are the only places that need to know.
+ * Migration `0003_photo_moderation.sql` gave `public.photos` real columns:
+ * `moderation_status` (`pending | approved | rejected`), `is_featured`,
+ * `moderated_at` and `rejection_reason`. A trigger keeps the legacy
+ * `is_approved` boolean in sync in both directions and forces `is_featured`
+ * to false whenever a photo is not approved, so:
+ *   - **write `moderation_status`, never `is_approved`** — writing both in
+ *     one statement is ambiguous. `moderationPatch()` enforces this.
+ *   - the UI must not offer "feature" for anything that is not approved
+ *     (`canFeature()`), rather than letting the database silently undo it.
  */
 
 import type { SupabaseClient } from '@supabase/supabase-js'
@@ -34,6 +34,22 @@ import { isSupabaseConfigured, supabaseUrl } from '@/lib/supabase/config'
 import type { Database, PhotoRow } from '@/lib/supabase/types'
 
 export type GallerySupabaseClient = SupabaseClient<Database>
+
+/**
+ * `photos` row including the moderation columns added by migration `0003`.
+ *
+ * `src/lib/supabase/types.ts` is hand-maintained and outside this feature's
+ * ownership, so the extra columns are declared here and the query results are
+ * widened to this shape. Once `PhotoRow` gains `moderation_status`,
+ * `is_featured`, `moderated_at` and `rejection_reason` this alias can simply
+ * become `PhotoRow`.
+ */
+export type GalleryPhotoRow = PhotoRow & {
+  moderation_status: PhotoModerationStatus
+  is_featured: boolean
+  moderated_at: string | null
+  rejection_reason: string | null
+}
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -71,8 +87,8 @@ export const MAX_FILES_PER_UPLOAD = 12
 /** Captions are a one-liner, not an essay. */
 export const MAX_CAPTION_LENGTH = 180
 
-/** Appended to `photos.caption` to mark a photo as featured. */
-export const FEATURED_MARKER = '[[featured]]'
+/** Optional note an admin can leave when setting a photo aside. */
+export const MAX_REJECTION_REASON_LENGTH = 300
 
 /** Tournament id used when nothing is configured (demo mode only). */
 export const DEMO_TOURNAMENT_ID = '00000000-0000-4000-8000-000000000001'
@@ -95,10 +111,14 @@ export interface GalleryPhoto {
   storagePath: string
   /** Public URL, or `null` in demo mode (render generated festive art instead). */
   url: string | null
-  /** Caption as shown to humans — the featured marker is already stripped. */
+  /** Caption as shown to humans. */
   caption: string | null
   status: PhotoModerationStatus
   isFeatured: boolean
+  /** Admin's note explaining a rejection, when they left one. */
+  rejectionReason: string | null
+  /** When the photo was last approved/rejected, `null` while pending. */
+  moderatedAt: string | null
   matchId: string | null
   /** Division slug of the tagged match, when known. */
   division: string | null
@@ -344,17 +364,13 @@ export function storageUploadUrl(baseUrl: string, storagePath: string): string {
 }
 
 // ---------------------------------------------------------------------------
-// Featured marker + captions (pure)
+// Captions (pure)
 // ---------------------------------------------------------------------------
 
-export function isFeaturedCaption(caption: string | null | undefined): boolean {
-  return typeof caption === 'string' && caption.includes(FEATURED_MARKER)
-}
-
-/** Caption with the featured marker (and stray whitespace) removed. */
+/** Caption ready to show a human: whitespace collapsed, empty becomes `null`. */
 export function displayCaption(caption: string | null | undefined): string | null {
   if (typeof caption !== 'string') return null
-  const cleaned = caption.split(FEATURED_MARKER).join(' ').replace(/\s+/g, ' ').trim()
+  const cleaned = caption.replace(/\s+/g, ' ').trim()
   return cleaned.length > 0 ? cleaned : null
 }
 
@@ -364,11 +380,10 @@ export function normaliseCaption(caption: string | null | undefined): string | n
   return cleaned.length > 0 ? cleaned : null
 }
 
-/** Serialises `{caption, featured}` back into the single `photos.caption` column. */
-export function captionForStorage(caption: string | null | undefined, featured: boolean): string | null {
-  const base = normaliseCaption(displayCaption(caption))
-  if (!featured) return base
-  return base ? `${base} ${FEATURED_MARKER}` : FEATURED_MARKER
+/** Trims and caps an admin's rejection note. */
+export function normaliseRejectionReason(reason: string | null | undefined): string | null {
+  const cleaned = (reason ?? '').replace(/\s+/g, ' ').trim().slice(0, MAX_REJECTION_REASON_LENGTH)
+  return cleaned.length > 0 ? cleaned : null
 }
 
 // ---------------------------------------------------------------------------
@@ -376,32 +391,65 @@ export function captionForStorage(caption: string | null | undefined, featured: 
 // ---------------------------------------------------------------------------
 
 /**
- * Derives the moderation status from a raw row. `rejected` is "an admin has
- * stamped it (`approved_by` set) but `is_approved` is false".
+ * Moderation status of a raw row. `moderation_status` is authoritative; the
+ * `is_approved`/`approved_by` fallback only matters for rows read through an
+ * older select that did not project the column.
  */
-export function photoStatus(row: Pick<PhotoRow, 'is_approved' | 'approved_by'>): PhotoModerationStatus {
+export function photoStatus(
+  row: Pick<PhotoRow, 'is_approved' | 'approved_by'> & {
+    moderation_status?: PhotoModerationStatus | null
+  }
+): PhotoModerationStatus {
+  const declared = row.moderation_status
+  if (declared && MODERATION_STATUSES.includes(declared)) return declared
   if (row.is_approved) return 'approved'
   return row.approved_by ? 'rejected' : 'pending'
 }
 
-/** The column patch that moves a photo into `status`. */
+export interface ModerationPatch {
+  moderation_status: PhotoModerationStatus
+  approved_by: string | null
+  rejection_reason: string | null
+}
+
+/**
+ * The column patch that moves a photo into `status`.
+ *
+ * Deliberately never sets `is_approved` or `moderated_at`: the
+ * `sync_photo_moderation` trigger derives both from `moderation_status`, and
+ * writing them in the same statement would be ambiguous.
+ */
 export function moderationPatch(
   status: PhotoModerationStatus,
-  adminId: string | null
-): Pick<PhotoRow, 'is_approved' | 'approved_by'> {
+  adminId: string | null,
+  reason: string | null = null
+): ModerationPatch {
   switch (status) {
     case 'approved':
-      return { is_approved: true, approved_by: adminId }
+      return { moderation_status: 'approved', approved_by: adminId, rejection_reason: null }
     case 'rejected':
-      return { is_approved: false, approved_by: adminId }
+      return {
+        moderation_status: 'rejected',
+        approved_by: adminId,
+        rejection_reason: normaliseRejectionReason(reason),
+      }
     default:
-      return { is_approved: false, approved_by: null }
+      return { moderation_status: 'pending', approved_by: null, rejection_reason: null }
   }
 }
 
 /** Guards against no-op / nonsensical moderation clicks. */
 export function canTransition(from: PhotoModerationStatus, to: PhotoModerationStatus): boolean {
   return from !== to && MODERATION_STATUSES.includes(to)
+}
+
+/**
+ * Only an approved photo may be featured — the database enforces this, and
+ * the UI disables the control rather than letting the write be silently
+ * undone.
+ */
+export function canFeature(status: PhotoModerationStatus): boolean {
+  return status === 'approved'
 }
 
 export function moderationLabel(status: PhotoModerationStatus): string {
@@ -583,16 +631,24 @@ export interface ToGalleryPhotoOptions {
   baseUrl?: string
 }
 
-export function toGalleryPhoto(row: PhotoRow, options: ToGalleryPhotoOptions = {}): GalleryPhoto {
+export function toGalleryPhoto(
+  row: GalleryPhotoRow,
+  options: ToGalleryPhotoOptions = {}
+): GalleryPhoto {
   const base = options.baseUrl ?? supabaseUrl
   const match = row.match_id ? options.matches?.[row.match_id] : undefined
+  const status = photoStatus(row)
   return {
     id: row.id,
     storagePath: row.storage_path,
     url: photoPublicUrl(base, row.storage_path),
     caption: displayCaption(row.caption),
-    status: photoStatus(row),
-    isFeatured: isFeaturedCaption(row.caption),
+    status,
+    // The database forces this false unless approved; mirror that defensively
+    // so a stale row can never surface an unapproved photo as a highlight.
+    isFeatured: Boolean(row.is_featured) && status === 'approved',
+    rejectionReason: status === 'rejected' ? displayCaption(row.rejection_reason) : null,
+    moderatedAt: row.moderated_at ?? null,
     matchId: row.match_id,
     division: match?.division ?? null,
     matchLabel: match?.label ?? null,
@@ -714,6 +770,8 @@ export function getDemoGalleryPhotos(now: Date | number = Date.parse('2026-12-13
     caption: seed.caption,
     status: 'approved' as const,
     isFeatured: seed.featured,
+    rejectionReason: null,
+    moderatedAt: new Date(base - seed.minutesAgo * 60_000 + 5 * 60_000).toISOString(),
     matchId: seed.matchId,
     division: seed.division,
     matchLabel: seed.matchLabel,
@@ -735,6 +793,8 @@ export function getDemoModerationQueue(now: Date | number = Date.parse('2026-12-
       caption: 'Blurry but joyful \u2014 the winning point on Court 2.',
       status: 'pending',
       isFeatured: false,
+      rejectionReason: null,
+      moderatedAt: null,
       matchId: 'demo-match-m1',
       division: 'mens_doubles',
       matchLabel: 'Court 2 \u00b7 Smash Clauses vs Net Elves',
@@ -749,6 +809,8 @@ export function getDemoModerationQueue(now: Date | number = Date.parse('2026-12-
       caption: null,
       status: 'pending',
       isFeatured: false,
+      rejectionReason: null,
+      moderatedAt: null,
       matchId: null,
       division: null,
       matchLabel: null,
@@ -763,6 +825,8 @@ export function getDemoModerationQueue(now: Date | number = Date.parse('2026-12-
       caption: 'Accidental photo of the sports hall ceiling.',
       status: 'rejected',
       isFeatured: false,
+      rejectionReason: 'Lovely ceiling, but not one for the tree.',
+      moderatedAt: new Date(base - 380 * 60_000).toISOString(),
       matchId: null,
       division: null,
       matchLabel: null,
@@ -778,17 +842,63 @@ export function getDemoModerationQueue(now: Date | number = Date.parse('2026-12-
 // Data access (injected client, demo fallback)
 // ---------------------------------------------------------------------------
 
+/**
+ * Minimal structural view of the `photos` table that knows about the columns
+ * migration `0003` added.
+ *
+ * `Database` in `src/lib/supabase/types.ts` is hand-maintained and outside
+ * this feature's ownership, so its `PhotoRow` has no `moderation_status` /
+ * `is_featured` / `rejection_reason` yet and supabase-js's generics reject
+ * both filtering and updating on them. Rather than sprinkling casts around
+ * the components, every such query goes through this one narrow, documented
+ * escape hatch. Delete it the moment `PhotoRow` gains the four columns.
+ */
+interface LooseFilter extends PromiseLike<{ data: unknown[] | null; error: { message: string } | null }> {
+  eq(column: string, value: string | boolean): LooseFilter
+  order(column: string, options: { ascending: boolean }): LooseFilter
+  limit(count: number): LooseFilter
+}
+
+interface LoosePhotosTable {
+  select(columns: string): LooseFilter
+  update(values: Partial<GalleryPhotoRow>): {
+    eq(column: string, value: string): PromiseLike<{ error: { message: string } | null }>
+  }
+}
+
+function photosTable(client: GallerySupabaseClient): LoosePhotosTable {
+  return client.from('photos') as unknown as LoosePhotosTable
+}
+
+/**
+ * Applies a moderation/caption patch to one photo.
+ *
+ * Callers should pass the result of `moderationPatch()` (which never writes
+ * `is_approved` or `moderated_at` — the `sync_photo_moderation` trigger owns
+ * those) or a caption/tag patch.
+ */
+export async function updatePhotoRow(
+  client: GallerySupabaseClient,
+  photoId: string,
+  patch: Partial<GalleryPhotoRow>
+): Promise<{ error: { message: string } | null }> {
+  const { error } = await photosTable(client).update(patch).eq('id', photoId)
+  return { error: error ?? null }
+}
+
 async function fetchPhotoRows(
   client: GallerySupabaseClient | null | undefined,
   approvedOnly: boolean
-): Promise<PhotoRow[] | null> {
+): Promise<GalleryPhotoRow[] | null> {
   if (!client || !isSupabaseConfigured()) return null
   try {
     let query = client.from('photos').select('*').order('created_at', { ascending: false })
+    // `is_approved` is trigger-maintained and carries the partial index used
+    // by the public gallery.
     if (approvedOnly) query = query.eq('is_approved', true)
     const { data, error } = await query
     if (error || !data) return null
-    return data as unknown as PhotoRow[]
+    return data as unknown as GalleryPhotoRow[]
   } catch {
     return null
   }
@@ -832,9 +942,51 @@ export async function getMyGalleryPhotos(
       .eq('uploaded_by', userId)
       .order('created_at', { ascending: false })
     if (error || !data) return []
-    return sortGalleryPhotos((data as unknown as PhotoRow[]).map((row) => toGalleryPhoto(row, options)))
+    return sortGalleryPhotos(
+      (data as unknown as GalleryPhotoRow[]).map((row) => toGalleryPhoto(row, options))
+    )
   } catch {
     return []
+  }
+}
+
+/**
+ * Photos for the highlights strip, hitting `idx_photos_featured`
+ * (`is_featured and is_approved`) first and topping the row up with the
+ * newest approved photos when there aren't enough starred ones.
+ */
+export async function getFeaturedGalleryPhotos(
+  client?: GallerySupabaseClient | null,
+  limit = 6,
+  options: ToGalleryPhotoOptions = {}
+): Promise<GalleryPhoto[]> {
+  const cap = Math.max(0, limit)
+  if (cap === 0) return []
+  if (!client || !isSupabaseConfigured()) {
+    return featuredPhotos(getDemoGalleryPhotos(), cap)
+  }
+  try {
+    const { data, error } = await photosTable(client)
+      .select('*')
+      .eq('is_featured', true)
+      .eq('is_approved', true)
+      .order('created_at', { ascending: false })
+      .limit(cap)
+    if (error) return featuredPhotos(getDemoGalleryPhotos(), cap)
+
+    const starred = ((data ?? []) as unknown as GalleryPhotoRow[]).map((row) =>
+      toGalleryPhoto(row, options)
+    )
+    if (starred.length >= cap) return sortGalleryPhotos(starred).slice(0, cap)
+
+    const topUp = await getPublicGalleryPhotos(client, options)
+    const seen = new Set(starred.map((photo) => photo.id))
+    return [
+      ...sortGalleryPhotos(starred),
+      ...topUp.filter((photo) => !seen.has(photo.id)),
+    ].slice(0, cap)
+  } catch {
+    return featuredPhotos(getDemoGalleryPhotos(), cap)
   }
 }
 

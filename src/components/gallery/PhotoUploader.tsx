@@ -35,8 +35,9 @@ import { getSchedule, teamDisplayName, type PublicMatch } from '@/lib/public-dat
  * `photos` row is then inserted with the normal Supabase client so RLS and
  * types apply.
  *
- * Everything lands as **pending** — `photos.is_approved` defaults to false
- * and an admin approves it at `/admin/gallery`.
+ * Everything lands as **pending** — `photos.moderation_status` defaults to
+ * `'pending'` (and the moderation trigger keeps `is_approved` false to
+ * match), and an admin approves it at `/admin/gallery`.
  */
 
 type ItemState = 'ready' | 'compressing' | 'uploading' | 'saving' | 'done' | 'error'
@@ -237,7 +238,6 @@ export function PhotoUploader({ open, onClose, tournamentId, onUploaded }: Photo
           caption: normaliseCaption(item.caption),
           match_id: matchId || null,
           uploaded_by: user.id,
-          is_approved: false,
         })
         if (error) throw new Error(error.message)
 
