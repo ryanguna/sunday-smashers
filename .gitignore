@@ -41,10 +41,17 @@ yarn-error.log*
 next-env.d.ts
 .env.local
 
-# maplibre worker copied at build time
-/public/maplibre
-
 # Playwright
 /test-results/
 /playwright-report/
 /blob-report/
+
+# Ad-hoc verification scripts and screenshots.
+# Agents (and I) repeatedly created throwaway Playwright drivers and PNGs in
+# the project root to check a page renders. They are scratch work, not source,
+# and one was nearly committed by a careless `git add -A`.
+/*.mjs
+!eslint.config.mjs
+!postcss.config.mjs
+/*.png
+/dev-server.log
