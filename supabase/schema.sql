@@ -318,9 +318,15 @@ create index if not exists idx_team_members_player_id on public.team_members (pl
 -- Enforce "exactly 2 members per team" at the application layer (registration
 -- flow) plus this defensive trigger, since a bare CHECK can't count sibling
 -- rows. Fires after every INSERT to catch a 3rd+ member being added.
+-- SECURITY DEFINER is required: this trigger counts rows in `team_members`,
+-- whose RLS SELECT policy references `teams`, whose policy references
+-- `team_members` again. Running the count as the invoker would therefore
+-- recurse infinitely. The function reads no caller-supplied SQL.
 create or replace function public.enforce_team_size()
 returns trigger
 language plpgsql
+security definer
+set search_path = public
 as $$
 declare
   member_count integer;
@@ -976,6 +982,31 @@ drop policy if exists "profiles_delete_admin" on public.profiles;
 create policy "profiles_delete_admin" on public.profiles
   for delete using (public.is_admin());
 
+-- Column-whitelisting view promised by the comment above: lets a signed-in
+-- player look another player up (for partner invites) without exposing phone,
+-- emergency contact, gender, skill level or bio. Deliberately a security-definer
+-- view (the Postgres default) so it can read past `profiles_select_own`.
+-- Granted to `authenticated` only — never to `anon`.
+create or replace view public.player_directory as
+  select
+    p.id,
+    p.full_name,
+    p.nickname,
+    p.avatar_url
+  from public.profiles p
+  -- Defence in depth: the REVOKE below is not enough on its own, because
+  -- Supabase's default privileges grant `anon` SELECT on objects in `public`,
+  -- and any later blanket GRANT would silently re-open this view. The
+  -- predicate makes the view return zero rows to an unauthenticated caller
+  -- regardless of who holds SELECT.
+  where auth.uid() is not null;
+
+comment on view public.player_directory is
+  'Column-whitelisted, signed-in-only view of profiles for partner lookup. Never add contact columns here.';
+
+revoke all on public.player_directory from anon, authenticated;
+grant select on public.player_directory to authenticated;
+
 
 -- ---- user_roles --------------------------------------------------------------
 -- Players may read their own role rows (to know what UI to show) but never
@@ -1062,6 +1093,39 @@ create policy "registrations_delete_own_pending_or_admin" on public.registration
 
 
 -- ---- teams / team_members ------------------------------------------------------------
+--
+-- `teams` and `team_members` reference each other in their SELECT policies,
+-- which makes Postgres recurse infinitely ("infinite recursion detected in
+-- policy for relation team_members"). Both directions are routed through
+-- SECURITY DEFINER helpers below, which bypass RLS for these two narrow
+-- membership questions and break the cycle.
+
+create or replace function public.is_team_member(p_team_id uuid, p_player_id uuid default auth.uid())
+returns boolean
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  select exists (
+    select 1 from public.team_members tm
+    where tm.team_id = p_team_id and tm.player_id = p_player_id
+  );
+$$;
+
+create or replace function public.team_division_is_published(p_team_id uuid)
+returns boolean
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  select exists (
+    select 1 from public.teams t
+    join public.divisions d on d.id = t.division_id
+    where t.id = p_team_id and d.is_published
+  );
+$$;
 
 drop policy if exists "teams_select_published_or_member_or_admin" on public.teams;
 create policy "teams_select_published_or_member_or_admin" on public.teams
@@ -1070,27 +1134,33 @@ create policy "teams_select_published_or_member_or_admin" on public.teams
     or exists (
       select 1 from public.divisions d where d.id = teams.division_id and d.is_published
     )
-    or exists (
-      select 1 from public.team_members tm where tm.team_id = teams.id and tm.player_id = auth.uid()
-    )
+    or public.is_team_member(teams.id)
   );
 
+-- NOTE: this cannot test `team_members`, because `team_members` has an FK to
+-- `teams` and so no member row can exist before the team does. Instead a player
+-- may create a team when they are party to an accepted partner invite in that
+-- division that has not yet produced one. The follow-up `team_members` insert is
+-- still governed by `team_members_write_own_or_admin`.
 drop policy if exists "teams_write_member_or_admin" on public.teams;
 create policy "teams_write_member_or_admin" on public.teams
   for insert with check (
     public.is_admin()
     or exists (
-      select 1 from public.team_members tm where tm.team_id = teams.id and tm.player_id = auth.uid()
+      select 1
+      from public.partner_invites pi
+      where pi.division_id = teams.division_id
+        and pi.status = 'accepted'
+        and pi.resulting_team_id is null
+        and (pi.inviter_id = auth.uid() or pi.invitee_id = auth.uid())
     )
   );
 drop policy if exists "teams_update_member_or_admin" on public.teams;
 create policy "teams_update_member_or_admin" on public.teams
   for update using (
-    public.is_admin()
-    or exists (select 1 from public.team_members tm where tm.team_id = teams.id and tm.player_id = auth.uid())
+    public.is_admin() or public.is_team_member(teams.id)
   ) with check (
-    public.is_admin()
-    or exists (select 1 from public.team_members tm where tm.team_id = teams.id and tm.player_id = auth.uid())
+    public.is_admin() or public.is_team_member(teams.id)
   );
 drop policy if exists "teams_delete_admin" on public.teams;
 create policy "teams_delete_admin" on public.teams
@@ -1101,10 +1171,7 @@ create policy "team_members_select_published_or_member_or_admin" on public.team_
   for select using (
     public.is_admin()
     or player_id = auth.uid()
-    or exists (
-      select 1 from public.teams t join public.divisions d on d.id = t.division_id
-      where t.id = team_members.team_id and d.is_published
-    )
+    or public.team_division_is_published(team_members.team_id)
   );
 
 drop policy if exists "team_members_write_own_or_admin" on public.team_members;

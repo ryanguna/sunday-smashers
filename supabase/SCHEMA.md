@@ -183,3 +183,53 @@ they are not part of this repo. `schema.sql` applied cleanly end-to-end
 storage policies) and `seed.sql` populated it successfully, including a
 sanity check that the `standings` view returns the expected per-team
 aggregates for the seeded matches.
+
+## Migration 0002 — team creation, player lookup and RLS recursion
+
+Four defects were found while building the registration flow and fixed in
+`migrations/0002_team_creation_and_player_lookup.sql` (also folded into
+`schema.sql`). All four were verified functionally against a disposable
+Postgres 16 container, not just by eye.
+
+1. **`teams_write_member_or_admin` was unsatisfiable on INSERT.** It required an
+   existing `team_members` row for the team being created, but `team_members`
+   has a foreign key to `teams` — so that row could not exist until the team
+   did. No player could ever create a team. A player may now insert a team when
+   they are party to an **accepted** `partner_invites` row in that division that
+   has not yet produced a team. The subsequent `team_members` insert is still
+   governed by `team_members_write_own_or_admin`, so a player can only ever add
+   themselves.
+
+2. **No player-to-player lookup existed.** `profiles_select_own` hides every
+   other player, so a nickname-based partner invite could not resolve
+   `partner_invites.invitee_id`. Added the `public.player_directory` view, which
+   whitelists **only** `id`, `full_name`, `nickname` and `avatar_url`. Phone,
+   emergency contact, gender, skill level and bio are never exposed.
+   It is granted to `authenticated` only — and additionally filters on
+   `auth.uid() is not null`, because Supabase's default privileges grant `anon`
+   SELECT in `public` and a later blanket `GRANT` would otherwise silently
+   re-open it.
+
+3. **`teams` and `team_members` had mutually recursive SELECT policies**, which
+   Postgres rejects at runtime with *"infinite recursion detected in policy for
+   relation team_members"*. `teams_select_*` queried `team_members` to ask "is
+   the caller a member?", while `team_members_select_*` queried `teams` to ask
+   "is this division published?". Both questions now go through the
+   `SECURITY DEFINER` helpers `public.is_team_member(team_id, player_id)` and
+   `public.team_division_is_published(team_id)`, which bypass RLS for those two
+   narrow parameterised lookups and break the cycle.
+
+4. **`enforce_team_size()` hit the same recursion** via its own
+   `count(*) from team_members`, so it is now `SECURITY DEFINER` with a pinned
+   `search_path`.
+
+### Verification performed
+
+| Assertion | Result |
+| --- | --- |
+| Player with an accepted invite can create a team | pass |
+| …and can then insert their own `team_members` row (no recursion) | pass |
+| Player **without** an accepted invite is blocked from creating a team | pass |
+| Signed-in player can look another up by nickname | pass |
+| `player_directory` exposes no contact columns | pass |
+| `anon` sees zero rows even after a blanket `GRANT SELECT` | pass |
