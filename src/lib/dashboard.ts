@@ -58,7 +58,7 @@ export const ARRIVE_BEFORE_MINUTES = 10
 
 export interface PlayerIdentity {
   id: string
-  /** Display name — duty assignments only carry names, never ids. */
+  /** Display name — for rendering only; never used to match duty rows. */
   name: string
 }
 
@@ -194,21 +194,22 @@ export function liveFixture(fixtures: readonly PlayerFixture[]): PlayerFixture |
 }
 
 /**
- * Duty assignments for this player. Duty rows only carry a display name
- * (never an id — `profiles` has no public read policy), so matching is by
- * case-insensitive name.
+ * Duty assignments for this player, matched on `playerId` only. Display names
+ * are `nickname || full_name` and are not unique, so name matching would merge
+ * two same-named players' rosters and leave a court unstaffed. A blank id on
+ * either side matches nothing.
  */
 export function playerDuties(
   matches: readonly PublicMatch[],
   player: PlayerIdentity,
   playingTeamId: TeamId | null = null,
 ): PlayerDuty[] {
-  const name = player.name.trim().toLowerCase()
-  if (!name) return []
+  const playerId = player.id.trim()
+  if (!playerId) return []
   const duties: PlayerDuty[] = []
   for (const match of [...matches].sort(compareByStartTime)) {
     for (const duty of match.duties) {
-      if (duty.playerName.trim().toLowerCase() !== name) continue
+      if (duty.playerId.trim() !== playerId) continue
       duties.push({
         match,
         role: duty.role,

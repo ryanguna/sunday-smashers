@@ -111,8 +111,8 @@ const SCHEDULE: PublicMatch[] = [
     scoreB: 12,
     winnerTeamId: jingle.id,
     duties: [
-      { role: 'umpire_scorer', playerName: 'Ivy Novak', source: 'derived' },
-      { role: 'scoresheet', playerName: 'Jade Kupenga', source: 'derived' },
+      { role: 'umpire_scorer', playerId: 'w-candy-p1', playerName: 'Ivy Novak', source: 'derived' },
+      { role: 'scoresheet', playerId: 'w-candy-p2', playerName: 'Jade Kupenga', source: 'derived' },
     ],
   }),
   match({
@@ -131,8 +131,8 @@ const SCHEDULE: PublicMatch[] = [
     teamA: cocoa,
     teamB: berry,
     duties: [
-      { role: 'line_judge', playerName: 'Ivy Novak', source: 'derived' },
-      { role: 'line_judge', playerName: '', source: 'unassigned' },
+      { role: 'line_judge', playerId: 'w-candy-p1', playerName: 'Ivy Novak', source: 'derived' },
+      { role: 'line_judge', playerId: '', playerName: '', source: 'unassigned' },
     ],
   }),
   match({ id: 'm4', slotIndex: 4, teamA: candy, teamB: berry }),
@@ -253,7 +253,7 @@ describe('nextFixture / liveFixture', () => {
 })
 
 describe('playerDuties', () => {
-  it('finds duties by player name', () => {
+  it('finds duties by player id', () => {
     const duties = playerDuties(SCHEDULE, IVY, candy.id)
     expect(duties.map((d) => d.match.id)).toEqual(['m1', 'm3'])
     expect(duties[0].role).toBe('umpire_scorer')
@@ -261,7 +261,57 @@ describe('playerDuties', () => {
   })
 
   it('ignores unassigned duty slots', () => {
-    expect(playerDuties(SCHEDULE, { id: 'x', name: '' }, null)).toEqual([])
+    expect(playerDuties(SCHEDULE, { id: '', name: '' }, null)).toEqual([])
+  })
+
+  it('never matches a duty on the display name alone', () => {
+    // Same person, wrong id: the roster is keyed on ids, so nothing matches.
+    expect(playerDuties(SCHEDULE, { id: 'someone-else', name: 'Ivy Novak' }, null)).toEqual([])
+    // Right id, unrecognisable name: still theirs.
+    expect(
+      playerDuties(SCHEDULE, { id: 'w-candy-p1', name: 'not-a-real-name' }, null).map(
+        (d) => d.match.id,
+      ),
+    ).toEqual(['m1', 'm3'])
+  })
+
+  it('keeps two players with identical display names on separate rosters', () => {
+    const roster = [
+      match({
+        id: 'd1',
+        slotIndex: 1,
+        teamA: jingle,
+        teamB: berry,
+        duties: [{ role: 'umpire_scorer', playerId: 'ivy-one', playerName: 'Ivy', source: 'derived' }],
+      }),
+      match({
+        id: 'd2',
+        slotIndex: 2,
+        teamA: cocoa,
+        teamB: berry,
+        duties: [{ role: 'line_judge', playerId: 'ivy-two', playerName: 'Ivy', source: 'derived' }],
+      }),
+    ]
+    expect(playerDuties(roster, { id: 'ivy-one', name: 'Ivy' }, null).map((d) => d.match.id)).toEqual([
+      'd1',
+    ])
+    expect(playerDuties(roster, { id: 'ivy-two', name: 'Ivy' }, null).map((d) => d.match.id)).toEqual([
+      'd2',
+    ])
+  })
+
+  it('treats a blank duty player id as unassigned, not a wildcard', () => {
+    const unstaffed = [
+      match({
+        id: 'blank',
+        slotIndex: 1,
+        teamA: jingle,
+        teamB: berry,
+        duties: [{ role: 'line_judge', playerId: '', playerName: '', source: 'unassigned' }],
+      }),
+    ]
+    expect(playerDuties(unstaffed, IVY, null)).toEqual([])
+    expect(playerDuties(unstaffed, { id: '  ', name: 'Nobody' }, null)).toEqual([])
   })
 
   it('picks the next unplayed duty', () => {
@@ -277,7 +327,7 @@ describe('playerDuties', () => {
         court: 'Court 9',
         teamA: jingle,
         teamB: berry,
-        duties: [{ role: 'scoresheet', playerName: 'Ivy Novak', source: 'manual' }],
+        duties: [{ role: 'scoresheet', playerId: 'w-candy-p1', playerName: 'Ivy Novak', source: 'manual' }],
       }),
     ]
     expect(playerDuties(clashing, IVY, candy.id)[0].clash).toBe(true)
@@ -295,7 +345,7 @@ describe('isDoubleBooked', () => {
   it('is true when a duty and a match share a slot', () => {
     const own = playerFixtures([match({ id: 'own', slotIndex: 7, teamA: candy, teamB: cocoa })], candy.id)[0]
     const duty = playerDuties(
-      [match({ id: 'duty', slotIndex: 7, teamA: jingle, teamB: berry, duties: [{ role: 'scoresheet', playerName: 'Ivy Novak', source: 'manual' }] })],
+      [match({ id: 'duty', slotIndex: 7, teamA: jingle, teamB: berry, duties: [{ role: 'scoresheet', playerId: 'w-candy-p1', playerName: 'Ivy Novak', source: 'manual' }] })],
       IVY,
       null,
     )[0]
