@@ -502,39 +502,34 @@ export async function respondToInvite(inviteId: string, accept: boolean): Promis
       : { ok: true, teamCreated: false, message: 'Declined — no hard feelings, there are plenty of shuttles in the tube.' }
   }
 
-  let teamId: string | null = null
-  const { data: teamData } = await supabase
-    .from('teams')
-    .insert({ division_id: invite.division_id, name: buildTeamName('Pair', 'TBC'), is_confirmed: false } as never)
-    .select('id')
-    .maybeSingle()
-  teamId = (teamData as { id: string } | null)?.id ?? null
-
-  if (teamId) {
-    await supabase.from('team_members').insert([
-      { team_id: teamId, player_id: invite.inviter_id },
-      { team_id: teamId, player_id: user.id },
-    ] as never)
-  }
-
-  const { error } = await supabase
-    .from('partner_invites')
-    .update({
-      status: 'accepted',
-      responded_at: new Date().toISOString(),
-      resulting_team_id: teamId,
-    } as never)
-    .eq('id', inviteId)
+  // One RPC, not three separate writes. The previous version inserted the
+  // team while the invite was still pending (denied — the teams policy
+  // requires an already-accepted invite) and then inserted BOTH players in a
+  // single statement (denied — a player may only insert themselves). Neither
+  // error was checked, so the UI cheerfully reported "You're a pair!" while
+  // no team and no members existed. `accept_partner_invite` (migration 0009)
+  // verifies the caller is the invitee and does all three writes atomically.
+  const { data: newTeamId, error } = await supabase.rpc('accept_partner_invite', {
+    p_invite_id: inviteId,
+    p_team_name: buildTeamName('Pair', 'TBC'),
+  } as never)
 
   if (error) {
     return { ok: false, teamCreated: false, message: `We couldn’t save that: ${error.message}` }
   }
 
+  const teamId = (newTeamId as string | null) ?? null
+  if (!teamId) {
+    return {
+      ok: false,
+      teamCreated: false,
+      message: 'We couldn’t create your pair just then — give it another go.',
+    }
+  }
+
   return {
     ok: true,
-    teamCreated: teamId !== null,
-    message: teamId
-      ? 'You’re a pair! Your team is off to the committee for approval 🎉'
-      : 'Accepted! An admin will finalise your pair shortly 🎄',
+    teamCreated: true,
+    message: 'You’re a pair! Your team is off to the committee for approval 🎉',
   }
 }

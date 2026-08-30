@@ -22,6 +22,16 @@ export interface SignatureCardProps {
   lockedNote: string
   busy: boolean
   now: number
+  /**
+   * The signed-in account. Only this player may sign, because
+   * `scoresheet_signatures` accepts a row only from the player it names —
+   * offering anyone else the button is offering an action that will fail.
+   */
+  viewerId: string
+  /** Demo mode has no database and no account, so anyone may drive the sheet. */
+  anySignerAllowed: boolean
+  /** True when this viewer may take the recorded signature back. */
+  canWithdraw: boolean
   onSign: (side: ScoringSide, player: ScoringPlayer) => void
   onWithdraw: (side: ScoringSide) => void
   className?: string
@@ -35,6 +45,11 @@ export interface SignatureCardProps {
  * that lands in `scoresheet_signatures` has to name a specific person. The
  * exact wording of what is being agreed to sits directly above the button, not
  * behind a link.
+ *
+ * Only the signed-in player is offered the pen. The database accepts a
+ * signature only from the account it names, so listing the whole pair invited
+ * whoever held the phone to sign for their partner and be refused — the card
+ * now says plainly that the other player has to sign in themselves.
  */
 export function SignatureCard({
   slot,
@@ -43,6 +58,9 @@ export function SignatureCard({
   lockedNote,
   busy,
   now,
+  viewerId,
+  anySignerAllowed,
+  canWithdraw,
   onSign,
   onWithdraw,
   className,
@@ -54,7 +72,13 @@ export function SignatureCard({
   const [error, setError] = useState('')
 
   const signed = slot.signature
-  const player = slot.players.find((p) => p.id === picked) ?? null
+  const eligible = anySignerAllowed
+    ? slot.players
+    : slot.players.filter((p) => p.id === viewerId && p.id !== '')
+  // One candidate needs no choosing — pre-select so the only step left is
+  // typing your name.
+  const selected = picked || (eligible.length === 1 ? eligible[0].id : '')
+  const player = eligible.find((p) => p.id === selected) ?? null
   const matches = player != null && isSignatureNameMatch(typed, player)
 
   function reset() {
@@ -70,7 +94,7 @@ export function SignatureCard({
       return
     }
     if (!isSignatureNameMatch(typed, player)) {
-      const other = findSigner(typed, slot.players)
+      const other = findSigner(typed, eligible)
       setError(
         other
           ? `That is ${other.name}’s name — select ${other.name} above, or type ${player.name} instead.`
@@ -113,7 +137,7 @@ export function SignatureCard({
             <span className="font-semibold">{signed.playerName}</span> signed for this pair,{' '}
             {formatAge(signed.signedAt, now)}.
           </p>
-          {open ? (
+          {open && canWithdraw ? (
             <div>
               <Button
                 variant="ghost"
@@ -125,10 +149,23 @@ export function SignatureCard({
                 Take this signature back
               </Button>
             </div>
+          ) : open ? (
+            <p className="text-sm text-[var(--color-ink-muted)]">
+              Only {signed.playerName} or a duty official for this match can take this signature
+              back.
+            </p>
           ) : null}
         </>
       ) : !open ? (
         <p className="text-sm text-[var(--color-ink-muted)]">{lockedNote}</p>
+      ) : eligible.length === 0 ? (
+        <p className="text-sm text-[var(--color-ink-muted)]">
+          {slot.players.length === 0
+            ? 'This pair has no players on the roster yet, so nobody can sign for them.'
+            : `Only ${slot.players
+                .map((p) => p.name)
+                .join(' or ')} can sign for this pair, from their own account. Hand them the phone and let them sign in — a signature typed by anyone else is refused by the database, not recorded.`}
+        </p>
       ) : !expanded ? (
         <div>
           <Button variant="primary" size="sm" type="button" onClick={() => setExpanded(true)}>
@@ -145,12 +182,12 @@ export function SignatureCard({
             <legend className="text-sm font-bold text-[var(--color-ink)]">
               Which of you is signing?
             </legend>
-            {slot.players.length === 0 ? (
+            {eligible.length === 0 ? (
               <p className="text-sm text-[var(--color-ink-muted)]">
                 This pair has no players on the roster yet, so nobody can sign for them.
               </p>
             ) : (
-              slot.players.map((p) => (
+              eligible.map((p) => (
                 <label
                   key={p.id}
                   className="flex cursor-pointer items-center gap-2 rounded-[var(--radius-md)] px-2 py-1.5 text-sm has-[:checked]:bg-[var(--color-brand-lilac-light)]/50 has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-offset-2 has-[:focus-visible]:outline-[var(--color-brand-pink-dark)]"
@@ -159,7 +196,7 @@ export function SignatureCard({
                     type="radio"
                     name={`${groupId}-signer`}
                     value={p.id}
-                    checked={picked === p.id}
+                    checked={selected === p.id}
                     onChange={() => {
                       setPicked(p.id)
                       setError('')
@@ -192,7 +229,7 @@ export function SignatureCard({
               aria-describedby={error ? `${groupId}-error` : `${groupId}-hint`}
               aria-invalid={error.length > 0}
               placeholder={player ? player.name : 'Choose your name first'}
-              disabled={slot.players.length === 0}
+              disabled={eligible.length === 0}
               className="rounded-[var(--radius-md)] border-2 border-[var(--color-brand-lilac-light)] bg-white px-3 py-2 text-base text-[var(--color-ink)] focus-visible:border-[var(--color-brand-pink-dark)] focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[var(--color-brand-pink-dark)] disabled:opacity-60"
             />
             <p id={`${groupId}-hint`} className="text-xs text-[var(--color-ink-muted)]">

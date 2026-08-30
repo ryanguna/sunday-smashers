@@ -105,6 +105,8 @@ export default async function ScoresheetPage({
           now={now}
           isTabulator={viewer.isTabulator}
           viewerName={viewer.name || 'Someone'}
+          viewerId={viewer.id}
+          isOfficial={viewer.isOfficial}
         />
 
         <OfficialsPanel officials={officials} />

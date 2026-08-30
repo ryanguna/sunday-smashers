@@ -6,6 +6,8 @@ import { getCurrentUser, isAdmin } from '@/lib/auth'
 import { isSupabaseConfigured } from '@/lib/supabase/config'
 import { createClient } from '@/lib/supabase/server'
 import type { Json } from '@/lib/supabase/types'
+import { DECIDED_MATCH_STATUSES } from '@/lib/supabase/types'
+import { advanceKnockoutForMatch } from '@/lib/knockout-advance'
 import type { MatchResultPatch, ReschedulePatch } from '@/lib/match-admin'
 
 /**
@@ -133,11 +135,9 @@ export async function saveMatchResult(input: SaveResultInput): Promise<MatchActi
       .eq('id', matchId)
       .maybeSingle()
 
-    const decided =
-      patch.status === 'completed' ||
-      patch.status === 'forfeited' ||
-      patch.status === 'walkover' ||
-      patch.status === 'retired'
+    // Derived from the one canonical list, never restated here. An earlier
+    // inline copy silently omitted statuses whenever the enum grew.
+    const decided = (DECIDED_MATCH_STATUSES as readonly string[]).includes(patch.status ?? '')
 
     const { error } = await supabase
       .from('matches')
@@ -160,8 +160,23 @@ export async function saveMatchResult(input: SaveResultInput): Promise<MatchActi
       after: patch as unknown as Json,
     })
 
+    // Correcting a semi-final result has to move the finalists too, otherwise
+    // the Final keeps whoever the original (wrong) result put there. The result
+    // itself is already saved, so a failure here is reported but not fatal.
+    let advanceWarning: string | null = null
+    if (decided) {
+      const advanced = await advanceKnockoutForMatch(supabase, matchId)
+      if (!advanced.ok) {
+        advanceWarning = advanced.message ?? 'the bracket could not be updated'
+      } else if (advanced.updated > 0) {
+        revalidatePath('/bracket')
+      }
+    }
+
     revalidateMatches()
-    return { ok: true, message: 'Result saved. 🎄' }
+    return advanceWarning
+      ? { ok: true, message: `Result saved, but the next round was not updated: ${advanceWarning}` }
+      : { ok: true, message: 'Result saved. 🎄' }
   } catch (error) {
     return { ok: false, message: friendlyError((error as Error).message) }
   }

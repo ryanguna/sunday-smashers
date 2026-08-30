@@ -24,6 +24,7 @@ import {
   type StoredScoreEvent,
 } from '@/lib/scoring'
 import {
+  attributeSignatures,
   createSheetState,
   demoSheetState,
   demoSheetStatus,
@@ -243,28 +244,15 @@ function toMs(value: string | null): number | null {
 }
 
 /**
- * Puts each stored signature on the side its signer actually plays for.
- *
- * `scoresheet_signatures` records a `player_id` and nothing about which pair
- * they belong to, so the side has to be recovered from the match rosters. A
- * signature from someone on neither roster is dropped rather than guessed at —
- * attributing an agreement to the wrong pair is precisely the failure this
- * surface exists to prevent.
+ * Puts each stored signature on the side its signer actually plays for, using
+ * the rosters carried by the public match. The attribution itself lives in
+ * `@/lib/scoresheet` so the write path in `actions.ts` runs the same code.
  */
-function attributeSignatures(sheet: SheetState, match: PublicMatch): SheetState {
-  const sideOf = new Map<string, ScoringSide>()
-  for (const p of match.teamA?.players ?? []) sideOf.set(p.id, 'a')
-  for (const p of match.teamB?.players ?? []) sideOf.set(p.id, 'b')
-
-  const seen = new Set<ScoringSide>()
-  const signatures: SheetSignature[] = []
-  for (const signature of sheet.signatures) {
-    const side = sideOf.get(signature.playerId)
-    if (!side || seen.has(side)) continue
-    seen.add(side)
-    signatures.push({ ...signature, side })
-  }
-  return { ...sheet, signatures }
+function attributeForMatch(sheet: SheetState, match: PublicMatch): SheetState {
+  return attributeSignatures(sheet, {
+    a: (match.teamA?.players ?? []).map((p) => p.id),
+    b: (match.teamB?.players ?? []).map((p) => p.id),
+  })
 }
 
 // ---------------------------------------------------------------------------
@@ -395,7 +383,7 @@ export async function loadScoresheet(matchId: string): Promise<ScoresheetData | 
 
   const stored = (await loadStoredSheets([match.id])).get(match.id)
   const sheet = stored
-    ? attributeSignatures(stored, match)
+    ? attributeForMatch(stored, match)
     : defaultSheet(match, config, board.complete, finished, context)
 
   return {
@@ -494,7 +482,7 @@ export async function loadScoresheetIndex(): Promise<ScoresheetIndexData> {
 
     const record = stored.get(match.id)
     const sheet = record
-      ? attributeSignatures(record, match)
+      ? attributeForMatch(record, match)
       : context.demo
         ? demoSheetState({
             matchId: match.id,

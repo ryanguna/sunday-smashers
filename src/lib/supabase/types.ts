@@ -515,6 +515,14 @@ export type Database = {
         Row: StandingsViewRow
         Relationships: []
       }
+      /**
+       * Name and avatar only — safe for anonymous visitors. `profiles` itself
+       * is readable only by the owner and organisers because it also holds
+       * phone numbers and emergency contacts, which is why the public pages
+       * must read names from here. Migration 0009 removed the
+       * `auth.uid() is not null` predicate that made this view return nothing
+       * to the very audience it exists for.
+       */
       player_directory: {
         Row: PlayerDirectoryRow
         Relationships: []
@@ -550,6 +558,21 @@ export type Database = {
           p_force?: boolean
         }
         Returns: number
+      }
+      /**
+       * Accepts a partner invite and creates the pair atomically (migration
+       * 0009). Previously the client did this as three unchecked writes; RLS
+       * refused the `teams` insert and PostgREST reports a refused write as
+       * "0 rows, no error", so the UI announced a partnership that did not
+       * exist. Returns the team id. Idempotent: re-accepting returns the same
+       * team rather than creating a second one.
+       */
+      accept_partner_invite: {
+        Args: {
+          p_invite_id: string
+          p_team_name: string
+        }
+        Returns: string
       }
     }
     Enums: {

@@ -310,6 +310,7 @@ describe('fixture → matches row mapping', () => {
       points_to_win: 15,
       deuce_enabled: false,
       cap: null,
+      next_match_id: null,
       status: 'scheduled',
     })
   })
@@ -398,6 +399,7 @@ describe('toPublishDrawCalls', () => {
       points_to_win: 21,
       deuce_enabled: true,
       cap: 30,
+      next_match_id: null,
     })
     expect(call.matches[0]).not.toHaveProperty('division_id')
     expect(call.matches[0]).not.toHaveProperty('stage')

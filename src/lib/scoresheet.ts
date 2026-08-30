@@ -421,6 +421,44 @@ function illegalMessage(from: ScoresheetStatus, to: ScoresheetStatus): string {
 // Signatures
 // ---------------------------------------------------------------------------
 
+/** The two teams' player ids for the match a sheet belongs to. */
+export interface MatchRosters {
+  a: readonly string[]
+  b: readonly string[]
+}
+
+/**
+ * Puts each stored signature on the side its signer actually plays for.
+ *
+ * `scoresheet_signatures` records a `player_id` and nothing about which pair
+ * they belong to, so the side has to be recovered from the match rosters. A
+ * signature from someone on neither roster is dropped rather than guessed at —
+ * attributing an agreement to the wrong pair is precisely the failure this
+ * surface exists to prevent.
+ *
+ * This lives here, not in a route folder, because **both** the read path
+ * (`src/app/scoresheets/data.ts`) and the write path
+ * (`src/app/scoresheets/actions.ts`) have to agree on it. They previously did
+ * not: the write path assigned sides by list position on an unordered query,
+ * so whenever the second pair signed first the first pair was told "that pair
+ * has already signed" and the sheet could never be submitted.
+ */
+export function attributeSignatures(sheet: SheetState, rosters: MatchRosters): SheetState {
+  const sideOf = new Map<string, ScoringSide>()
+  for (const id of rosters.a) sideOf.set(id, 'a')
+  for (const id of rosters.b) sideOf.set(id, 'b')
+
+  const seen = new Set<ScoringSide>()
+  const signatures: SheetSignature[] = []
+  for (const signature of sheet.signatures) {
+    const side = sideOf.get(signature.playerId)
+    if (!side || seen.has(side)) continue
+    seen.add(side)
+    signatures.push({ ...signature, side })
+  }
+  return { ...sheet, signatures }
+}
+
 export function signatureFor(state: SheetState, side: ScoringSide): SheetSignature | null {
   return state.signatures.find((s) => s.side === side) ?? null
 }

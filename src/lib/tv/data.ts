@@ -81,6 +81,13 @@ export interface SubscribeHandlers {
 const POLL_INTERVAL_MS = 15_000
 const BASE_BACKOFF_MS = 2_000
 const MAX_BACKOFF_MS = 30_000
+/**
+ * Slow poll kept running underneath a healthy realtime channel — see the
+ * matching note in `src/lib/public-data.ts`. This matters most here: the TV
+ * view runs unattended on a courtside monitor for a whole afternoon with
+ * nobody to notice it has stopped updating.
+ */
+const SAFETY_NET_POLL_MS = 60_000
 
 /**
  * Subscribes a court's TV view to live updates. Designed to run unattended
@@ -99,6 +106,7 @@ export function subscribeToCourt(court: string, handlers: SubscribeHandlers): ()
   let pollTimer: ReturnType<typeof setInterval> | null = null
   let backoffTimer: ReturnType<typeof setTimeout> | null = null
   let backoffMs = BASE_BACKOFF_MS
+  let pollIntervalMs: number | null = null
   let channel: ReturnType<ReturnType<typeof createClient>['channel']> | null = null
 
   const emitSnapshot = async () => {
@@ -121,15 +129,22 @@ export function subscribeToCourt(court: string, handlers: SubscribeHandlers): ()
     }
   }
 
+  const setPolling = (intervalMs: number) => {
+    if (pollTimer && pollIntervalMs === intervalMs) return
+    if (pollTimer) clearInterval(pollTimer)
+    pollIntervalMs = intervalMs
+    pollTimer = setInterval(emitSnapshot, intervalMs)
+  }
+
   const startPolling = () => {
     handlers.onStatus('polling')
-    if (pollTimer) return
-    pollTimer = setInterval(emitSnapshot, POLL_INTERVAL_MS)
+    setPolling(POLL_INTERVAL_MS)
   }
 
   const stopPolling = () => {
     if (pollTimer) clearInterval(pollTimer)
     pollTimer = null
+    pollIntervalMs = null
   }
 
   const scheduleReconnect = () => {
@@ -149,18 +164,21 @@ export function subscribeToCourt(court: string, handlers: SubscribeHandlers): ()
 
     try {
       const supabase = createClient()
-      // TODO(schema): subscribe to the real table(s) once they exist, e.g.
-      //   supabase.channel(`tv:${court}`).on('postgres_changes', {
-      //     event: '*', schema: 'public', table: 'live_matches',
-      //     filter: `court=eq.${court}`,
-      //   }, () => emitSnapshot())
+      // Not filtered to this court: `matches.court_id` is a uuid but the route
+      // param is the court's human label, so a `court=eq.` filter would need a
+      // lookup and would silently match nothing if it drifted. A mini
+      // tournament is a handful of rows an afternoon — re-fetching this
+      // court's snapshot on any match change is cheaper than that risk.
       channel = supabase
         .channel(`tv:${court}`)
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'matches' }, () =>
+          void emitSnapshot(),
+        )
         .subscribe((status) => {
           if (stopped) return
           if (status === 'SUBSCRIBED') {
             backoffMs = BASE_BACKOFF_MS
-            stopPolling()
+            setPolling(SAFETY_NET_POLL_MS)
             handlers.onStatus('live')
           } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
             scheduleReconnect()

@@ -341,7 +341,13 @@ async function loadRealBundles(): Promise<AdaptedDemoBundle[] | null> {
     ]
     const { data: profiles } =
       playerIds.length > 0
-        ? await supabase.from('profiles').select('id, full_name, nickname').in('id', playerIds)
+        ? // `player_directory`, not `profiles`. `profiles` holds phone numbers
+          // and emergency contacts and therefore has no anon SELECT policy, so
+          // for a signed-out visitor this query returned zero rows and every
+          // name on the schedule, standings, players directory, duty roster and
+          // courtside TV screen fell back to the literal 'Player'. The view
+          // exposes only id/name/nickname/avatar (see migration 0009).
+          await supabase.from('player_directory').select('id, full_name, nickname').in('id', playerIds)
         : { data: [] as { id: string; full_name: string; nickname: string | null }[] }
 
     const playerNameById = new Map((profiles ?? []).map((p) => [p.id, p.nickname || p.full_name]))
@@ -522,9 +528,16 @@ function matchRowToPublic(
 }
 
 async function getBundles(): Promise<AdaptedDemoBundle[]> {
+  // Demo data is for demo mode ONLY. It used to also be the fallback whenever
+  // `loadRealBundles()` returned null — which happens both when no tournament
+  // is published yet and when any query errors. That meant a correctly
+  // configured production site showed invented pairs ("Sleigh Servers") and
+  // completed results for an event that had not happened, for the whole nine
+  // months before the day; and a transient error on the day would have
+  // silently swapped real standings for fictional ones, with nothing on
+  // screen saying so. An empty board is honest; a fake one is not.
   if (!isSupabaseConfigured()) return getAdaptedDemoBundles()
-  const real = await loadRealBundles()
-  return real ?? getAdaptedDemoBundles()
+  return (await loadRealBundles()) ?? []
 }
 
 // ---------------------------------------------------------------------------
@@ -600,6 +613,17 @@ export interface LiveSubscribeHandlers {
 const POLL_INTERVAL_MS = 10_000
 const BASE_BACKOFF_MS = 2_000
 const MAX_BACKOFF_MS = 30_000
+/**
+ * Slow poll kept running *underneath* a healthy realtime channel. Realtime
+ * reporting SUBSCRIBED only proves the websocket joined the topic — it does
+ * not prove a single row change will ever be delivered. If the table is
+ * missing from the `supabase_realtime` publication, or RLS filters the
+ * replicated row, the channel stays happily subscribed and silent. Tearing
+ * the poller down on SUBSCRIBED therefore trades a 10s lag for an
+ * indefinitely stale page. This bounds that worst case to a minute while
+ * still letting realtime deliver instantly in the normal case.
+ */
+const SAFETY_NET_POLL_MS = 60_000
 
 /**
  * Subscribes to live match updates for the `/live` page. Meant to be called
@@ -619,6 +643,7 @@ export function subscribeToLiveMatches(handlers: LiveSubscribeHandlers): () => v
   let pollTimer: ReturnType<typeof setInterval> | null = null
   let backoffTimer: ReturnType<typeof setTimeout> | null = null
   let backoffMs = BASE_BACKOFF_MS
+  let pollIntervalMs: number | null = null
   let channel: ReturnType<ReturnType<typeof createClient>['channel']> | null = null
 
   const emit = async () => {
@@ -640,14 +665,20 @@ export function subscribeToLiveMatches(handlers: LiveSubscribeHandlers): () => v
     }
   }
 
+  const setPolling = (intervalMs: number) => {
+    if (pollTimer && pollIntervalMs === intervalMs) return
+    if (pollTimer) clearInterval(pollTimer)
+    pollIntervalMs = intervalMs
+    pollTimer = setInterval(emit, intervalMs)
+  }
   const startPolling = () => {
     handlers.onStatus('polling')
-    if (pollTimer) return
-    pollTimer = setInterval(emit, POLL_INTERVAL_MS)
+    setPolling(POLL_INTERVAL_MS)
   }
   const stopPolling = () => {
     if (pollTimer) clearInterval(pollTimer)
     pollTimer = null
+    pollIntervalMs = null
   }
 
   const scheduleReconnect = () => {
@@ -674,7 +705,7 @@ export function subscribeToLiveMatches(handlers: LiveSubscribeHandlers): () => v
           if (stopped) return
           if (status === 'SUBSCRIBED') {
             backoffMs = BASE_BACKOFF_MS
-            stopPolling()
+            setPolling(SAFETY_NET_POLL_MS)
             handlers.onStatus('live')
           } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
             scheduleReconnect()

@@ -44,6 +44,10 @@ export interface ScoresheetPanelProps {
   /** True when the viewer may verify — tabulator or admin. */
   isTabulator: boolean
   viewerName: string
+  /** `profiles.id` of the signed-in viewer, or '' when unknown. */
+  viewerId: string
+  /** True when the viewer is rostered on this match as umpire or scoresheet. */
+  isOfficial: boolean
 }
 
 type Notice = { tone: 'ok' | 'warn' | 'danger'; text: string } | null
@@ -71,6 +75,8 @@ export function ScoresheetPanel({
   now,
   isTabulator,
   viewerName,
+  viewerId,
+  isOfficial,
 }: ScoresheetPanelProps) {
   const rawOverlay = useSyncExternalStore(subscribeOverlays, readOverlays, serverOverlays)
   const [liveSheet, setLiveSheet] = useState<SheetState | null>(null)
@@ -213,6 +219,11 @@ export function ScoresheetPanel({
             }
             busy={pending}
             now={now}
+            viewerId={viewerId}
+            anySignerAllowed={demo}
+            canWithdraw={
+              demo || isOfficial || (slot.signature != null && slot.signature.playerId === viewerId)
+            }
             onSign={handleSign}
             onWithdraw={handleWithdraw}
           />

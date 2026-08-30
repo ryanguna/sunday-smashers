@@ -8,7 +8,9 @@ import { getCurrentUser, getProfile } from '@/lib/auth'
 import type { ScoresheetStatus } from '@/lib/supabase/types'
 import {
   applyScoresheetCommand,
+  attributeSignatures,
   createSheetState,
+  type MatchRosters,
   type ScoresheetCommand,
   type SheetSignature,
   type SheetState,
@@ -158,7 +160,15 @@ async function run(
     const result = applyScoresheetCommand(loaded.state, command, { matchComplete })
     if (!result.ok) return { ok: false, message: result.message, status: loaded.state.status }
 
-    const saved = await persist(supabase, matchId, loaded.sheetId, result.state, command, actor)
+    const saved = await persist(
+      supabase,
+      matchId,
+      loaded.sheetId,
+      loaded.state,
+      result.state,
+      command,
+      actor,
+    )
     if (saved) return { ok: false, message: saved, status: loaded.state.status }
 
     revalidatePath('/scoresheets')
@@ -189,32 +199,58 @@ async function loadSheet(
 
   if (!sheet) return { sheetId: null, state: createSheetState(matchId) }
 
-  const { data: signatures } = await supabase
-    .from('scoresheet_signatures')
-    .select('player_id, signed_at')
-    .eq('scoresheet_id', sheet.id)
+  const [{ data: signatures }, rosters] = await Promise.all([
+    supabase.from('scoresheet_signatures').select('player_id, signed_at').eq('scoresheet_id', sheet.id),
+    loadRosters(supabase, matchId),
+  ])
 
-  // Side is recovered from team membership when the sheet is *read* (see
-  // `src/app/scoresheets/data.ts`). Here only the count and the identities
-  // matter, so each stored signature is placed on a distinct side.
-  const rows: SheetSignature[] = (signatures ?? []).map((row, index) => ({
-    side: index === 0 ? 'a' : 'b',
+  // The side is *not* the row's position in this list — that query has no
+  // order, and `scoresheet_signatures` has no side column. It is recovered
+  // from team membership by `attributeSignatures`, the same function the read
+  // path uses, so a sheet the second pair signed first still shows their
+  // signature against their own pair.
+  const rows: SheetSignature[] = (signatures ?? []).map((row) => ({
+    side: 'a',
     playerId: row.player_id,
     playerName: 'Player',
     signedAt: row.signed_at ? new Date(row.signed_at).getTime() : null,
   }))
 
+  const state = createSheetState(matchId, {
+    status: sheet.status,
+    signatures: rows,
+    disputeReason: sheet.dispute_reason,
+    submittedBy: sheet.submitted_by,
+    submittedAt: sheet.submitted_at ? new Date(sheet.submitted_at).getTime() : null,
+    verifiedBy: sheet.verified_by,
+    verifiedAt: sheet.verified_at ? new Date(sheet.verified_at).getTime() : null,
+  })
+
+  return { sheetId: sheet.id, state: attributeSignatures(state, rosters) }
+}
+
+const NO_ROSTERS: MatchRosters = { a: [], b: [] }
+
+/** The two pairs' player ids for a match, straight from `team_members`. */
+async function loadRosters(supabase: ServerClient, matchId: string): Promise<MatchRosters> {
+  const { data: match } = await supabase
+    .from('matches')
+    .select('team_a_id, team_b_id')
+    .eq('id', matchId)
+    .maybeSingle()
+  if (!match) return NO_ROSTERS
+
+  const teamIds = [match.team_a_id, match.team_b_id].filter((id): id is string => Boolean(id))
+  if (teamIds.length === 0) return NO_ROSTERS
+
+  const { data: members } = await supabase
+    .from('team_members')
+    .select('team_id, player_id')
+    .in('team_id', teamIds)
+
   return {
-    sheetId: sheet.id,
-    state: createSheetState(matchId, {
-      status: sheet.status,
-      signatures: rows,
-      disputeReason: sheet.dispute_reason,
-      submittedBy: sheet.submitted_by,
-      submittedAt: sheet.submitted_at ? new Date(sheet.submitted_at).getTime() : null,
-      verifiedBy: sheet.verified_by,
-      verifiedAt: sheet.verified_at ? new Date(sheet.verified_at).getTime() : null,
-    }),
+    a: (members ?? []).filter((m) => m.team_id === match.team_a_id).map((m) => m.player_id),
+    b: (members ?? []).filter((m) => m.team_id === match.team_b_id).map((m) => m.player_id),
   }
 }
 
@@ -226,11 +262,20 @@ async function isMatchComplete(supabase: ServerClient, matchId: string): Promise
   )
 }
 
-/** Writes the new state. Returns an error message, or `null` on success. */
+/**
+ * Writes the new state. Returns an error message, or `null` on success.
+ *
+ * Every write here asks for the affected rows back and checks that some came
+ * out. Under RLS, PostgREST reports a write no policy allows as "0 rows
+ * affected" with **no error** — so checking `error` alone reports success for
+ * a change the database refused, which is how "take this signature back" came
+ * to silently do nothing while the UI said it had worked.
+ */
 async function persist(
   supabase: ServerClient,
   matchId: string,
   sheetId: string | null,
+  previous: SheetState,
   state: SheetState,
   command: ScoresheetCommand,
   actor: Actor,
@@ -247,29 +292,49 @@ async function persist(
 
   let id = sheetId
   if (id) {
-    const { error } = await supabase.from('scoresheets').update(patch).eq('id', id)
+    const { data, error } = await supabase.from('scoresheets').update(patch).eq('id', id).select('id')
     if (error) return friendlyError(error.message)
+    if (!data || data.length === 0) return REFUSED_UPDATE
   } else {
-    const { data, error } = await supabase.from('scoresheets').insert(patch).select('id').single()
+    const { data, error } = await supabase.from('scoresheets').insert(patch).select('id')
     if (error) return friendlyError(error.message)
-    id = data.id
+    if (!data || data.length === 0) return REFUSED_UPDATE
+    id = data[0].id
   }
 
   if (command.kind === 'sign') {
-    const { error } = await supabase.from('scoresheet_signatures').insert({
-      scoresheet_id: id,
-      player_id: command.playerId,
-      signed_at: new Date(command.at ?? actor.at).toISOString(),
-    })
+    const { data, error } = await supabase
+      .from('scoresheet_signatures')
+      .insert({
+        scoresheet_id: id,
+        player_id: command.playerId,
+        signed_at: new Date(command.at ?? actor.at).toISOString(),
+      })
+      .select('id')
     if (error) return friendlyError(error.message)
+    if (!data || data.length === 0) return REFUSED_SIGN
   }
 
   if (command.kind === 'withdraw_signature' || command.kind === 'reopen') {
-    const keep = state.signatures.map((s) => s.playerId)
-    let query = supabase.from('scoresheet_signatures').delete().eq('scoresheet_id', id)
-    if (keep.length > 0) query = query.not('player_id', 'in', `(${keep.join(',')})`)
-    const { error } = await query
-    if (error) return friendlyError(error.message)
+    // Delete exactly the signatures the state machine dropped, and confirm
+    // every one of them actually went. Anything left behind means the row is
+    // still there on the next load, so reporting success would put the sheet
+    // and the database into different stories about who agreed to this result.
+    const kept = new Set(state.signatures.map((s) => s.playerId))
+    const removed = [...new Set(previous.signatures.map((s) => s.playerId))].filter(
+      (playerId) => !kept.has(playerId),
+    )
+
+    if (removed.length > 0) {
+      const { data, error } = await supabase
+        .from('scoresheet_signatures')
+        .delete()
+        .eq('scoresheet_id', id)
+        .in('player_id', removed)
+        .select('player_id')
+      if (error) return friendlyError(error.message)
+      if ((data?.length ?? 0) < removed.length) return REFUSED_DELETE
+    }
   }
 
   const last = state.trail[state.trail.length - 1]
@@ -288,6 +353,21 @@ async function persist(
 
   return null
 }
+
+/**
+ * What a write that a database policy silently refused looks like to a person.
+ *
+ * PostgREST does not error on an RLS mismatch — it reports zero rows affected.
+ * These messages exist so that never again reads as success.
+ */
+const REFUSED_UPDATE =
+  'The database refused that change — the sheet was not updated. You may no longer be on duty for this match, or the sheet has moved on since this page loaded. Reload and try again.'
+
+const REFUSED_SIGN =
+  'The database refused that signature — nothing was recorded. A signature can only be added by the signed-in player, and only for a pair they actually play in.'
+
+const REFUSED_DELETE =
+  'The database refused to remove that signature — it is still on the sheet. Only the player who signed, or a duty official for this match, can take a signature back. Reload to see what is actually recorded.'
 
 /** Turns a raw Postgres/PostgREST message into something a person can act on. */
 function friendlyError(message: string): string {

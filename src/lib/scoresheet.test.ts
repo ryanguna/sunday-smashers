@@ -4,6 +4,7 @@ import {
   SCORESHEET_STATUS_ORDER,
   SCORESHEET_TRANSITIONS,
   applyScoresheetCommand,
+  attributeSignatures,
   bothPairsSigned,
   canTransition,
   chainOfCustody,
@@ -1092,5 +1093,60 @@ describe('applyScoresheetCommand — context is respected everywhere', () => {
 
   it('CONTEXT fixture is the shape the machine expects', () => {
     expect(CONTEXT).toEqual({ matchComplete: true })
+  })
+})
+
+describe('attributeSignatures — the side comes from the roster, never the row order', () => {
+  const ROSTERS = { a: ['a1', 'a2'], b: ['b1', 'b2'] }
+
+  function stored(...playerIds: string[]): SheetState {
+    return createSheetState('m', {
+      status: 'awaiting_signature',
+      // Every stored row arrives on the placeholder side, because
+      // `scoresheet_signatures` has no side column to read.
+      signatures: playerIds.map((playerId) => ({
+        side: 'a' as ScoringSide,
+        playerId,
+        playerName: playerId,
+        signedAt: T0,
+      })),
+    })
+  }
+
+  it('puts the second pair on side b even when they signed first', () => {
+    const result = attributeSignatures(stored('b1'), ROSTERS)
+    expect(result.signatures).toHaveLength(1)
+    expect(result.signatures[0]).toMatchObject({ side: 'b', playerId: 'b1' })
+  })
+
+  it('attributes both pairs correctly when b signed before a', () => {
+    const result = attributeSignatures(stored('b2', 'a1'), ROSTERS)
+    expect(result.signatures.map((s) => [s.playerId, s.side])).toEqual([
+      ['b2', 'b'],
+      ['a1', 'a'],
+    ])
+    expect(bothPairsSigned(result)).toBe(true)
+  })
+
+  it('drops a signature from someone on neither roster rather than guessing', () => {
+    const result = attributeSignatures(stored('stranger', 'a2'), ROSTERS)
+    expect(result.signatures.map((s) => s.playerId)).toEqual(['a2'])
+  })
+
+  it('keeps only the first signature per side', () => {
+    const result = attributeSignatures(stored('a1', 'a2'), ROSTERS)
+    expect(result.signatures.map((s) => s.playerId)).toEqual(['a1'])
+  })
+
+  it('drops everything when the rosters are unknown', () => {
+    expect(attributeSignatures(stored('a1', 'b1'), { a: [], b: [] }).signatures).toEqual([])
+  })
+
+  it('leaves the rest of the sheet untouched', () => {
+    const sheet = stored('b1')
+    const result = attributeSignatures(sheet, ROSTERS)
+    expect(result.status).toBe(sheet.status)
+    expect(result.matchId).toBe(sheet.matchId)
+    expect(result.trail).toEqual(sheet.trail)
   })
 })

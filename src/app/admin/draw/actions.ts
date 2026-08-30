@@ -22,6 +22,7 @@ import {
   type ExistingMatchSummary,
   type MatchInsert,
 } from '@/lib/draw-admin'
+import { KNOCKOUT_STAGES, knockoutNextMatchLinks } from '@/lib/knockout-advance'
 import { TIEBREAK_AUDIT_ACTION } from './data'
 
 /**
@@ -237,6 +238,55 @@ export interface PublishKnockoutInput extends PublishOptions {
 }
 
 /**
+ * Writes `matches.next_match_id` on the two semis so each points at the
+ * Championship row that its winner feeds.
+ *
+ * It has to be a second pass: `publish_draw()` runs once per stage and the
+ * semis are inserted before the Final exists, so there is no id to reference
+ * until every stage is live. The column has been in the schema and accepted by
+ * the RPC since migration 0004 but was never populated, which left the
+ * bracket's shape as a naming convention rather than data.
+ *
+ * A failure here is reported but not treated as a failed publish: the fixtures
+ * are live and playable, only the explicit link is missing.
+ */
+async function linkKnockoutNextMatches(divisionId: string): Promise<number> {
+  const supabase = await createClient()
+
+  const { data, error } = await supabase
+    .from('matches')
+    .select('id, bracket_key, next_match_id')
+    .eq('division_id', divisionId)
+    .in('stage', [...KNOCKOUT_STAGES])
+
+  if (error || !data) return 0
+
+  const idsByBracketKey: Partial<Record<'M1' | 'M2' | 'THIRD' | 'FINAL', string>> = {}
+  const currentLinks = new Map<string, string | null>()
+  for (const row of data) {
+    if (row.bracket_key) idsByBracketKey[row.bracket_key] = row.id
+    currentLinks.set(row.id, row.next_match_id)
+  }
+
+  let linked = 0
+  for (const link of knockoutNextMatchLinks(idsByBracketKey)) {
+    if (currentLinks.get(link.matchId) === link.nextMatchId) continue
+
+    // `.select()` so a policy mismatch — reported by PostgREST as zero rows
+    // affected and no error — is not mistaken for a successful write.
+    const { data: updated } = await supabase
+      .from('matches')
+      .update({ next_match_id: link.nextMatchId })
+      .eq('id', link.matchId)
+      .select('id')
+
+    if (updated && updated.length > 0) linked += 1
+  }
+
+  return linked
+}
+
+/**
  * Persists the semi finals, Battle for 3rd and Championship. The bracket
  * shape always comes from `generateKnockout()` — this action only supplies
  * the ranked order.
@@ -278,11 +328,14 @@ export async function publishKnockoutAction(
 
   if (!result.ok) return result
 
+  const linked = await linkKnockoutNextMatches(input.divisionId)
+
   // The RPC logs one row per stage; this records who the four qualifiers were.
   await writeAudit('draw.knockout_published', input.divisionId, {
     stage: 'knockout',
     qualifiers: input.rankedTeamIds.slice(0, 4),
     fixtures: result.count ?? 0,
+    next_match_links: linked,
   })
 
   return {

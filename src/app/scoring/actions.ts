@@ -15,6 +15,7 @@ import {
   type ScoringTeam,
 } from '@/lib/scoring'
 import type { StageRules } from '@/lib/draw'
+import { advanceKnockoutForMatch } from '@/lib/knockout-advance'
 
 /**
  * Write actions behind the courtside scoring console.
@@ -103,17 +104,33 @@ export async function saveScore(payload: SaveScorePayload): Promise<ScoringActio
       }
 
     const patch = matchScorePatch(board, config)
-    const { error: matchError } = await supabase
+    const { data: updatedRows, error: matchError } = await supabase
       .from('matches')
       .update({
         ...patch,
-        started_at: board.totalPoints > 0 ? new Date().toISOString() : null,
+        // `started_at` is deliberately NOT written here. This runs after every
+        // tap, so stamping it each time reset the courtside match clock to
+        // zero on every point, and an undo back to 0-0 wiped it altogether. It
+        // is owned solely by `startMatch()` below, which is the only moment
+        // that actually means "this match started".
         completed_at: board.complete ? new Date().toISOString() : null,
       })
       .eq('id', matchId)
+      .select('id')
 
     if (matchError) {
       return { ok: false, message: friendlyError(matchError.message) }
+    }
+
+    // PostgREST reports an RLS policy mismatch as zero rows affected with no
+    // error at all, so checking `error` alone would show the umpire a saved
+    // score that was never written.
+    if (!updatedRows || updatedRows.length === 0) {
+      return {
+        ok: false,
+        message:
+          'Nothing was saved — you may no longer be on the duty roster for this match. Ask an admin.',
+      }
     }
 
     // Full replace — see the note at the top of this file.
@@ -132,10 +149,35 @@ export async function saveScore(payload: SaveScorePayload): Promise<ScoringActio
       if (insertError) return { ok: false, message: friendlyError(insertError.message) }
     }
 
+    // A decided semi final has to reach the Championship and the Battle for
+    // 3rd, which are published with empty team slots. This is the moment the
+    // result becomes final, so it is the moment to send the pairs through.
+    // A failure here must not lose the score that was just saved — the result
+    // stands and the umpire is told the bracket needs an admin.
+    let advanceWarning: string | null = null
+    if (board.complete) {
+      const advance = await advanceKnockoutForMatch(supabase, matchId)
+      if (!advance.ok) {
+        advanceWarning = advance.message ?? 'The bracket could not be updated.'
+      } else if (advance.updated > 0) {
+        revalidatePath('/bracket')
+        revalidatePath('/results')
+        revalidatePath('/tv')
+      }
+    }
+
     revalidatePath('/live')
     revalidatePath('/schedule')
     revalidatePath('/scoring')
     revalidatePath(`/scoring/${matchId}`)
+
+    if (advanceWarning) {
+      return {
+        ok: true,
+        message: `Result saved, but the next round was not updated: ${advanceWarning}`,
+        rallies: snapshot.rallies.length,
+      }
+    }
 
     return {
       ok: true,
@@ -159,11 +201,20 @@ export async function startMatch(matchId: string): Promise<ScoringActionResult> 
 
   try {
     const supabase = await createClient()
-    const { error } = await supabase
+    const { data, error } = await supabase
       .from('matches')
       .update({ status: 'in_progress', started_at: new Date().toISOString() })
       .eq('id', matchId)
+      .select('id')
     if (error) return { ok: false, message: friendlyError(error.message) }
+    // Zero rows and no error is what an RLS refusal looks like — treating it
+    // as success would leave the match clock unstarted for the whole game.
+    if (!data || data.length === 0) {
+      return {
+        ok: false,
+        message: 'The match could not be started — you are not on its duty roster.',
+      }
+    }
     revalidatePath('/live')
     revalidatePath(`/scoring/${matchId}`)
     return { ok: true, message: 'Match started.' }
@@ -180,6 +231,18 @@ function friendlyError(message: string): string {
   const text = message.toLowerCase()
   if (text.includes('row-level security') || text.includes('permission')) {
     return 'You are not on the duty roster for this match, so the score was refused.'
+  }
+  // A retried save that raced itself: the rally log is a full replace, so the
+  // delete and re-insert of the same rows can collide. The umpire's own log is
+  // authoritative and nothing was lost — say so instead of showing SQLSTATE
+  // 23505 and a constraint name.
+  if (
+    text.includes('duplicate key') ||
+    text.includes('already exists') ||
+    text.includes('unique constraint') ||
+    text.includes('23505')
+  ) {
+    return 'That score was already being saved — tap Retry and the console will catch up.'
   }
   if (text.includes('fetch') || text.includes('network') || text.includes('timeout')) {
     return 'No answer from the server.'

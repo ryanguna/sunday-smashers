@@ -450,6 +450,15 @@ export interface MatchInsert {
   points_to_win: number
   deuce_enabled: boolean
   cap: number | null
+  /**
+   * The fixture this one's **winner** feeds, when that fixture's id is already
+   * known. It never is at publish time — the whole bracket is inserted in one
+   * go, so the Final has no id until it exists — which is why the knockout
+   * publisher writes `null` here and links the semis in a follow-up update.
+   * The column is still carried through the whole pipeline so the link is
+   * explicit data rather than an unwritten convention.
+   */
+  next_match_id: string | null
   status: 'scheduled'
 }
 
@@ -477,14 +486,24 @@ export function fixturesToMatchInserts(
       team_a_id: fixture.teamA,
       team_b_id: fixture.teamB,
       ...rulesColumns(rules),
+      next_match_id: null,
       status: 'scheduled' as const,
     }))
 }
 
 /**
- * Maps the four knockout fixtures onto `matches` rows. The Battle for 3rd
- * and Championship are inserted with `null` teams — they are filled in once
- * the semis are played.
+ * Maps the four knockout fixtures onto `matches` rows.
+ *
+ * The Battle for 3rd and the Championship are inserted with `null` teams:
+ * who plays them is not knowable until M1 and M2 have been played. They are
+ * filled in afterwards by `advanceKnockoutBracket()` in
+ * `src/lib/knockout-advance.ts`, with a targeted update of just those two
+ * columns — never by re-publishing the stage, which would delete the semi
+ * results that decided them.
+ *
+ * `next_match_id` is populated by `linkKnockoutNextMatches()` in
+ * `src/app/admin/draw/actions.ts` immediately after publishing, once the
+ * inserted rows have ids to point at.
  */
 export function knockoutToMatchInserts(
   knockout: readonly KnockoutFixture[],
@@ -499,6 +518,7 @@ export function knockoutToMatchInserts(
     team_a_id: fixture.teamA,
     team_b_id: fixture.teamB,
     ...rulesColumns(rules),
+    next_match_id: null,
     status: 'scheduled' as const,
   }))
 }
@@ -527,6 +547,12 @@ export type PublishDrawMatch = {
   points_to_win: number
   deuce_enabled: boolean
   cap: number | null
+  /**
+   * Forwarded to the `next_match_id` column the RPC already reads
+   * (`0004_publish_draw_rpc.sql`). Always `null` for a first publish, because
+   * nothing being inserted has an id yet.
+   */
+  next_match_id: string | null
 }
 
 /** A single `publish_draw()` call: every fixture for one division + stage. */
@@ -561,6 +587,7 @@ export function toPublishDrawCalls(inserts: readonly MatchInsert[]): PublishDraw
       points_to_win: insert.points_to_win,
       deuce_enabled: insert.deuce_enabled,
       cap: insert.cap ?? null,
+      next_match_id: insert.next_match_id ?? null,
     })
   }
 
