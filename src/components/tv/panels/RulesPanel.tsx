@@ -28,13 +28,13 @@ const RULES: { icon: typeof RacketIcon; text: string }[] = [
 export function RulesPanel() {
   return (
     <PanelShell title="Rules Reminder">
-      <ul className="flex h-full flex-col justify-center gap-[clamp(0.85rem,1.8vh,1.6rem)]">
+      <ul className="flex h-full flex-col gap-[clamp(0.6rem,1.2vh,1rem)]">
         {RULES.map((rule, i) => {
           const Icon = rule.icon
           return (
-            <li key={i} className="flex items-start gap-3">
-              <Icon className="mt-0.5 h-[1.4em] w-[1.4em] shrink-0 text-[var(--color-brand-mint)]" />
-              <span className="text-[clamp(1rem,1.35vw,1.35rem)] font-semibold leading-snug text-frost/90">
+            <li key={i} className="flex flex-1 items-center gap-3">
+              <Icon className="h-[1.4em] w-[1.4em] shrink-0 text-[var(--color-brand-mint)]" />
+              <span className="text-[clamp(1.05rem,1.5vw,1.6rem)] font-semibold leading-snug text-frost/90">
                 {rule.text}
               </span>
             </li>

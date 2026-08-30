@@ -26,54 +26,57 @@ export function UpNextPanel({
 
   return (
     <PanelShell title="Up Next on This Court">
-      <div className="flex h-full flex-col justify-center gap-[clamp(1rem,2.2vh,2rem)]">
-        <div>
+      <div className="flex h-full flex-col gap-[clamp(1rem,2.4vh,1.75rem)]">
+        <div className="shrink-0">
           <p className="mb-1.5 text-[clamp(0.8rem,1.05vw,1.05rem)] font-semibold uppercase tracking-wide text-[var(--color-brand-gold)]">
             {upNext.stageLabel}
           </p>
-          <p className="mb-4 text-[clamp(1.3rem,1.9vw,1.9rem)] font-extrabold leading-tight">
+          <p className="text-[clamp(1.3rem,1.9vw,1.9rem)] font-extrabold leading-tight">
             {upNext.teamA.name} <span className="text-frost/50">vs</span> {upNext.teamB.name}
           </p>
+        </div>
 
-          <p className="mb-2 text-[clamp(0.7rem,0.95vw,0.95rem)] font-semibold uppercase tracking-wider text-frost/50">
+        <div className="flex flex-1 flex-col">
+          <p className="mb-2 shrink-0 text-[clamp(0.7rem,0.95vw,0.95rem)] font-semibold uppercase tracking-wider text-frost/50">
             Duty Roster
           </p>
-          <ul className="space-y-2">
-            {upNext.duties.map((duty, i) => (
-              <li
-                key={`${duty.role}-${i}`}
-                className="flex items-center justify-between rounded-[var(--radius-md)] bg-white/8 px-3.5 py-2.5 text-[clamp(0.9rem,1.15vw,1.15rem)]"
-              >
-                <span className="text-frost/70">{ROLE_LABEL[duty.role] ?? duty.role}</span>
-                <span className="font-bold">{duty.playerName}</span>
-              </li>
-            ))}
-          </ul>
-          {upNext.duties.length === 0 && (
+          {upNext.duties.length === 0 ? (
             <p className="text-[clamp(0.9rem,1.1vw,1.1rem)] text-frost/50">Duty roster to be confirmed.</p>
+          ) : (
+            <div className="flex flex-1 flex-col gap-2">
+              {upNext.duties.map((duty, i) => (
+                <div
+                  key={`${duty.role}-${i}`}
+                  className="flex flex-1 items-center justify-between rounded-[var(--radius-md)] bg-white/8 px-3.5 text-[clamp(0.95rem,1.3vw,1.4rem)]"
+                >
+                  <span className="text-frost/70">{ROLE_LABEL[duty.role] ?? duty.role}</span>
+                  <span className="font-bold">{duty.playerName}</span>
+                </div>
+              ))}
+            </div>
           )}
         </div>
 
         {laterOnCourt.length > 0 && (
-          <div className="border-t border-white/10 pt-[clamp(0.75rem,1.6vh,1.5rem)]">
-            <p className="mb-2 text-[clamp(0.7rem,0.95vw,0.95rem)] font-semibold uppercase tracking-wider text-frost/50">
+          <div className="flex flex-1 flex-col border-t border-white/10 pt-[clamp(0.75rem,1.6vh,1.5rem)]">
+            <p className="mb-2 shrink-0 text-[clamp(0.7rem,0.95vw,0.95rem)] font-semibold uppercase tracking-wider text-frost/50">
               Later on This Court
             </p>
-            <ul className="space-y-2">
+            <div className="flex flex-1 flex-col gap-2">
               {laterOnCourt.map((m) => (
-                <li
+                <div
                   key={m.matchId}
-                  className="flex items-center justify-between gap-3 rounded-[var(--radius-md)] bg-white/5 px-3.5 py-2.5"
+                  className="flex flex-1 flex-col justify-center rounded-[var(--radius-md)] bg-white/5 px-3.5 py-1"
                 >
-                  <span className="text-[clamp(0.7rem,0.9vw,0.9rem)] font-semibold uppercase tracking-wide text-frost/40">
+                  <span className="mb-0.5 block text-[clamp(0.7rem,0.9vw,0.9rem)] font-semibold uppercase tracking-wide text-frost/40">
                     {m.scheduledLabel}
                   </span>
-                  <span className="truncate text-[clamp(0.85rem,1.05vw,1.05rem)] font-bold">
+                  <span className="block text-[clamp(0.9rem,1.2vw,1.3rem)] font-bold leading-snug">
                     {m.teamA.name} <span className="font-normal text-frost/50">vs</span> {m.teamB.name}
                   </span>
-                </li>
+                </div>
               ))}
-            </ul>
+            </div>
           </div>
         )}
       </div>
