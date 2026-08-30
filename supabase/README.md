@@ -1,9 +1,24 @@
 # Supabase
 
 This directory holds the Supabase project configuration for Sunday
-Smashers: migrations, and (eventually) a readable `schema.sql` describing
-the tables, RLS policies and storage buckets once the `db-schema` work is
-done.
+Smashers:
+
+- `schema.sql` — the full, readable reference schema: enums, tables,
+  constraints, indexes, triggers, the `standings` view, RLS policies and
+  storage bucket policies, heavily commented.
+- `migrations/0001_initial_schema.sql` — the same schema as an applied
+  migration, for `npx supabase db push`. Keep it in sync with `schema.sql`
+  if either changes.
+- `seed.sql` — demo data (one tournament, two divisions, 11 pairs each,
+  courts/slots, a few played matches, announcements, site content) for
+  `npx supabase db reset` / local development.
+- `SCHEMA.md` — the data model reference: table map, role × capability RLS
+  matrix, and the reasoning behind duty roster derivation, scoresheet
+  verification, and forfeit handling.
+
+No hosted Supabase project exists yet, so none of the above has been
+pushed anywhere — it was authored and validated locally (see the
+"Verification notes" section of `SCHEMA.md`).
 
 The app talks to Supabase through `src/lib/supabase/`:
 

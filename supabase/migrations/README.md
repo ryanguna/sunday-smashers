@@ -23,12 +23,21 @@ applied migrations.
 
 ## Status
 
-No migrations exist yet — this app has no hosted Supabase project and no
-schema. This directory is a placeholder until:
+`0001_initial_schema.sql` defines the full schema (enums, tables, RLS,
+storage policies — see `../SCHEMA.md`), but it has not been applied
+anywhere yet: there is still no hosted Supabase project. It was validated
+locally against a disposable PostgreSQL container with hand-written
+stand-ins for `auth.*`/`storage.*`, not a real Supabase instance.
 
-1. A Supabase project is created and its `--project-ref` is known.
-2. The `db-schema` work defines tables/RLS and pushes the first migration.
+Once a project exists:
 
-Until then, `src/lib/supabase/types.ts` exports a permissive placeholder
-`Database` type, and `src/lib/supabase/config.ts#isSupabaseConfigured()`
-lets the rest of the app render safely without a live database connection.
+1. `npx supabase login && npx supabase link --project-ref <PROJECT_REF>`
+2. `npx supabase db push` to apply `0001_initial_schema.sql`.
+3. `npx supabase gen types typescript --linked > src/lib/supabase/types.ts`
+   to replace the hand-written `Database` type with a generated one (diff
+   first — they should match).
+
+Until then, `src/lib/supabase/types.ts` exports a hand-written `Database`
+type matching the schema exactly, and
+`src/lib/supabase/config.ts#isSupabaseConfigured()` lets the rest of the
+app render safely without a live database connection.
