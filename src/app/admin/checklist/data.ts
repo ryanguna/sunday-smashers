@@ -3,13 +3,13 @@ import { cache } from 'react'
 import { getAdminConsoleData } from '@/components/admin/data'
 import { PRIZES_SLUG } from '@/app/admin/settings/data'
 import { defaultTournamentSettings, type PrizeSettings } from '@/lib/settings'
-import type { AdminRegistration } from '@/lib/admin'
 import { isSupabaseConfigured } from '@/lib/supabase/config'
 import { createClient } from '@/lib/supabase/server'
-import type { SiteContentRow } from '@/lib/supabase/types'
+import type { AdminRegistration } from '@/lib/admin'
+import type { CommitteeChecklistRow, SiteContentRow, TournamentRow } from '@/lib/supabase/types'
 import {
-  COMMITTEE_CHECKLIST_SLUG,
-  checklistOrDefault,
+  checklistItemsFromRows,
+  defaultChecklistItems,
   deriveQuantities,
   type ChecklistItem,
   type DerivedQuantities,
@@ -18,12 +18,12 @@ import {
 /**
  * Server-only data for `/admin/checklist`.
  *
- * SCHEMA NOTE: `public.checklist_items` is a per-player collection table
- * (did *this* player get a loot bag / shirt / medal). It cannot express a
- * committee readiness board with owners, due dates and notes, so the board
- * is persisted as a JSON blob in `site_content` under
- * `COMMITTEE_CHECKLIST_SLUG`. A dedicated table would be better — see the
- * agent report.
+ * The board is one row per job in `public.committee_checklist` (migration
+ * 0005) so two committee members can tick different jobs at the same time
+ * without overwriting each other.
+ *
+ * Demo mode renders the seed board in memory: there is no database to read
+ * and nothing to save, but the console must still be reviewable.
  */
 
 export interface ChecklistPageData {
@@ -32,6 +32,10 @@ export interface ChecklistPageData {
   prizes: PrizeSettings
   /** ISO timestamp resolved on the server so components never call `Date.now()`. */
   nowIso: string
+  /** Null in demo mode, or when no tournament row exists to hang jobs off. */
+  tournamentId: string | null
+  /** True when the board has never been set up — the page offers to seed it. */
+  needsSeeding: boolean
   isDemo: boolean
 }
 
@@ -51,44 +55,75 @@ function readPrizes(raw: string | null | undefined): PrizeSettings {
   }
 }
 
-function build(
+function quantities(
   registrations: AdminRegistration[],
   prizes: PrizeSettings,
   divisionCount: number,
-  raw: string | null,
-  isDemo: boolean,
-): ChecklistPageData {
-  return {
-    items: checklistOrDefault(raw),
-    derived: deriveQuantities({ registrations, prizes, divisionCount }),
-    prizes,
-    nowIso: new Date().toISOString(),
-    isDemo,
-  }
+): DerivedQuantities {
+  return deriveQuantities({ registrations, prizes, divisionCount })
 }
 
 export const getChecklistPageData = cache(async function getChecklistPageData(): Promise<ChecklistPageData> {
-  const console_ = await getAdminConsoleData()
-  const divisionCount = Math.max(1, console_.divisions.length)
+  const adminData = await getAdminConsoleData()
+  const divisionCount = Math.max(1, adminData.divisions.length)
   const fallbackPrizes = defaultTournamentSettings().prizes
+  const nowIso = new Date().toISOString()
 
   if (!isSupabaseConfigured()) {
-    return build(console_.registrations, fallbackPrizes, divisionCount, null, true)
+    return {
+      items: defaultChecklistItems(),
+      derived: quantities(adminData.registrations, fallbackPrizes, divisionCount),
+      prizes: fallbackPrizes,
+      nowIso,
+      tournamentId: null,
+      needsSeeding: false,
+      isDemo: true,
+    }
   }
 
   try {
     const supabase = await createClient()
+    const { data: tournamentRow } = await supabase
+      .from('tournaments')
+      .select('*')
+      .order('tournament_date')
+      .limit(1)
+      .maybeSingle()
+    const tournamentId = (tournamentRow as TournamentRow | null)?.id ?? null
+
     const [prizesRes, boardRes] = await Promise.all([
       supabase.from('site_content').select('*').eq('slug', PRIZES_SLUG).maybeSingle(),
-      supabase.from('site_content').select('*').eq('slug', COMMITTEE_CHECKLIST_SLUG).maybeSingle(),
+      tournamentId
+        ? supabase
+            .from('committee_checklist')
+            .select('*')
+            .eq('tournament_id', tournamentId)
+            .order('position')
+        : Promise.resolve({ data: [] as CommitteeChecklistRow[] }),
     ])
 
     const prizes = readPrizes((prizesRes.data as SiteContentRow | null)?.body_markdown)
-    const raw = (boardRes.data as SiteContentRow | null)?.body_markdown ?? null
+    const rows = (boardRes.data as CommitteeChecklistRow[] | null) ?? []
 
-    return build(console_.registrations, prizes, divisionCount, raw, console_.isDemo)
+    return {
+      items: checklistItemsFromRows(rows),
+      derived: quantities(adminData.registrations, prizes, divisionCount),
+      prizes,
+      nowIso,
+      tournamentId,
+      needsSeeding: tournamentId != null && rows.length === 0,
+      isDemo: adminData.isDemo,
+    }
   } catch {
     // A missing content row must never take the console down two days out.
-    return build(console_.registrations, fallbackPrizes, divisionCount, null, console_.isDemo)
+    return {
+      items: defaultChecklistItems(),
+      derived: quantities(adminData.registrations, fallbackPrizes, divisionCount),
+      prizes: fallbackPrizes,
+      nowIso,
+      tournamentId: null,
+      needsSeeding: false,
+      isDemo: true,
+    }
   }
 })

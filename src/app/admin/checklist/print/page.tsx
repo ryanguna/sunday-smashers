@@ -1,7 +1,6 @@
 import type { Metadata } from 'next'
 
 import { requireAdmin } from '@/lib/auth'
-import { isSupabaseConfigured } from '@/lib/supabase/config'
 import { ChecklistPrintView } from '@/components/checklist'
 import { TOURNAMENT_DATE_LABEL } from '@/lib/tournament'
 import { getChecklistPageData } from '../data'
@@ -15,9 +14,7 @@ export const dynamic = 'force-dynamic'
 
 /** The paper version. Plain black-on-white, real tick boxes, no animation. */
 export default async function AdminChecklistPrintPage() {
-  if (isSupabaseConfigured()) {
-    await requireAdmin('/admin/checklist/print')
-  }
+  await requireAdmin('/admin/checklist/print')
 
   const { items, derived, nowIso } = await getChecklistPageData()
 

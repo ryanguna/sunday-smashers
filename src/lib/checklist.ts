@@ -10,45 +10,67 @@
  * prize configuration, so the number on the printed sheet can't drift from
  * the number of people who actually entered.
  *
- * SCHEMA NOTE: `public.checklist_items` is a *per-player collection* table
- * (`player_id` + `item_type in (loot_bag, shirt, medal, trophy,
- * prize_money)`), which answers "did Nadia pick up her loot bag?" — not
- * "has the committee bought the medals?". This board is therefore persisted
- * as JSON in `site_content` under `COMMITTEE_CHECKLIST_SLUG`, the same
- * pattern the settings console uses for config with no column yet. A
- * dedicated `committee_checklist` table would be better — see the report.
+ * SCHEMA: the board lives in `public.committee_checklist`, one row per job
+ * (migration 0005). Row-per-item matters here: two committee members ticking
+ * jobs at the same time must not overwrite each other, which is exactly what
+ * a single JSON blob would have done. `public.checklist_items` is a
+ * different thing entirely — per-player loot bag/shirt/medal handout.
+ *
+ * The table stores the committee's data (category, label, owner, notes, due
+ * date, done, position). The *copy* — each standard job's one-line detail and
+ * which quantity is auto-derived for it — stays in the catalogue below and is
+ * matched on label, so editorial tweaks never need a migration and no
+ * structured state is smuggled into a text column.
  */
 
 import { csvEscape, csvFilename, formatCents, type AdminRegistration } from './admin'
 import { shirtSizeTally } from './admin'
 import type { PrizeSettings } from './settings'
+import type { CommitteeChecklistRow } from './supabase/types'
 
 // ---------------------------------------------------------------------------
 // Categories
 // ---------------------------------------------------------------------------
 
+/**
+ * Slugs, because `committee_checklist_category_format` constrains the column
+ * to `^[a-z0-9_\-]{1,48}$`. Display strings live in `CATEGORY_LABELS`.
+ */
 export const CHECKLIST_CATEGORIES = [
-  'Prizes & trophies',
-  'Loot bags & shirts',
-  'Court kit',
-  'Paperwork',
-  'Venue & safety',
-  'Food & drink',
+  'prizes',
+  'loot_bags',
+  'court_kit',
+  'paperwork',
+  'venue',
+  'food',
 ] as const
 
 export type ChecklistCategory = (typeof CHECKLIST_CATEGORIES)[number]
 
+export const CATEGORY_LABELS: Record<ChecklistCategory, string> = {
+  prizes: 'Prizes & trophies',
+  loot_bags: 'Loot bags & shirts',
+  court_kit: 'Court kit',
+  paperwork: 'Paperwork',
+  venue: 'Venue & safety',
+  food: 'Food & drink',
+}
+
 export const CATEGORY_BLURBS: Record<ChecklistCategory, string> = {
-  'Prizes & trophies': 'Cash envelopes, trophies and medals — the poster promised them.',
-  'Loot bags & shirts': 'One bag for every single player. No exceptions, no leftovers.',
-  'Court kit': 'Shuttles, nets, posts and everything that makes a game possible.',
-  Paperwork: 'Scoresheets, draws, pens and the rules on the wall.',
-  'Venue & safety': 'Keys, first aid, music and the bits that keep everyone upright.',
-  'Food & drink': 'Snacks, water and the all-important eggnog.',
+  prizes: 'Cash envelopes, trophies and medals — the poster promised them.',
+  loot_bags: 'One bag for every single player. No exceptions, no leftovers.',
+  court_kit: 'Shuttles, nets, posts and everything that makes a game possible.',
+  paperwork: 'Scoresheets, draws, pens and the rules on the wall.',
+  venue: 'Keys, first aid, music and the bits that keep everyone upright.',
+  food: 'Snacks, water and the all-important eggnog.',
 }
 
 export function isChecklistCategory(value: string): value is ChecklistCategory {
   return (CHECKLIST_CATEGORIES as readonly string[]).includes(value)
+}
+
+export function categoryLabel(category: string): string {
+  return isChecklistCategory(category) ? CATEGORY_LABELS[category] : category
 }
 
 // ---------------------------------------------------------------------------
@@ -57,7 +79,7 @@ export function isChecklistCategory(value: string): value is ChecklistCategory {
 
 /**
  * Which derived quantity fills this row's "how many" cell. `null` means the
- * committee sets it by hand.
+ * job simply has no count worth showing.
  */
 export type DerivedQuantityKey =
   | 'lootBags'
@@ -70,109 +92,207 @@ export type DerivedQuantityKey =
   | 'shuttleTubes'
 
 export interface ChecklistItem {
+  /** `committee_checklist.id`, or a local `seed-n` id in demo mode. */
   id: string
   category: ChecklistCategory
   label: string
+  /** Editorial one-liner from the catalogue. Not persisted. */
   detail: string
   /** Committee member responsible. Free text — no accounts required. */
   owner: string
-  /** ISO date (`YYYY-MM-DD`) or `''`. */
+  /** ISO date (`YYYY-MM-DD`) or `''`. Maps to `due_on`. */
   dueDate: string
   notes: string
   done: boolean
-  /** Set when the quantity is auto-derived rather than typed in. */
+  /** Derived from the catalogue, never typed in. */
   derivedQuantity: DerivedQuantityKey | null
-  /** Manual quantity text, used when `derivedQuantity` is null. */
-  quantity: string
-  sortOrder: number
+  /** `committee_checklist.position` — the order jobs happen on the day. */
+  position: number
 }
 
-let seedCounter = 0
-function seedItem(
-  category: ChecklistCategory,
-  label: string,
-  detail: string,
-  extra: Partial<ChecklistItem> = {},
-): ChecklistItem {
-  seedCounter += 1
-  return {
-    id: `seed-${seedCounter}`,
-    category,
-    label,
-    detail,
+/** A standard job: the committee's starting board. */
+export interface ChecklistSeed {
+  category: ChecklistCategory
+  label: string
+  detail: string
+  derivedQuantity?: DerivedQuantityKey
+}
+
+/**
+ * The starter board. Everything the poster promises plus the operational kit
+ * a badminton event cannot run without, in the order it happens on the day.
+ */
+export const DEFAULT_CHECKLIST_SEEDS: readonly ChecklistSeed[] = [
+  { category: 'prizes', label: 'Cash prize envelopes', detail: 'One labelled envelope per placing, per division.', derivedQuantity: 'prizeMoney' },
+  { category: 'prizes', label: 'Trophies engraved', detail: 'Champion trophy for each division.', derivedQuantity: 'trophies' },
+  { category: 'prizes', label: 'Medals sorted by placing', detail: 'Doubles means two medals per placing.', derivedQuantity: 'medals' },
+  { category: 'prizes', label: 'Award certificates printed', detail: 'MVP, Most Improved, Sportsmanship, Best Outfit.' },
+  { category: 'prizes', label: 'Presentation table dressed', detail: 'Tinsel, table cloth, trophy risers.' },
+
+  { category: 'loot_bags', label: 'Loot bags packed', detail: 'One per player — count comes from approved registrations.', derivedQuantity: 'lootBags' },
+  { category: 'loot_bags', label: 'Event shirts ordered', detail: 'Ordered against the live shirt-size tally.', derivedQuantity: 'shirts' },
+  { category: 'loot_bags', label: 'Shirts sorted into size piles', detail: 'Lay them out by size before doors open.', derivedQuantity: 'shirts' },
+  { category: 'loot_bags', label: 'Santa hats counted', detail: 'Mandatory festive headwear.', derivedQuantity: 'players' },
+
+  { category: 'court_kit', label: 'Shuttlecock tubes', detail: 'Match shuttles plus spares for the finals.', derivedQuantity: 'shuttleTubes' },
+  { category: 'court_kit', label: 'Nets and posts checked', detail: 'Height gauge, no sagging nets.' },
+  { category: 'court_kit', label: 'Court lines taped', detail: 'Tape down anything that curls.' },
+  { category: 'court_kit', label: 'Spare grips and grip tape', detail: 'Sweaty December hands.' },
+  { category: 'court_kit', label: 'Scoreboards / flip charts', detail: 'One per court, plus a marker that works.' },
+
+  { category: 'paperwork', label: 'Scoresheets printed', detail: 'Round robin plus knockout, two spares per court.' },
+  { category: 'paperwork', label: 'Pens', detail: 'They always vanish. Buy more than you need.' },
+  { category: 'paperwork', label: 'Draw sheets on the wall', detail: 'Round robin grid and the semis bracket.' },
+  { category: 'paperwork', label: 'Rules poster displayed', detail: 'First to 15 no deuce, top 4 to the semis.' },
+  { category: 'paperwork', label: 'Duty roster printed', detail: 'Umpire, scorer and line judge per match.' },
+  { category: 'paperwork', label: 'Player check-in list', detail: 'One line per registered player.', derivedQuantity: 'players' },
+
+  { category: 'venue', label: 'First-aid kit', detail: 'Stocked, in date, and by the scorers table.' },
+  { category: 'venue', label: 'Ice packs', detail: 'Rolled ankles happen.' },
+  { category: 'venue', label: 'Venue keys and access', detail: 'Who opens up, who locks up.' },
+  { category: 'venue', label: 'Speaker and Christmas playlist', detail: 'Festive, but not deafening.' },
+  { category: 'venue', label: 'Camera / phone tripod', detail: 'For the podium photos and the gallery.' },
+  { category: 'venue', label: 'Bin bags and clean-up kit', detail: 'Leave the hall better than we found it.' },
+
+  { category: 'food', label: 'Water and cups', detail: 'Two bottles per player is the safe number.', derivedQuantity: 'players' },
+  { category: 'food', label: 'Snacks and mince pies', detail: 'Half-time sugar.' },
+  { category: 'food', label: 'Eggnog for the presentation', detail: 'Non-alcoholic option too.' },
+]
+
+/** Positions are spaced so a job can be slotted between two later on. */
+export function seedPosition(index: number): number {
+  return (index + 1) * 10
+}
+
+const SEED_BY_LABEL = new Map(
+  DEFAULT_CHECKLIST_SEEDS.map((seed) => [seed.label.toLowerCase(), seed]),
+)
+
+/**
+ * The catalogue copy for a stored job, matched on label.
+ *
+ * A committee-added job simply has no catalogue entry and shows no detail or
+ * derived quantity — which is correct: only the standard jobs have a number
+ * the app can work out for them.
+ */
+export function jobMeta(label: string): { detail: string; derivedQuantity: DerivedQuantityKey | null } {
+  const seed = SEED_BY_LABEL.get(label.trim().toLowerCase())
+  return { detail: seed?.detail ?? '', derivedQuantity: seed?.derivedQuantity ?? null }
+}
+
+export function defaultChecklistItems(): ChecklistItem[] {
+  return DEFAULT_CHECKLIST_SEEDS.map((seed, index) => ({
+    id: `seed-${index + 1}`,
+    category: seed.category,
+    label: seed.label,
+    detail: seed.detail,
     owner: '',
     dueDate: '',
     notes: '',
     done: false,
-    derivedQuantity: null,
-    quantity: '',
-    sortOrder: seedCounter * 10,
-    ...extra,
+    derivedQuantity: seed.derivedQuantity ?? null,
+    position: seedPosition(index),
+  }))
+}
+
+// ---------------------------------------------------------------------------
+// Row mapping
+// ---------------------------------------------------------------------------
+
+/** `committee_checklist` row → the shape the UI works in. */
+export function checklistItemFromRow(row: CommitteeChecklistRow): ChecklistItem {
+  const meta = jobMeta(row.label)
+  return {
+    id: row.id,
+    category: isChecklistCategory(row.category) ? row.category : 'venue',
+    label: row.label,
+    detail: meta.detail,
+    owner: row.owner ?? '',
+    dueDate: row.due_on ?? '',
+    notes: row.notes ?? '',
+    done: row.is_done,
+    derivedQuantity: meta.derivedQuantity,
+    position: row.position,
   }
 }
 
+export function checklistItemsFromRows(rows: readonly CommitteeChecklistRow[]): ChecklistItem[] {
+  return sortChecklist(rows.map(checklistItemFromRow))
+}
+
+/** The insert payload for one standard job. */
+export interface ChecklistInsert {
+  tournament_id: string
+  category: string
+  label: string
+  position: number
+}
+
+/** The 29 standard jobs, ready to insert for a tournament. */
+export function checklistSeedRows(tournamentId: string): ChecklistInsert[] {
+  return DEFAULT_CHECKLIST_SEEDS.map((seed, index) => ({
+    tournament_id: tournamentId,
+    category: seed.category,
+    label: seed.label,
+    position: seedPosition(index),
+  }))
+}
+
 /**
- * The starter board. Everything the poster promises plus the operational
- * kit a badminton event cannot run without.
+ * Column patch for an edit. `is_done` is written on its own and `done_at` /
+ * `done_by` are deliberately absent — the `sync_committee_checklist_done`
+ * trigger owns those.
  */
-export function defaultChecklistItems(): ChecklistItem[] {
-  seedCounter = 0
-  return [
-    seedItem('Prizes & trophies', 'Cash prize envelopes', 'One labelled envelope per placing, per division.', {
-      derivedQuantity: 'prizeMoney',
-    }),
-    seedItem('Prizes & trophies', 'Trophies engraved', 'Champion trophy for each division.', {
-      derivedQuantity: 'trophies',
-    }),
-    seedItem('Prizes & trophies', 'Medals sorted by placing', 'Doubles means two medals per placing.', {
-      derivedQuantity: 'medals',
-    }),
-    seedItem('Prizes & trophies', 'Award certificates printed', 'MVP, Most Improved, Sportsmanship, Best Outfit.'),
-    seedItem('Prizes & trophies', 'Presentation table dressed', 'Tinsel, table cloth, trophy risers.'),
+export function checklistUpdatePatch(patch: Partial<Omit<ChecklistItem, 'id' | 'detail' | 'derivedQuantity'>>): {
+  category?: string
+  label?: string
+  owner?: string | null
+  notes?: string | null
+  due_on?: string | null
+  is_done?: boolean
+  position?: number
+} {
+  const out: Record<string, unknown> = {}
+  if (patch.category !== undefined) out.category = patch.category
+  if (patch.label !== undefined) out.label = patch.label.trim()
+  if (patch.owner !== undefined) out.owner = patch.owner.trim() === '' ? null : patch.owner.trim()
+  if (patch.notes !== undefined) out.notes = patch.notes.trim() === '' ? null : patch.notes.trim()
+  if (patch.dueDate !== undefined) out.due_on = patch.dueDate === '' ? null : patch.dueDate
+  if (patch.done !== undefined) out.is_done = patch.done
+  if (patch.position !== undefined) out.position = patch.position
+  return out
+}
 
-    seedItem('Loot bags & shirts', 'Loot bags packed', 'One per player — count comes from approved registrations.', {
-      derivedQuantity: 'lootBags',
-    }),
-    seedItem('Loot bags & shirts', 'Event shirts ordered', 'Ordered against the live shirt-size tally.', {
-      derivedQuantity: 'shirts',
-    }),
-    seedItem('Loot bags & shirts', 'Shirts sorted into size piles', 'Lay them out by size before doors open.', {
-      derivedQuantity: 'shirts',
-    }),
-    seedItem('Loot bags & shirts', 'Santa hats counted', 'Mandatory festive headwear.', {
-      derivedQuantity: 'players',
-    }),
-
-    seedItem('Court kit', 'Shuttlecock tubes', 'Match shuttles plus spares for the finals.', {
-      derivedQuantity: 'shuttleTubes',
-    }),
-    seedItem('Court kit', 'Nets and posts checked', 'Height gauge, no sagging nets.'),
-    seedItem('Court kit', 'Court lines taped', 'Tape down anything that curls.'),
-    seedItem('Court kit', 'Spare grips and grip tape', 'Sweaty December hands.'),
-    seedItem('Court kit', 'Scoreboards / flip charts', 'One per court, plus a marker that works.'),
-
-    seedItem('Paperwork', 'Scoresheets printed', 'Round robin plus knockout, two spares per court.'),
-    seedItem('Paperwork', 'Pens', 'They always vanish. Buy more than you need.', { quantity: '20' }),
-    seedItem('Paperwork', 'Draw sheets on the wall', 'Round robin grid and the semis bracket.'),
-    seedItem('Paperwork', 'Rules poster displayed', 'First to 15 no deuce, top 4 to the semis.'),
-    seedItem('Paperwork', 'Duty roster printed', 'Umpire, scorer and line judge per match.'),
-    seedItem('Paperwork', 'Player check-in list', 'One line per registered player.', {
-      derivedQuantity: 'players',
-    }),
-
-    seedItem('Venue & safety', 'First-aid kit', 'Stocked, in date, and by the scorers table.'),
-    seedItem('Venue & safety', 'Ice packs', 'Rolled ankles happen.'),
-    seedItem('Venue & safety', 'Venue keys and access', 'Who opens up, who locks up.'),
-    seedItem('Venue & safety', 'Speaker and Christmas playlist', 'Festive, but not deafening.'),
-    seedItem('Venue & safety', 'Camera / phone tripod', 'For the podium photos and the gallery.'),
-    seedItem('Venue & safety', 'Bin bags and clean-up kit', 'Leave the hall better than we found it.'),
-
-    seedItem('Food & drink', 'Water and cups', 'Two bottles per player is the safe number.', {
-      derivedQuantity: 'players',
-    }),
-    seedItem('Food & drink', 'Snacks and mince pies', 'Half-time sugar.'),
-    seedItem('Food & drink', 'Eggnog for the presentation', 'Non-alcoholic option too.'),
-  ]
+/**
+ * Rows that duplicate an earlier `(category, label)` pair.
+ *
+ * Seeding only runs against an empty board, but two admins pressing the
+ * button in the same instant could still both see "empty". There is no unique
+ * index to lean on, so this makes the outcome self-healing: keep the oldest
+ * row for each job, hand back the rest to delete.
+ */
+export function duplicateChecklistRowIds(rows: readonly CommitteeChecklistRow[]): string[] {
+  const keep = new Map<string, CommitteeChecklistRow>()
+  const drop: string[] = []
+  const ordered = [...rows].sort((a, b) => a.created_at.localeCompare(b.created_at) || a.id.localeCompare(b.id))
+  for (const row of ordered) {
+    const key = `${row.category}::${row.label.trim().toLowerCase()}`
+    const existing = keep.get(key)
+    if (!existing) {
+      keep.set(key, row)
+      continue
+    }
+    // Never discard work: a ticked or annotated duplicate wins over a bare one.
+    const informative = row.is_done || row.owner || row.notes || row.due_on
+    const existingInformative = existing.is_done || existing.owner || existing.notes || existing.due_on
+    if (informative && !existingInformative) {
+      drop.push(existing.id)
+      keep.set(key, row)
+    } else {
+      drop.push(row.id)
+    }
+  }
+  return drop
 }
 
 // ---------------------------------------------------------------------------
@@ -298,10 +418,10 @@ export function quantityText(key: DerivedQuantityKey, derived: DerivedQuantities
   }
 }
 
-/** The quantity cell for any item, derived or manual. */
+/** The quantity cell for an item, or `''` when nothing is derived for it. */
 export function itemQuantity(item: ChecklistItem, derived: DerivedQuantities): string {
   if (item.derivedQuantity) return quantityText(item.derivedQuantity, derived)
-  return item.quantity
+  return ''
 }
 
 /** True when the derived quantity has nothing behind it yet. */
@@ -372,7 +492,7 @@ export function progressCheer(percent: number): string {
 
 export function sortChecklist(items: readonly ChecklistItem[]): ChecklistItem[] {
   return [...items].sort((a, b) => {
-    if (a.sortOrder !== b.sortOrder) return a.sortOrder - b.sortOrder
+    if (a.position !== b.position) return a.position - b.position
     return a.label.localeCompare(b.label)
   })
 }
@@ -513,29 +633,27 @@ export function removeItem(items: readonly ChecklistItem[], id: string): Checkli
   return items.filter((item) => item.id !== id)
 }
 
-/** Appends a committee-added row at the end of its category. */
+/** Appends a committee-added job at the end of the board. */
 export function addItem(
   items: readonly ChecklistItem[],
-  input: { category: ChecklistCategory; label: string; detail?: string; owner?: string; dueDate?: string; quantity?: string },
+  input: { category: ChecklistCategory; label: string; owner?: string; dueDate?: string },
 ): ChecklistItem[] {
-  const maxOrder = items.reduce((max, item) => Math.max(max, item.sortOrder), 0)
   const item: ChecklistItem = {
     id: nextChecklistId(items),
     category: input.category,
     label: input.label.trim(),
-    detail: input.detail?.trim() ?? '',
+    detail: '',
     owner: input.owner?.trim() ?? '',
     dueDate: input.dueDate ?? '',
     notes: '',
     done: false,
     derivedQuantity: null,
-    quantity: input.quantity?.trim() ?? '',
-    sortOrder: maxOrder + 10,
+    position: nextPosition(items),
   }
   return [...items, item]
 }
 
-/** Collision-free id for a new row. */
+/** Collision-free local id, used for optimistic rows and in demo mode. */
 export function nextChecklistId(items: readonly ChecklistItem[]): string {
   const used = new Set(items.map((item) => item.id))
   let n = items.length + 1
@@ -543,89 +661,9 @@ export function nextChecklistId(items: readonly ChecklistItem[]): string {
   return `item-${n}`
 }
 
-// ---------------------------------------------------------------------------
-// Persistence (JSON blob in `site_content`)
-// ---------------------------------------------------------------------------
-
-export const COMMITTEE_CHECKLIST_SLUG = 'committee-checklist'
-
-export interface ChecklistBlob {
-  version: 1
-  items: ChecklistItem[]
-  updatedAt: string
-}
-
-export function serialiseChecklist(items: readonly ChecklistItem[], updatedAt: string): string {
-  const blob: ChecklistBlob = { version: 1, items: sortChecklist(items), updatedAt }
-  return JSON.stringify(blob)
-}
-
-/**
- * Tolerant parse — a hand-edited or half-migrated blob must never take the
- * page down, so anything unrecognised falls back to the seed board.
- */
-export function parseChecklist(raw: string | null | undefined): ChecklistItem[] | null {
-  if (!raw) return null
-  try {
-    const parsed: unknown = JSON.parse(raw)
-    const list = Array.isArray(parsed)
-      ? parsed
-      : typeof parsed === 'object' && parsed !== null && Array.isArray((parsed as ChecklistBlob).items)
-        ? (parsed as ChecklistBlob).items
-        : null
-    if (!list) return null
-    const items = list.map(coerceItem).filter((item): item is ChecklistItem => item !== null)
-    return items.length > 0 ? sortChecklist(items) : null
-  } catch {
-    return null
-  }
-}
-
-function coerceItem(value: unknown, index: number): ChecklistItem | null {
-  if (typeof value !== 'object' || value === null) return null
-  const raw = value as Record<string, unknown>
-  const label = typeof raw.label === 'string' ? raw.label.trim() : ''
-  if (label === '') return null
-  const category =
-    typeof raw.category === 'string' && isChecklistCategory(raw.category)
-      ? raw.category
-      : CHECKLIST_CATEGORIES[0]
-  return {
-    id: typeof raw.id === 'string' && raw.id ? raw.id : `item-${index + 1}`,
-    category,
-    label,
-    detail: typeof raw.detail === 'string' ? raw.detail : '',
-    owner: typeof raw.owner === 'string' ? raw.owner : '',
-    dueDate: typeof raw.dueDate === 'string' ? raw.dueDate : '',
-    notes: typeof raw.notes === 'string' ? raw.notes : '',
-    done: raw.done === true,
-    derivedQuantity: isDerivedKey(raw.derivedQuantity) ? raw.derivedQuantity : null,
-    quantity: typeof raw.quantity === 'string' ? raw.quantity : '',
-    sortOrder: typeof raw.sortOrder === 'number' && Number.isFinite(raw.sortOrder) ? raw.sortOrder : (index + 1) * 10,
-  }
-}
-
-const DERIVED_KEYS: readonly DerivedQuantityKey[] = [
-  'lootBags',
-  'players',
-  'shirts',
-  'teams',
-  'medals',
-  'trophies',
-  'prizeMoney',
-  'shuttleTubes',
-]
-
-function isDerivedKey(value: unknown): value is DerivedQuantityKey {
-  return typeof value === 'string' && (DERIVED_KEYS as readonly string[]).includes(value)
-}
-
-/**
- * The board a page should render: the saved blob if there is one, otherwise
- * the seed template so a fresh committee starts with a full checklist.
- */
-export function checklistOrDefault(raw: string | null | undefined): ChecklistItem[] {
-  return parseChecklist(raw) ?? defaultChecklistItems()
+/** The next free `position`, leaving room to slot jobs in later. */
+export function nextPosition(items: readonly ChecklistItem[]): number {
+  return items.reduce((max, item) => Math.max(max, item.position), 0) + 10
 }
 
 // ---------------------------------------------------------------------------
@@ -653,7 +691,7 @@ export function toChecklistCsv(
     for (const item of group.items) {
       lines.push(
         [
-          item.category,
+          CATEGORY_LABELS[item.category],
           item.label,
           item.detail,
           itemQuantity(item, derived),
@@ -686,21 +724,34 @@ export interface ChecklistAuditEntry {
   metadata: Record<string, string | number | boolean | null>
 }
 
+export type ChecklistAuditAction =
+  | 'checklist.toggle'
+  | 'checklist.update'
+  | 'checklist.add'
+  | 'checklist.delete'
+
+/** One audit row per job, matching the row-per-job storage. */
 export function checklistAuditEntry(
-  items: readonly ChecklistItem[],
-  before: readonly ChecklistItem[],
+  action: ChecklistAuditAction,
+  item: Pick<ChecklistItem, 'id' | 'label' | 'category' | 'done'>,
 ): ChecklistAuditEntry {
-  const after = progressOf(items)
-  const previous = progressOf(before)
   return {
-    action: 'checklist.update',
-    entity_type: 'tournament',
-    entity_id: null,
+    action,
+    entity_type: 'committee_checklist',
+    entity_id: item.id,
     metadata: {
-      items: items.length,
-      done: after.done,
-      done_before: previous.done,
-      percent: after.percent,
+      label: item.label,
+      category: item.category,
+      done: item.done,
     },
+  }
+}
+
+export function checklistSeedAuditEntry(count: number, tournamentId: string): ChecklistAuditEntry {
+  return {
+    action: 'checklist.seed',
+    entity_type: 'committee_checklist',
+    entity_id: tournamentId,
+    metadata: { items: count },
   }
 }

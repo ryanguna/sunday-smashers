@@ -1,5 +1,6 @@
 import {
   CATEGORY_BLURBS,
+  CATEGORY_LABELS,
   categoryProgress,
   dueLabel,
   itemQuantity,
@@ -56,7 +57,7 @@ export function ChecklistPrintView({
       {groups.map((group) => (
         <section key={group.category} className="mb-5 break-inside-avoid">
           <h2 className="text-lg font-bold" style={{ color: '#000' }}>
-            {group.category}{' '}
+            {CATEGORY_LABELS[group.category]}{' '}
             <span className="text-sm font-normal">
               ({group.done}/{group.total})
             </span>

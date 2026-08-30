@@ -18,13 +18,11 @@
  * a starting point, and `mergeAwardDefinitions()` lets an admin-configured
  * list add or override entries at runtime.
  *
- * SCHEMA NOTE: `public.award_type` is a closed Postgres enum
- * (`champion | runner_up | third_place | fourth_place | sportsmanship |
- * special_mention`), so custom award keys cannot be stored in that column.
- * Every custom award is written as `special_mention` and its key is carried
- * in `citation` using the tagged encoding below (`encodeCitation` /
- * `decodeCitation`). A dedicated `award_key text` column would be cleaner —
- * see the agent report.
+ * SCHEMA: `public.award_type` is a closed Postgres enum, so the catalogue key
+ * lives in its own `awards.award_key` column (migration 0005) while
+ * `award_type` keeps the coarse enum value. `citation` is user-visible prose
+ * and carries nothing else. `(division_id, award_key)` is unique — a division
+ * hands out a given award exactly once.
  */
 
 import type { FinalPlacings, TeamId } from './draw'
@@ -222,36 +220,90 @@ export function specialDefinitions(
 }
 
 // ---------------------------------------------------------------------------
-// Citation encoding
+// Award keys
 // ---------------------------------------------------------------------------
 
-const CITATION_TAG = /^\[\[award:([a-z0-9_-]+)\]\]\s?/i
+/** Matches the `award_key_format` check constraint from migration 0005. */
+const AWARD_KEY_FORMAT = /^[a-z0-9_-]{1,48}$/
+
+export function isValidAwardKey(key: string): boolean {
+  return AWARD_KEY_FORMAT.test(key)
+}
 
 /**
- * Packs a custom award key into the `citation` column. Placing awards and
- * `sportsmanship` map 1:1 onto the enum and are stored untagged.
+ * The `citation` column carries user-visible prose and nothing else — the
+ * award's identity lives in `awards.award_key` (migration 0005). This just
+ * normalises whitespace and maps "nothing typed" onto SQL `NULL`.
+ *
+ * Square brackets, quotes and any other punctuation an organiser fancies
+ * survive untouched; there is no marker syntax left to collide with.
  */
-export function encodeCitation(key: string, text: string, dbType: AwardType): string | null {
+export function citationForStorage(text: string): string | null {
   const trimmed = text.trim()
-  const needsTag = dbType === 'special_mention'
-  if (!needsTag) return trimmed === '' ? null : trimmed
-  return `[[award:${key}]]${trimmed === '' ? '' : ` ${trimmed}`}`
+  return trimmed === '' ? null : trimmed
 }
 
-/** Unpacks `citation`, recovering the custom key when one was tagged in. */
-export function decodeCitation(
-  citation: string | null,
-  dbType: AwardType,
-): { key: string | null; text: string } {
-  if (!citation) return { key: null, text: '' }
-  const match = CITATION_TAG.exec(citation)
-  if (match) return { key: match[1].toLowerCase(), text: citation.slice(match[0].length).trim() }
-  return { key: dbTypeToKey(dbType), text: citation.trim() }
+/** The inverse: a missing citation reads as an empty string in the UI. */
+export function citationFromRow(citation: string | null): string {
+  return citation?.trim() ?? ''
 }
 
-/** The catalogue key an untagged enum value corresponds to. */
-export function dbTypeToKey(dbType: AwardType): string {
-  return dbType
+/** Award keys already used in a division. */
+export function usedAwardKeys(records: readonly AwardRecord[]): Set<string> {
+  return new Set(records.map((record) => record.key))
+}
+
+/**
+ * The catalogue entries a division can still hand out.
+ *
+ * `idx_awards_division_key` makes `(division_id, award_key)` unique, so the
+ * UI offers each award once rather than letting Postgres reject the second
+ * one with a raw constraint error.
+ */
+export function availableDefinitions(
+  records: readonly AwardRecord[],
+  definitions: readonly AwardDefinition[] = DEFAULT_AWARD_DEFINITIONS,
+): AwardDefinition[] {
+  const used = usedAwardKeys(records)
+  return definitions.filter((definition) => !used.has(definition.key))
+}
+
+/** Keys handed out more than once in one division — never valid to save. */
+export function duplicateAwardKeys(records: readonly AwardRecord[]): string[] {
+  const seen = new Set<string>()
+  const duplicates = new Set<string>()
+  for (const record of records) {
+    if (seen.has(record.key)) duplicates.add(record.key)
+    seen.add(record.key)
+  }
+  return [...duplicates].sort()
+}
+
+/**
+ * True when saving `key` into `divisionSlug` would collide with a row that
+ * already exists (ignoring the row being edited).
+ */
+export function wouldCollide(
+  records: readonly AwardRecord[],
+  key: string,
+  selfId: string | null,
+): boolean {
+  return records.some((record) => record.key === key && record.id !== selfId)
+}
+
+/** Plain-English version of the `(division_id, award_key)` unique violation. */
+export function awardCollisionMessage(
+  key: string,
+  definitions: readonly AwardDefinition[] = DEFAULT_AWARD_DEFINITIONS,
+): string {
+  const label = awardDefinitionByKey(key, definitions)?.label ?? key
+  return `${label} has already been awarded in this division — edit the existing one instead of adding a second.`
+}
+
+/** Postgres unique-violation code, so a collision reads as English not SQL. */
+export function isUniqueViolation(error: { code?: string; message?: string } | null): boolean {
+  if (!error) return false
+  return error.code === '23505' || /duplicate key value/i.test(error.message ?? '')
 }
 
 // ---------------------------------------------------------------------------
@@ -600,6 +652,12 @@ export function planPublish(
     if (unsaved.length > 0 && targets.length === 0) {
       blockers.push('Confirm the derived placings first — nothing is saved yet.')
     }
+  }
+
+  // `(division_id, award_key)` is unique, so a duplicate can only be a
+  // half-finished edit in the browser. Say so before Postgres has to.
+  for (const key of duplicateAwardKeys(records)) {
+    blockers.push(awardCollisionMessage(key))
   }
 
   const ids = targets

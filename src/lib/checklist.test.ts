@@ -2,13 +2,17 @@ import { describe, expect, it } from 'vitest'
 import {
   CHECKLIST_CATEGORIES,
   CHECKLIST_CSV_HEADERS,
-  COMMITTEE_CHECKLIST_SLUG,
+  CATEGORY_LABELS,
   addItem,
   categoryProgress,
   checklistAlerts,
   checklistAuditEntry,
   checklistCsvFilename,
-  checklistOrDefault,
+  checklistItemFromRow,
+  checklistItemsFromRows,
+  checklistSeedAuditEntry,
+  checklistSeedRows,
+  checklistUpdatePatch,
   daysUntilDue,
   defaultChecklistItems,
   deriveQuantities,
@@ -17,7 +21,9 @@ import {
   isChecklistCategory,
   itemQuantity,
   nextChecklistId,
-  parseChecklist,
+  duplicateChecklistRowIds,
+  jobMeta,
+  nextPosition,
   playingRegistrations,
   progressCheer,
   progressOf,
@@ -25,7 +31,7 @@ import {
   quantityIsPending,
   quantityText,
   removeItem,
-  serialiseChecklist,
+  seedPosition,
   sortChecklist,
   toChecklistCsv,
   toggleItem,
@@ -34,6 +40,7 @@ import {
   type DerivedQuantities,
 } from './checklist'
 import type { AdminRegistration } from './admin'
+import type { CommitteeChecklistRow } from './supabase/types'
 import type { PrizeSettings } from './settings'
 
 // ---------------------------------------------------------------------------
@@ -103,7 +110,7 @@ const DERIVED = deriveQuantities({
 function item(overrides: Partial<ChecklistItem> = {}): ChecklistItem {
   return {
     id: 'i1',
-    category: 'Court kit',
+    category: 'court_kit',
     label: 'Shuttlecock tubes',
     detail: '',
     owner: '',
@@ -111,8 +118,7 @@ function item(overrides: Partial<ChecklistItem> = {}): ChecklistItem {
     notes: '',
     done: false,
     derivedQuantity: null,
-    quantity: '',
-    sortOrder: 10,
+    position: 10,
     ...overrides,
   }
 }
@@ -165,7 +171,7 @@ describe('defaultChecklistItems', () => {
     const shirts = items.find((i) => i.label === 'Event shirts ordered')
     expect(loot?.derivedQuantity).toBe('lootBags')
     expect(shirts?.derivedQuantity).toBe('shirts')
-    expect(loot?.quantity).toBe('')
+    expect(loot?.derivedQuantity).not.toBeNull()
   })
 })
 
@@ -247,10 +253,8 @@ describe('quantityText', () => {
     expect(quantityText('shirts', empty)).toBe('No shirt sizes yet')
   })
 
-  it('prefers the derived quantity over any manual one', () => {
-    const row = item({ derivedQuantity: 'lootBags', quantity: '999' })
-    expect(itemQuantity(row, DERIVED)).toBe('5 bags')
-    expect(itemQuantity(item({ quantity: '20' }), DERIVED)).toBe('20')
+  it('only ever shows a derived quantity — there is nothing to hand-type', () => {
+    expect(itemQuantity(item({ derivedQuantity: 'lootBags' }), DERIVED)).toBe('5 bags')
     expect(itemQuantity(item(), DERIVED)).toBe('')
   })
 
@@ -288,10 +292,10 @@ describe('progress', () => {
 
   it('groups by category in declared order and drops empty groups', () => {
     const groups = categoryProgress([
-      item({ id: 'a', category: 'Paperwork', done: true }),
-      item({ id: 'b', category: 'Prizes & trophies' }),
+      item({ id: 'a', category: 'paperwork', done: true }),
+      item({ id: 'b', category: 'prizes' }),
     ])
-    expect(groups.map((g) => g.category)).toEqual(['Prizes & trophies', 'Paperwork'])
+    expect(groups.map((g) => g.category)).toEqual(['prizes', 'paperwork'])
     expect(groups[1].percent).toBe(100)
   })
 
@@ -310,11 +314,11 @@ describe('progress', () => {
     expect(progressCheer(0)).toContain('Santa')
   })
 
-  it('sorts by sortOrder then label', () => {
+  it('sorts by position then label', () => {
     const sorted = sortChecklist([
-      item({ id: 'b', label: 'Bravo', sortOrder: 20 }),
-      item({ id: 'a', label: 'Alpha', sortOrder: 10 }),
-      item({ id: 'c', label: 'Charlie', sortOrder: 10 }),
+      item({ id: 'b', label: 'Bravo', position: 20 }),
+      item({ id: 'a', label: 'Alpha', position: 10 }),
+      item({ id: 'c', label: 'Charlie', position: 10 }),
     ])
     expect(sorted.map((i) => i.id)).toEqual(['a', 'c', 'b'])
   })
@@ -430,10 +434,10 @@ describe('mutations', () => {
   })
 
   it('appends a committee-added row at the end', () => {
-    const next = addItem(items, { category: 'Food & drink', label: '  Candy canes  ' })
+    const next = addItem(items, { category: 'food', label: '  Candy canes  ' })
     expect(next).toHaveLength(3)
     expect(next[2].label).toBe('Candy canes')
-    expect(next[2].sortOrder).toBeGreaterThan(items[1].sortOrder)
+    expect(next[2].position).toBeGreaterThan(items[1].position)
     expect(next[2].derivedQuantity).toBeNull()
   })
 
@@ -443,56 +447,169 @@ describe('mutations', () => {
   })
 })
 
-describe('persistence', () => {
-  it('round-trips through JSON', () => {
-    const items = defaultChecklistItems()
-    const parsed = parseChecklist(serialiseChecklist(items, '2026-12-01T00:00:00Z'))
-    expect(parsed).toHaveLength(items.length)
-    expect(parsed?.[0].label).toBe(items[0].label)
+function row(overrides: Partial<CommitteeChecklistRow> = {}): CommitteeChecklistRow {
+  return {
+    id: 'row-1',
+    tournament_id: 'tour-1',
+    category: 'court_kit',
+    label: 'Shuttlecock tubes',
+    owner: null,
+    notes: null,
+    due_on: null,
+    is_done: false,
+    done_at: null,
+    done_by: null,
+    position: 100,
+    created_at: '2026-10-01T00:00:00Z',
+    updated_at: '2026-10-01T00:00:00Z',
+    ...overrides,
+  }
+}
+
+describe('row mapping', () => {
+  it('maps a committee_checklist row onto the UI shape', () => {
+    const mapped = checklistItemFromRow(
+      row({ owner: 'Nadia', notes: 'In the cupboard', due_on: '2026-12-01', is_done: true }),
+    )
+    expect(mapped).toMatchObject({
+      id: 'row-1',
+      category: 'court_kit',
+      label: 'Shuttlecock tubes',
+      owner: 'Nadia',
+      notes: 'In the cupboard',
+      dueDate: '2026-12-01',
+      done: true,
+      position: 100,
+    })
   })
 
-  it('accepts a bare array as well as a versioned blob', () => {
-    const raw = JSON.stringify([{ id: 'x', category: 'Paperwork', label: 'Pens', done: true }])
-    const parsed = parseChecklist(raw)
-    expect(parsed).toHaveLength(1)
-    expect(parsed?.[0].done).toBe(true)
+  it('reads NULL columns as empty strings so inputs stay controlled', () => {
+    const mapped = checklistItemFromRow(row())
+    expect(mapped.owner).toBe('')
+    expect(mapped.notes).toBe('')
+    expect(mapped.dueDate).toBe('')
   })
 
-  it('repairs half-written rows rather than throwing', () => {
-    const raw = JSON.stringify([
-      { id: 'x', category: 'Nonsense', label: 'Pens', derivedQuantity: 'wat', sortOrder: 'many' },
-      { label: '' },
-      'not an object',
+  it('borrows catalogue copy for a standard job and leaves a custom one bare', () => {
+    expect(checklistItemFromRow(row()).detail).not.toBe('')
+    expect(checklistItemFromRow(row()).derivedQuantity).toBe('shuttleTubes')
+    const custom = checklistItemFromRow(row({ label: 'Borrow the big speaker' }))
+    expect(custom.detail).toBe('')
+    expect(custom.derivedQuantity).toBeNull()
+  })
+
+  it('falls back to a real category when the column holds something unknown', () => {
+    expect(checklistItemFromRow(row({ category: 'wat' })).category).toBe('venue')
+  })
+
+  it('sorts rows into board order on the way in', () => {
+    const items = checklistItemsFromRows([
+      row({ id: 'b', label: 'Pens', position: 200 }),
+      row({ id: 'a', label: 'Scoresheets printed', position: 100 }),
     ])
-    const parsed = parseChecklist(raw)
-    expect(parsed).toHaveLength(1)
-    expect(parsed?.[0].category).toBe(CHECKLIST_CATEGORIES[0])
-    expect(parsed?.[0].derivedQuantity).toBeNull()
-    expect(parsed?.[0].sortOrder).toBe(10)
+    expect(items.map((i) => i.id)).toEqual(['a', 'b'])
   })
 
-  it('returns null for junk, empty lists and nothing at all', () => {
-    expect(parseChecklist('{{{')).toBeNull()
-    expect(parseChecklist('[]')).toBeNull()
-    expect(parseChecklist(null)).toBeNull()
-    expect(parseChecklist('')).toBeNull()
-    expect(parseChecklist('{"version":1}')).toBeNull()
+  it('matches catalogue copy case-insensitively', () => {
+    expect(jobMeta('  loot bags packed ').derivedQuantity).toBe('lootBags')
+    expect(jobMeta('Nothing like this').detail).toBe('')
+  })
+})
+
+describe('seeding', () => {
+  const rows = checklistSeedRows('tour-1')
+
+  it('seeds every standard job against the tournament', () => {
+    expect(rows).toHaveLength(defaultChecklistItems().length)
+    expect(rows.every((r) => r.tournament_id === 'tour-1')).toBe(true)
   })
 
-  it('falls back to the seed board so a fresh committee is never empty', () => {
-    expect(checklistOrDefault(null)).toHaveLength(defaultChecklistItems().length)
-    expect(checklistOrDefault('[{"label":"Pens","category":"Paperwork"}]')).toHaveLength(1)
+  it('numbers positions in the order the jobs happen, with room to slot more in', () => {
+    expect(rows[0].position).toBe(10)
+    expect(rows[1].position).toBe(20)
+    expect(seedPosition(0)).toBe(10)
+    const positions = rows.map((r) => r.position)
+    expect([...positions].sort((a, b) => a - b)).toEqual(positions)
   })
 
-  it('uses a site_content slug that is nobody else\u2019s', () => {
-    expect(COMMITTEE_CHECKLIST_SLUG).toBe('committee-checklist')
+  it('only sends columns the table has — never done_at or done_by', () => {
+    expect(Object.keys(rows[0]).sort()).toEqual(['category', 'label', 'position', 'tournament_id'])
+  })
+
+  it('uses slug categories the check constraint accepts', () => {
+    expect(rows.every((r) => /^[a-z0-9_-]{1,48}$/.test(r.category))).toBe(true)
+  })
+
+  it('hands back later duplicates so a double-seed heals itself', () => {
+    const drop = duplicateChecklistRowIds([
+      row({ id: 'first', created_at: '2026-10-01T00:00:00Z' }),
+      row({ id: 'second', created_at: '2026-10-02T00:00:00Z' }),
+      row({ id: 'other', label: 'Pens', created_at: '2026-10-02T00:00:00Z' }),
+    ])
+    expect(drop).toEqual(['second'])
+  })
+
+  it('never discards a duplicate somebody has already worked on', () => {
+    const drop = duplicateChecklistRowIds([
+      row({ id: 'bare', created_at: '2026-10-01T00:00:00Z' }),
+      row({ id: 'ticked', created_at: '2026-10-02T00:00:00Z', is_done: true }),
+    ])
+    expect(drop).toEqual(['bare'])
+  })
+
+  it('leaves a clean board alone', () => {
+    expect(duplicateChecklistRowIds([row(), row({ id: 'x', label: 'Pens' })])).toEqual([])
+  })
+})
+
+describe('checklistUpdatePatch', () => {
+  it('only writes the fields that changed', () => {
+    expect(checklistUpdatePatch({ owner: 'Nadia' })).toEqual({ owner: 'Nadia' })
+    expect(checklistUpdatePatch({})).toEqual({})
+  })
+
+  it('maps empty text onto NULL rather than an empty string', () => {
+    expect(checklistUpdatePatch({ owner: '   ' })).toEqual({ owner: null })
+    expect(checklistUpdatePatch({ notes: '' })).toEqual({ notes: null })
+    expect(checklistUpdatePatch({ dueDate: '' })).toEqual({ due_on: null })
+  })
+
+  it('renames fields to their columns', () => {
+    expect(checklistUpdatePatch({ dueDate: '2026-12-01', done: true })).toEqual({
+      due_on: '2026-12-01',
+      is_done: true,
+    })
+  })
+
+  it('never writes done_at or done_by — the trigger owns them', () => {
+    const patch = checklistUpdatePatch({ done: true, owner: 'Nadia', notes: 'x', position: 5 })
+    expect(patch).not.toHaveProperty('done_at')
+    expect(patch).not.toHaveProperty('done_by')
+  })
+})
+
+describe('positions', () => {
+  it('appends after the highest position on the board', () => {
+    expect(nextPosition([item({ position: 10 }), item({ id: 'b', position: 250 })])).toBe(260)
+  })
+
+  it('starts a fresh board sensibly', () => {
+    expect(nextPosition([])).toBe(10)
+  })
+})
+
+describe('category labels', () => {
+  it('gives every slug a human label', () => {
+    for (const category of CHECKLIST_CATEGORIES) {
+      expect(CATEGORY_LABELS[category].length).toBeGreaterThan(0)
+    }
   })
 })
 
 describe('CSV export', () => {
   const items = [
-    item({ id: 'a', category: 'Loot bags & shirts', label: 'Loot bags packed', derivedQuantity: 'lootBags', owner: 'Nadia', done: true }),
-    item({ id: 'b', category: 'Paperwork', label: 'Pens', quantity: '20', notes: 'Blue, please' }),
+    item({ id: 'a', category: 'loot_bags', label: 'Loot bags packed', derivedQuantity: 'lootBags', owner: 'Nadia', done: true }),
+    item({ id: 'b', category: 'paperwork', label: 'Pens', notes: 'Blue, please' }),
   ]
 
   it('writes a header row and one line per item', () => {
@@ -502,7 +619,7 @@ describe('CSV export', () => {
     expect(lines).toHaveLength(3)
     expect(lines[1]).toContain('5 bags')
     expect(lines[1]).toContain('Yes')
-    expect(lines[2]).toContain('20')
+    expect(lines[2]).toContain('Pens')
     expect(lines[2]).toContain('No')
   })
 
@@ -532,13 +649,23 @@ describe('CSV export', () => {
   })
 })
 
-describe('checklistAuditEntry', () => {
-  it('records the before/after tick counts', () => {
-    const before = [item({ id: 'a' }), item({ id: 'b' })]
-    const after = [item({ id: 'a', done: true }), item({ id: 'b' })]
-    const entry = checklistAuditEntry(after, before)
-    expect(entry.action).toBe('checklist.update')
-    expect(entry.entity_type).toBe('tournament')
-    expect(entry.metadata).toEqual({ items: 2, done: 1, done_before: 0, percent: 50 })
+describe('audit entries', () => {
+  it('records one entry per job, pointing at its row', () => {
+    const entry = checklistAuditEntry('checklist.toggle', item({ id: 'row-7', done: true }))
+    expect(entry.action).toBe('checklist.toggle')
+    expect(entry.entity_type).toBe('committee_checklist')
+    expect(entry.entity_id).toBe('row-7')
+    expect(entry.metadata).toEqual({
+      label: 'Shuttlecock tubes',
+      category: 'court_kit',
+      done: true,
+    })
+  })
+
+  it('records the seeding of a fresh board against the tournament', () => {
+    const entry = checklistSeedAuditEntry(29, 'tour-1')
+    expect(entry.action).toBe('checklist.seed')
+    expect(entry.entity_id).toBe('tour-1')
+    expect(entry.metadata).toEqual({ items: 29 })
   })
 })

@@ -7,10 +7,16 @@ import {
   buildDivisionViews,
   buildPodium,
   compareAwards,
-  dbTypeToKey,
-  decodeCitation,
+  availableDefinitions,
+  awardCollisionMessage,
+  citationForStorage,
+  citationFromRow,
   derivePlacingAwards,
-  encodeCitation,
+  duplicateAwardKeys,
+  isUniqueViolation,
+  isValidAwardKey,
+  usedAwardKeys,
+  wouldCollide,
   hasAnyWinners,
   hasRecipient,
   mergeAwardDefinitions,
@@ -155,36 +161,116 @@ describe('mergeAwardDefinitions', () => {
   })
 })
 
-describe('citation encoding', () => {
-  it('stores enum-backed awards untagged', () => {
-    expect(encodeCitation('champion', ' Unbeaten all day ', 'champion')).toBe('Unbeaten all day')
-    expect(encodeCitation('champion', '   ', 'champion')).toBeNull()
+describe('citations', () => {
+  it('round-trips prose unchanged, square brackets and all', () => {
+    // The old `[[award:key]]` marker could not survive this: a citation is
+    // prose, and prose is allowed to contain brackets.
+    const prose = 'Won [[award:mvp]] hearts — and the [best] rally of the day'
+    const stored = citationForStorage(prose)
+    expect(stored).toBe(prose)
+    expect(citationFromRow(stored)).toBe(prose)
   })
 
-  it('tags custom awards so the key survives the round trip', () => {
-    const encoded = encodeCitation('mvp', 'Ten straight wins', 'special_mention')
-    expect(encoded).toBe('[[award:mvp]] Ten straight wins')
-    expect(decodeCitation(encoded, 'special_mention')).toEqual({
-      key: 'mvp',
-      text: 'Ten straight wins',
-    })
+  it('trims and maps an empty citation onto NULL', () => {
+    expect(citationForStorage(' Unbeaten all day ')).toBe('Unbeaten all day')
+    expect(citationForStorage('   ')).toBeNull()
+    expect(citationForStorage('')).toBeNull()
   })
 
-  it('tags a custom award even with an empty citation', () => {
-    const encoded = encodeCitation('best_outfit', '', 'special_mention')
-    expect(decodeCitation(encoded, 'special_mention')).toEqual({ key: 'best_outfit', text: '' })
+  it('reads a missing citation as an empty string', () => {
+    expect(citationFromRow(null)).toBe('')
+    expect(citationFromRow('  Great spirit  ')).toBe('Great spirit')
+  })
+})
+
+describe('award keys', () => {
+  it('accepts keys matching the awards_award_key_format check constraint', () => {
+    expect(isValidAwardKey('champion')).toBe(true)
+    expect(isValidAwardKey('best_christmas_outfit')).toBe(true)
+    expect(isValidAwardKey('most-improved')).toBe(true)
+    expect(isValidAwardKey('mvp1')).toBe(true)
   })
 
-  it('falls back to the enum value for legacy untagged rows', () => {
-    expect(decodeCitation('Great spirit', 'sportsmanship')).toEqual({
-      key: 'sportsmanship',
-      text: 'Great spirit',
-    })
-    expect(decodeCitation(null, 'champion')).toEqual({ key: null, text: '' })
+  it('rejects keys the database would reject', () => {
+    expect(isValidAwardKey('')).toBe(false)
+    expect(isValidAwardKey('Champion')).toBe(false)
+    expect(isValidAwardKey('best outfit')).toBe(false)
+    expect(isValidAwardKey('mvp!')).toBe(false)
+    expect(isValidAwardKey('x'.repeat(49))).toBe(false)
+    expect(isValidAwardKey('x'.repeat(48))).toBe(true)
   })
 
-  it('dbTypeToKey is the identity for enum-backed awards', () => {
-    expect(dbTypeToKey('third_place')).toBe('third_place')
+  it('lists the keys a division has already used', () => {
+    const records = [
+      record({ id: 'a', key: 'champion' }),
+      record({ id: 'b', key: 'mvp' }),
+    ]
+    expect([...usedAwardKeys(records)].sort()).toEqual(['champion', 'mvp'])
+  })
+
+  it('only offers awards the division has not handed out yet', () => {
+    const records = [record({ id: 'a', key: 'champion' })]
+    const keys = availableDefinitions(records).map((d) => d.key)
+    expect(keys).not.toContain('champion')
+    expect(keys).toContain('runner_up')
+  })
+
+  it('spots duplicate keys within a division', () => {
+    expect(duplicateAwardKeys([])).toEqual([])
+    expect(
+      duplicateAwardKeys([
+        record({ id: 'a', key: 'mvp' }),
+        record({ id: 'b', key: 'mvp' }),
+        record({ id: 'c', key: 'champion' }),
+      ]),
+    ).toEqual(['mvp'])
+  })
+
+  it('predicts a collision but lets a row keep its own key', () => {
+    const records = [record({ id: 'a', key: 'mvp' })]
+    expect(wouldCollide(records, 'mvp', null)).toBe(true)
+    expect(wouldCollide(records, 'mvp', 'a')).toBe(false)
+    expect(wouldCollide(records, 'champion', null)).toBe(false)
+  })
+
+  it('explains a collision in English, not SQL', () => {
+    expect(awardCollisionMessage('champion')).toContain('Champions')
+    expect(awardCollisionMessage('champion')).toContain('already been awarded')
+    expect(awardCollisionMessage('unknown_key')).toContain('unknown_key')
+  })
+
+  it('recognises the unique violation the index raises', () => {
+    expect(isUniqueViolation(null)).toBe(false)
+    expect(isUniqueViolation({ code: '23505' })).toBe(true)
+    expect(
+      isUniqueViolation({ code: 'XX000', message: 'duplicate key value violates unique constraint' }),
+    ).toBe(true)
+    expect(isUniqueViolation({ code: '23503', message: 'foreign key' })).toBe(false)
+  })
+})
+
+describe('planPublish collisions', () => {
+  it('blocks a publish while a division holds the same award twice', () => {
+    const plan = planPublish(
+      [
+        record({ id: 'a', key: 'mvp', isPublished: false }),
+        record({ id: 'b', key: 'mvp', isPublished: false }),
+      ],
+      true,
+    )
+    expect(plan.blockers.some((b) => b.includes('already been awarded'))).toBe(true)
+  })
+
+  it('leaves a clean division unblocked', () => {
+    const plan = planPublish(
+      [
+        record({ id: 'a', key: 'champion', isPublished: false }),
+        record({ id: 'b', key: 'runner_up', isPublished: false }),
+      ],
+      true,
+    )
+    expect(plan.blockers).toEqual([])
+    expect(plan.ids).toEqual(['a', 'b'])
   })
 })
 

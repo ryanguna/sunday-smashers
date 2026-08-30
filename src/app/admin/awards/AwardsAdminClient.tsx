@@ -17,6 +17,8 @@ import { AdminPageHeader, StatCard } from '@/components/admin/AdminUI'
 import { WinnersShowcase } from '@/components/awards'
 import { cn } from '@/lib/cn'
 import {
+  availableDefinitions,
+  awardCollisionMessage,
   awardDefinitionByKey,
   buildDivisionViews,
   pendingConfirmations,
@@ -24,6 +26,7 @@ import {
   planPublish,
   publishedAwards,
   recipientLabel,
+  duplicateAwardKeys,
   sortAwards,
   type AwardDefinition,
   type AwardRecord,
@@ -257,8 +260,8 @@ function DivisionPanel({
     definitions,
   )
 
-  const usedKeys = new Set(records.map((record) => record.key))
-  const addable = definitions.filter((definition) => !usedKeys.has(definition.key))
+  const addable = availableDefinitions(records, definitions)
+  const duplicates = duplicateAwardKeys(records)
 
   function run(action: () => Promise<{ ok: boolean; message: string; demo?: boolean }>) {
     startTransition(async () => {
@@ -303,6 +306,16 @@ function DivisionPanel({
 
   return (
     <div className="space-y-6">
+      {duplicates.length > 0 && (
+        <div
+          role="alert"
+          className="rounded-[var(--radius-md)] bg-[var(--color-danger-bg)] p-3.5 text-sm text-[var(--color-danger)]"
+        >
+          {duplicates.map((key) => (
+            <p key={key}>{awardCollisionMessage(key, definitions)}</p>
+          ))}
+        </div>
+      )}
       <div className="grid gap-3 sm:grid-cols-3">
         <StatCard
           label="Awards recorded"

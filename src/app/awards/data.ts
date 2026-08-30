@@ -7,7 +7,7 @@ import { getBrackets, getStandings, type PublicTeam } from '@/lib/public-data'
 import {
   DEFAULT_AWARD_DEFINITIONS,
   buildDivisionViews,
-  decodeCitation,
+  citationFromRow,
   publishedAwards,
   type AwardRecord,
   type AwardsDivisionView,
@@ -197,20 +197,19 @@ export const getPublicAwards = cache(async function getPublicAwards(): Promise<P
     const divisionNameById = new Map(divisions.map((division) => [division.slug, division.name]))
 
     const records: AwardRecord[] = rows.map((row) => {
-      const { key, text } = decodeCitation(row.citation, row.award_type)
       const team = row.team_id ? (teamsById.get(row.team_id) ?? null) : null
       return {
         id: row.id,
         divisionSlug: row.division_id,
         divisionName: divisionNameById.get(row.division_id) ?? 'Division',
-        key: key ?? row.award_type,
+        key: row.award_key,
         dbType: row.award_type,
         recipient: {
           ...teamRecipient(team, row.team_id),
           playerId: row.player_id,
           playerName: row.player_id ? (nameById.get(row.player_id) ?? 'Player') : null,
         },
-        citation: text,
+        citation: citationFromRow(row.citation),
         isPublished: row.is_published,
         derived: false,
         createdAt: row.created_at,

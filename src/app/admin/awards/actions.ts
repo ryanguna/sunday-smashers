@@ -8,7 +8,10 @@ import { getCurrentUser, isAdmin } from '@/lib/auth'
 import type { AwardRow, Json } from '@/lib/supabase/types'
 import {
   awardAuditEntry,
-  encodeCitation,
+  awardCollisionMessage,
+  citationForStorage,
+  isUniqueViolation,
+  isValidAwardKey,
   planPublish,
   publishAuditEntry,
   type AwardAuditEntry,
@@ -102,6 +105,12 @@ export async function saveAwardAction(input: SaveAwardInput): Promise<AwardActio
   if (!input.teamId && !input.playerId) {
     return { ok: false, message: 'Pick a pair or a player first — an award needs a recipient.' }
   }
+  if (!isValidAwardKey(input.awardKey)) {
+    return {
+      ok: false,
+      message: `"${input.awardKey}" is not a usable award key — lower-case letters, digits, dashes and underscores only.`,
+    }
+  }
 
   const supabase = await createClient()
   const patch = {
@@ -109,17 +118,32 @@ export async function saveAwardAction(input: SaveAwardInput): Promise<AwardActio
     team_id: input.teamId,
     player_id: input.playerId,
     award_type: input.dbType,
-    citation: encodeCitation(input.awardKey, input.citation, input.dbType),
+    award_key: input.awardKey,
+    citation: citationForStorage(input.citation),
     is_published: input.isPublished,
   }
 
   if (input.id) {
     const { error } = await supabase.from('awards').update(patch).eq('id', input.id)
-    if (error) return { ok: false, message: `Could not update the award: ${error.message}` }
+    if (error) {
+      return {
+        ok: false,
+        message: isUniqueViolation(error)
+          ? awardCollisionMessage(input.awardKey)
+          : `Could not update the award: ${error.message}`,
+      }
+    }
     await writeAudit(supabase, awardAuditEntry('award.update', recordFor(input, input.id)))
   } else {
     const { data, error } = await supabase.from('awards').insert(patch).select('id').maybeSingle()
-    if (error) return { ok: false, message: `Could not save the award: ${error.message}` }
+    if (error) {
+      return {
+        ok: false,
+        message: isUniqueViolation(error)
+          ? awardCollisionMessage(input.awardKey)
+          : `Could not save the award: ${error.message}`,
+      }
+    }
     await writeAudit(
       supabase,
       awardAuditEntry('award.create', recordFor(input, (data as { id: string } | null)?.id ?? null)),
@@ -149,12 +173,20 @@ export async function confirmPlacingsAction(
     team_id: input.teamId,
     player_id: input.playerId,
     award_type: input.dbType,
-    citation: encodeCitation(input.awardKey, input.citation, input.dbType),
+    award_key: input.awardKey,
+    citation: citationForStorage(input.citation),
     is_published: input.isPublished,
   }))
 
   const { data, error } = await supabase.from('awards').insert(rows).select('id')
-  if (error) return { ok: false, message: `Could not confirm the placings: ${error.message}` }
+  if (error) {
+    return {
+      ok: false,
+      message: isUniqueViolation(error)
+        ? 'Some of these placings have already been confirmed for this division — reload the page to see the current awards.'
+        : `Could not confirm the placings: ${error.message}`,
+    }
+  }
 
   const ids = ((data as { id: string }[] | null) ?? []).map((row) => row.id)
   for (const [index, input] of inputs.entries()) {

@@ -6,7 +6,7 @@ import type { AwardRow, ProfileRow, SiteContentRow } from '@/lib/supabase/types'
 import { getBrackets, getStandings, type PublicTeam } from '@/lib/public-data'
 import {
   DEFAULT_AWARD_DEFINITIONS,
-  decodeCitation,
+  citationFromRow,
   derivePlacingAwards,
   mergeAwardDefinitions,
   mergeSuggestions,
@@ -158,20 +158,19 @@ export const getAdminAwardsData = cache(async function getAdminAwardsData(): Pro
     const savedByDivision = new Map<string, AwardRecord[]>()
     for (const row of rows) {
       const division = divisions.find((entry) => entry.slug === row.division_id)
-      const { key, text } = decodeCitation(row.citation, row.award_type)
       const team = row.team_id ? (teamsById.get(row.team_id) ?? null) : null
       const record: AwardRecord = {
         id: row.id,
         divisionSlug: row.division_id,
         divisionName: division?.name ?? 'Division',
-        key: key ?? row.award_type,
+        key: row.award_key,
         dbType: row.award_type,
         recipient: {
           ...teamRecipientOf(team, row.team_id),
           playerId: row.player_id,
           playerName: row.player_id ? (nameById.get(row.player_id) ?? 'Player') : null,
         },
-        citation: text,
+        citation: citationFromRow(row.citation),
         isPublished: row.is_published,
         derived: false,
         createdAt: row.created_at,

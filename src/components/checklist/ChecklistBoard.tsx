@@ -3,12 +3,13 @@
 import { useMemo, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 
-import { Badge, Button, Card, CardBody, ToastProvider, useToast } from '@/components/ui'
+import { Badge, Button, Card, CardBody, EmptyState, ToastProvider, useToast } from '@/components/ui'
 import { GiftIcon, SnowflakeIcon, SparkleIcon } from '@/components/icons'
 import { AlertTile } from '@/components/admin/AdminUI'
 import { cn } from '@/lib/cn'
 import {
   CATEGORY_BLURBS,
+  CATEGORY_LABELS,
   CHECKLIST_CATEGORIES,
   addItem,
   categoryProgress,
@@ -17,6 +18,7 @@ import {
   dueLabel,
   dueState,
   itemQuantity,
+  nextPosition,
   progressCheer,
   progressOf,
   quantityIsPending,
@@ -30,12 +32,22 @@ import {
 } from '@/lib/checklist'
 import { ChecklistProgressBar } from './ChecklistProgressBar'
 import { DerivedQuantitiesPanel } from './DerivedQuantitiesPanel'
-import { saveChecklistAction } from '@/app/admin/checklist/actions'
+import {
+  addChecklistItemAction,
+  deleteChecklistItemAction,
+  seedChecklistAction,
+  toggleChecklistItemAction,
+  updateChecklistItemAction,
+  type ChecklistActionResult,
+} from '@/app/admin/checklist/actions'
 
 /**
- * The committee readiness board. Ticks are optimistic in local state and
- * saved in one atomic blob — the committee works through this on a phone in
- * a sports hall, so every interaction has to survive a flaky connection.
+ * The committee readiness board.
+ *
+ * Every edit is written immediately to its own row rather than saved as one
+ * blob: the committee works through this together on tournament morning, and
+ * two people ticking different jobs at once must not overwrite each other.
+ * The UI updates optimistically and rolls back if the write is refused.
  */
 
 const inputClasses =
@@ -66,6 +78,7 @@ function ItemRow({
   item,
   derived,
   now,
+  busy,
   onToggle,
   onPatch,
   onRemove,
@@ -73,14 +86,22 @@ function ItemRow({
   item: ChecklistItem
   derived: DerivedQuantities
   now: Date
+  busy: boolean
   onToggle: () => void
-  onPatch: (patch: Partial<Omit<ChecklistItem, 'id'>>) => void
+  onPatch: (patch: Partial<Pick<ChecklistItem, 'owner' | 'notes' | 'dueDate'>>) => void
   onRemove: () => void
 }) {
   const [open, setOpen] = useState(false)
+  const [draft, setDraft] = useState({ owner: item.owner, notes: item.notes, dueDate: item.dueDate })
   const quantity = itemQuantity(item, derived)
   const pendingQuantity = quantityIsPending(item, derived)
   const state = dueState(item, now)
+
+  /** Text fields commit on blur so one keystroke isn't one round trip. */
+  function commit(field: 'owner' | 'notes' | 'dueDate') {
+    if (draft[field] === item[field]) return
+    onPatch({ [field]: draft[field] })
+  }
 
   return (
     <li
@@ -96,6 +117,7 @@ function ItemRow({
           type="checkbox"
           checked={item.done}
           onChange={onToggle}
+          disabled={busy}
           id={`check-${item.id}`}
           className="mt-1 h-5 w-5 shrink-0 accent-[var(--color-brand-pink-dark)]"
         />
@@ -110,15 +132,11 @@ function ItemRow({
           >
             {item.label}
           </label>
-          {item.detail && (
-            <p className="text-sm text-[var(--color-ink-soft)]">{item.detail}</p>
-          )}
+          {item.detail && <p className="text-sm text-[var(--color-ink-soft)]">{item.detail}</p>}
           <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
             {quantity && (
               <Badge status={pendingQuantity ? 'pending' : 'final'}>
-                {item.derivedQuantity && (
-                  <SparkleIcon size={12} className="mr-0.5" aria-hidden="true" />
-                )}
+                <SparkleIcon size={12} className="mr-0.5" aria-hidden="true" />
                 {quantity}
               </Badge>
             )}
@@ -146,14 +164,16 @@ function ItemRow({
       </div>
 
       {open && (
-        <div className="mt-3 grid gap-2 border-t border-[var(--color-brand-lilac-light)] pt-3 sm:grid-cols-3">
+        <div className="mt-3 grid gap-2 border-t border-[var(--color-brand-lilac-light)] pt-3 sm:grid-cols-2">
           <label className="text-sm">
             <span className="mb-1 block font-semibold text-[var(--color-ink-soft)]">Owner</span>
             <input
               className={inputClasses}
-              value={item.owner}
+              value={draft.owner}
               placeholder="Who's got this?"
-              onChange={(event) => onPatch({ owner: event.target.value })}
+              disabled={busy}
+              onChange={(event) => setDraft((d) => ({ ...d, owner: event.target.value }))}
+              onBlur={() => commit('owner')}
             />
           </label>
           <label className="text-sm">
@@ -161,34 +181,25 @@ function ItemRow({
             <input
               type="date"
               className={inputClasses}
-              value={item.dueDate}
-              onChange={(event) => onPatch({ dueDate: event.target.value })}
+              value={draft.dueDate}
+              disabled={busy}
+              onChange={(event) => setDraft((d) => ({ ...d, dueDate: event.target.value }))}
+              onBlur={() => commit('dueDate')}
             />
           </label>
-          {!item.derivedQuantity && (
-            <label className="text-sm">
-              <span className="mb-1 block font-semibold text-[var(--color-ink-soft)]">
-                How many
-              </span>
-              <input
-                className={inputClasses}
-                value={item.quantity}
-                placeholder="e.g. 4 packs"
-                onChange={(event) => onPatch({ quantity: event.target.value })}
-              />
-            </label>
-          )}
-          <label className="text-sm sm:col-span-3">
+          <label className="text-sm sm:col-span-2">
             <span className="mb-1 block font-semibold text-[var(--color-ink-soft)]">Notes</span>
             <textarea
               className={cn(inputClasses, 'min-h-16 resize-y')}
-              value={item.notes}
+              value={draft.notes}
               placeholder="Where it's stored, who to ring, what's left to buy…"
-              onChange={(event) => onPatch({ notes: event.target.value })}
+              disabled={busy}
+              onChange={(event) => setDraft((d) => ({ ...d, notes: event.target.value }))}
+              onBlur={() => commit('notes')}
             />
           </label>
-          <div className="sm:col-span-3">
-            <Button size="sm" variant="ghost" onClick={onRemove}>
+          <div className="sm:col-span-2">
+            <Button size="sm" variant="ghost" disabled={busy} onClick={onRemove}>
               Remove this job
             </Button>
           </div>
@@ -203,6 +214,10 @@ export interface ChecklistBoardProps {
   derived: DerivedQuantities
   /** Resolved on the server so nothing calls `Date.now()` while rendering. */
   nowIso: string
+  /** Needed to insert new jobs. Null in demo mode. */
+  tournamentId: string | null
+  /** True when the board is empty and can be filled with the standard jobs. */
+  needsSeeding: boolean
   isDemo: boolean
 }
 
@@ -214,12 +229,18 @@ export function ChecklistBoard(props: ChecklistBoardProps) {
   )
 }
 
-function ChecklistBoardInner({ initialItems, derived, nowIso, isDemo }: ChecklistBoardProps) {
+function ChecklistBoardInner({
+  initialItems,
+  derived,
+  nowIso,
+  tournamentId,
+  needsSeeding,
+  isDemo,
+}: ChecklistBoardProps) {
   const router = useRouter()
   const { toast } = useToast()
   const [pending, startTransition] = useTransition()
   const [items, setItems] = useState<ChecklistItem[]>(initialItems)
-  const [dirty, setDirty] = useState(false)
   const [newLabel, setNewLabel] = useState('')
   const [newCategory, setNewCategory] = useState<ChecklistCategory>(CHECKLIST_CATEGORIES[0])
 
@@ -228,24 +249,73 @@ function ChecklistBoardInner({ initialItems, derived, nowIso, isDemo }: Checklis
   const groups = categoryProgress(items)
   const alerts = checklistAlerts(items, derived, now)
 
-  function mutate(next: ChecklistItem[]) {
+  /**
+   * Optimistic write: show it immediately, roll back if the server refuses.
+   * Demo mode has no database, so the local state simply stands.
+   */
+  function persist(next: ChecklistItem[], action: () => Promise<ChecklistActionResult>) {
+    const previous = items
     setItems(next)
-    setDirty(true)
+    startTransition(async () => {
+      const result = await action()
+      if (result.ok) {
+        router.refresh()
+        return
+      }
+      if (result.demo) {
+        toast({ title: 'Demo mode', description: result.message, variant: 'warning' })
+        return
+      }
+      setItems(previous)
+      toast({ title: 'That did not save', description: result.message, variant: 'danger' })
+    })
   }
 
-  function save() {
+  function seed() {
+    if (!tournamentId) return
     startTransition(async () => {
-      const result = await saveChecklistAction(items)
+      const result = await seedChecklistAction(tournamentId)
       toast({
-        title: result.ok ? 'Saved' : result.demo ? 'Demo mode' : 'That did not save',
+        title: result.ok ? 'Board ready' : result.demo ? 'Demo mode' : 'That did not work',
         description: result.message,
         variant: result.ok ? 'festive' : result.demo ? 'warning' : 'danger',
       })
-      if (result.ok) {
-        setDirty(false)
-        router.refresh()
-      }
+      if (result.ok) router.refresh()
     })
+  }
+
+  function addJob() {
+    const label = newLabel.trim()
+    if (label === '') return
+    const position = nextPosition(items)
+    const next = addItem(items, { category: newCategory, label })
+    setNewLabel('')
+    persist(next, () =>
+      tournamentId
+        ? addChecklistItemAction({ tournamentId, category: newCategory, label, position })
+        : Promise.resolve({
+            ok: false,
+            demo: true,
+            message: 'Demo mode — the job is on screen but not saved.',
+          }),
+    )
+  }
+
+  if (items.length === 0) {
+    return (
+      <EmptyState
+        icon={<GiftIcon size={40} />}
+        title="No jobs on the board yet"
+        description="Start from the standard Sunday Smashers checklist — loot bags, medals, shuttles, scoresheets and the rest — then add your own."
+        action={
+          needsSeeding ? (
+            <Button variant="festive" disabled={pending} onClick={seed}>
+              Set up the standard checklist
+            </Button>
+          ) : undefined
+        }
+      />
+    )
   }
 
   return (
@@ -259,16 +329,11 @@ function ChecklistBoardInner({ initialItems, derived, nowIso, isDemo }: Checklis
               </p>
               <p className="text-sm text-[var(--color-ink-soft)]">
                 {overall.done} of {overall.total} jobs ticked off across {groups.length} categories.
+                Every tick saves on its own, so the whole committee can work at once.
               </p>
             </div>
             <div className="flex flex-wrap gap-2">
-              <Button onClick={save} disabled={pending || !dirty}>
-                {dirty ? 'Save checklist' : 'All saved'}
-              </Button>
-              <Button
-                variant="secondary"
-                onClick={() => downloadCsv(items, derived, nowIso)}
-              >
+              <Button variant="secondary" onClick={() => downloadCsv(items, derived, nowIso)}>
                 Export CSV
               </Button>
               <Button variant="ghost" href="/admin/checklist/print" target="_blank" rel="noreferrer">
@@ -310,7 +375,7 @@ function ChecklistBoardInner({ initialItems, derived, nowIso, isDemo }: Checklis
                     className="font-[family-name:var(--font-heading)] text-xl font-extrabold"
                     style={{ color: 'var(--color-plum)' }}
                   >
-                    {group.category}
+                    {CATEGORY_LABELS[group.category]}
                   </h2>
                   <p className="text-sm text-[var(--color-ink-soft)]">
                     {CATEGORY_BLURBS[group.category]}
@@ -322,7 +387,10 @@ function ChecklistBoardInner({ initialItems, derived, nowIso, isDemo }: Checklis
                   aria-hidden="true"
                 />
               </div>
-              <ChecklistProgressBar progress={group} label={`${group.category} progress`} />
+              <ChecklistProgressBar
+                progress={group}
+                label={`${CATEGORY_LABELS[group.category]} progress`}
+              />
               <ul className="space-y-2">
                 {group.items.map((item) => (
                   <ItemRow
@@ -330,9 +398,22 @@ function ChecklistBoardInner({ initialItems, derived, nowIso, isDemo }: Checklis
                     item={item}
                     derived={derived}
                     now={now}
-                    onToggle={() => mutate(toggleItem(items, item.id))}
-                    onPatch={(patch) => mutate(updateItem(items, item.id, patch))}
-                    onRemove={() => mutate(removeItem(items, item.id))}
+                    busy={pending}
+                    onToggle={() =>
+                      persist(toggleItem(items, item.id), () =>
+                        toggleChecklistItemAction(item.id, !item.done, item.label, item.category),
+                      )
+                    }
+                    onPatch={(patch) =>
+                      persist(updateItem(items, item.id, patch), () =>
+                        updateChecklistItemAction(item.id, patch, item.label),
+                      )
+                    }
+                    onRemove={() =>
+                      persist(removeItem(items, item.id), () =>
+                        deleteChecklistItemAction(item.id, item.label, item.category),
+                      )
+                    }
                   />
                 ))}
               </ul>
@@ -366,7 +447,7 @@ function ChecklistBoardInner({ initialItems, derived, nowIso, isDemo }: Checklis
             >
               {CHECKLIST_CATEGORIES.map((category) => (
                 <option key={category} value={category}>
-                  {category}
+                  {CATEGORY_LABELS[category]}
                 </option>
               ))}
             </select>
@@ -374,11 +455,8 @@ function ChecklistBoardInner({ initialItems, derived, nowIso, isDemo }: Checklis
           <Button
             size="sm"
             variant="secondary"
-            disabled={newLabel.trim().length === 0}
-            onClick={() => {
-              mutate(addItem(items, { category: newCategory, label: newLabel }))
-              setNewLabel('')
-            }}
+            disabled={pending || newLabel.trim().length === 0}
+            onClick={addJob}
           >
             Add
           </Button>

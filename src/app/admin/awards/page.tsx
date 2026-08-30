@@ -1,7 +1,6 @@
 import type { Metadata } from 'next'
 
 import { requireAdmin } from '@/lib/auth'
-import { isSupabaseConfigured } from '@/lib/supabase/config'
 import { AdminDemoBanner } from '@/components/admin/AdminUI'
 import { getAdminAwardsData } from './data'
 import { AwardsAdminClient } from './AwardsAdminClient'
@@ -22,9 +21,7 @@ export const dynamic = 'force-dynamic'
  * unpublished until someone explicitly reveals it.
  */
 export default async function AdminAwardsPage() {
-  if (isSupabaseConfigured()) {
-    await requireAdmin('/admin/awards')
-  }
+  await requireAdmin('/admin/awards')
 
   const { divisions, definitions, isDemo } = await getAdminAwardsData()
 
