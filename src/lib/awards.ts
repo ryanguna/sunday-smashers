@@ -504,25 +504,29 @@ const PODIUM_META: Record<1 | 2 | 3, { label: string; tone: PodiumTone; height: 
   3: { label: '3rd place', tone: 'bronze', height: 0.58, revealIndex: 0 },
 }
 
+const PODIUM_KEYS: { placing: 1 | 2 | 3; key: string }[] = [
+  { placing: 1, key: 'champion' },
+  { placing: 2, key: 'runner_up' },
+  { placing: 3, key: 'third_place' },
+]
+
 /**
- * Builds the three podium blocks from published award records. Returns an
- * empty array unless a champion has actually been crowned — the public page
- * shows its "to be crowned" state instead.
+ * Builds the podium from published award records.
+ *
+ * Empty only when no placing at all has been confirmed — the caller shows a
+ * "still being decided" state for that. As soon as *any* placing exists the
+ * full three blocks come back, with the unconfirmed ones left blank: the two
+ * divisions will not finish together on the day, and a half-finished podium
+ * that says "to be decided" is honest where showing nothing is not.
  */
 export function buildPodium(records: readonly AwardRecord[]): PodiumSpot[] {
   const byKey = new Map(records.map((record) => [record.key, record]))
-  if (!byKey.has('champion')) return []
+  if (!PODIUM_KEYS.some((entry) => byKey.has(entry.key))) return []
 
   const spots: PodiumSpot[] = []
-  const keys: { placing: 1 | 2 | 3; key: string }[] = [
-    { placing: 1, key: 'champion' },
-    { placing: 2, key: 'runner_up' },
-    { placing: 3, key: 'third_place' },
-  ]
 
-  for (const entry of keys) {
+  for (const entry of PODIUM_KEYS) {
     const record = byKey.get(entry.key)
-    if (!record) continue
     const meta = PODIUM_META[entry.placing]
     spots.push({
       placing: entry.placing,
@@ -530,9 +534,9 @@ export function buildPodium(records: readonly AwardRecord[]): PodiumSpot[] {
       tone: meta.tone,
       height: meta.height,
       revealIndex: meta.revealIndex,
-      teamName: record.recipient.teamName,
-      playerNames: record.recipient.playerNames,
-      citation: record.citation,
+      teamName: record?.recipient.teamName ?? null,
+      playerNames: record?.recipient.playerNames ?? [],
+      citation: record?.citation ?? '',
     })
   }
 
@@ -771,5 +775,44 @@ export function buildDivisionViews(
 
 /** True when at least one division has something worth celebrating. */
 export function hasAnyWinners(views: readonly AwardsDivisionView[]): boolean {
-  return views.some((view) => view.podium.length > 0 || view.specials.length > 0)
+  return views.some(divisionHasContent)
+}
+
+/** True when this particular division has anything to show yet. */
+export function divisionHasContent(view: AwardsDivisionView): boolean {
+  return view.all.length > 0
+}
+
+/**
+ * How far through the ceremony one division is.
+ *
+ * `pending` and "the division does not exist" are emphatically different
+ * things: the two divisions will not finish at the same time on the day, and
+ * during that window a division that is still playing must still appear on
+ * the page. Dropping it makes the page look broken to exactly the players
+ * who are refreshing it hardest.
+ */
+export type DivisionAwardState = 'crowned' | 'partial' | 'pending'
+
+export function divisionAwardState(view: AwardsDivisionView): DivisionAwardState {
+  const crowned = view.podium.some((spot) => spot.placing === 1 && spot.teamName !== null)
+  if (crowned) return 'crowned'
+  return divisionHasContent(view) ? 'partial' : 'pending'
+}
+
+/** Honest one-liner for a division that is not finished yet. */
+export function divisionStateBlurb(view: AwardsDivisionView): string {
+  switch (divisionAwardState(view)) {
+    case 'crowned':
+      return 'Champions crowned, medals handed out.'
+    case 'partial':
+      return 'Partly decided — the rest of the podium is still being played out.'
+    default:
+      return 'Still being decided out on court. Check back once the final is done.'
+  }
+}
+
+/** Divisions with nothing published yet, in page order. */
+export function pendingDivisions(views: readonly AwardsDivisionView[]): AwardsDivisionView[] {
+  return views.filter((view) => divisionAwardState(view) !== 'crowned')
 }

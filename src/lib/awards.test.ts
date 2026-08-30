@@ -7,6 +7,10 @@ import {
   buildDivisionViews,
   buildPodium,
   compareAwards,
+  divisionAwardState,
+  divisionHasContent,
+  divisionStateBlurb,
+  pendingDivisions,
   availableDefinitions,
   awardCollisionMessage,
   citationForStorage,
@@ -546,14 +550,23 @@ describe('buildPodium', () => {
     expect(podium.find((s) => s.placing === 1)?.revealIndex).toBe(2)
   })
 
-  it('renders nothing without a champion', () => {
-    expect(buildPodium(full.filter((r) => r.key !== 'champion'))).toEqual([])
+  it('renders nothing when no placing at all has been confirmed', () => {
     expect(buildPodium([])).toEqual([])
+    expect(buildPodium(full.filter((r) => r.key === 'mvp'))).toEqual([])
+  })
+
+  it('keeps the champion block blank rather than hiding a part-finished podium', () => {
+    const podium = buildPodium(full.filter((r) => r.key !== 'champion'))
+    expect(podium.map((s) => s.placing)).toEqual([1, 2, 3])
+    expect(podium.find((s) => s.placing === 1)?.teamName).toBeNull()
+    expect(podium.find((s) => s.placing === 1)?.playerNames).toEqual([])
+    expect(podium.find((s) => s.placing === 2)?.teamName).not.toBeNull()
   })
 
   it('copes with a champion but no third place yet', () => {
     const podium = buildPodium(full.slice(0, 2))
-    expect(podium.map((s) => s.placing)).toEqual([1, 2])
+    expect(podium.map((s) => s.placing)).toEqual([1, 2, 3])
+    expect(podium.find((s) => s.placing === 3)?.teamName).toBeNull()
   })
 
   it('lays the blocks out silver-gold-bronze', () => {
@@ -645,6 +658,56 @@ describe('buildDivisionViews', () => {
     expect(views[1].podium).toEqual([])
     expect(views[1].specials).toEqual([])
     expect(views[1].fourth).toBeNull()
+  })
+
+  it('keeps a division with no awards on the page — the two do not finish together', () => {
+    // THE REGRESSION: on the day, one division is crowned while the other is
+    // still playing its semis. The unfinished one must not disappear.
+    const views = buildDivisionViews(records, divisions)
+    expect(views).toHaveLength(2)
+    expect(views.map((v) => v.divisionSlug)).toEqual(['mens_doubles', 'womens_doubles'])
+    expect(divisionAwardState(views[0])).toBe('crowned')
+    expect(divisionAwardState(views[1])).toBe('pending')
+  })
+
+  it('still reports winners overall when only one division is finished', () => {
+    const views = buildDivisionViews(records, divisions)
+    expect(hasAnyWinners(views)).toBe(true)
+    expect(divisionHasContent(views[0])).toBe(true)
+    expect(divisionHasContent(views[1])).toBe(false)
+    expect(pendingDivisions(views).map((v) => v.divisionSlug)).toEqual(['womens_doubles'])
+  })
+
+  it('describes each division honestly', () => {
+    const views = buildDivisionViews(records, divisions)
+    expect(divisionStateBlurb(views[0])).toContain('crowned')
+    expect(divisionStateBlurb(views[1])).toContain('Still being decided')
+  })
+
+  it('shows what is known when a division has a 3rd place but no champion yet', () => {
+    const partial = [
+      record({
+        id: '9',
+        divisionSlug: 'womens_doubles',
+        divisionName: "Women's Doubles",
+        key: 'third_place',
+        dbType: 'third_place',
+      }),
+    ]
+    const views = buildDivisionViews(partial, divisions)
+    const womens = views[1]
+    expect(divisionAwardState(womens)).toBe('partial')
+    expect(womens.podium).toHaveLength(3)
+    expect(womens.podium.find((s) => s.placing === 3)?.teamName).toBe('Tinsel Titans')
+    expect(womens.podium.find((s) => s.placing === 1)?.teamName).toBeNull()
+    expect(divisionStateBlurb(womens)).toContain('Partly decided')
+  })
+
+  it('shows the whole-page pending state only when no division has anything', () => {
+    const views = buildDivisionViews([], divisions)
+    expect(views).toHaveLength(2)
+    expect(hasAnyWinners(views)).toBe(false)
+    expect(views.every((v) => divisionAwardState(v) === 'pending')).toBe(true)
   })
 
   it('hasAnyWinners is false only when every division is empty', () => {

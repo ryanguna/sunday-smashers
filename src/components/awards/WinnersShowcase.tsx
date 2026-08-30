@@ -3,12 +3,15 @@ import { Badge, Card, CardBody, GradientText } from '@/components/ui'
 import { HollyIcon, ShuttlecockIcon, SparkleIcon, TrophyIcon } from '@/components/icons'
 import { cn } from '@/lib/cn'
 import {
+  divisionAwardState,
+  divisionHasContent,
   recipientLabel,
   revealDelay,
   type AwardDefinition,
   type AwardsDivisionView,
 } from '@/lib/awards'
 import { AwardCard } from './AwardCard'
+import { DivisionPending } from './DivisionPending'
 import { PodiumStage } from './PodiumStage'
 
 /**
@@ -47,16 +50,16 @@ export function WinnersShowcase({
   href = '/awards',
   className,
 }: WinnersShowcaseProps) {
-  const withContent = divisions.filter(
-    (division) => division.podium.length > 0 || division.specials.length > 0
-  )
-
-  if (withContent.length === 0) return <>{emptyState ?? null}</>
+  // Every division that exists is rendered. Only a page with nothing
+  // anywhere falls back to the empty state: "this division has no awards
+  // yet" and "this division does not exist" are different things, and
+  // conflating them is what made an unfinished division vanish.
+  if (!divisions.some(divisionHasContent)) return <>{emptyState ?? null}</>
 
   if (variant === 'compact') {
     return (
       <div className={cn('grid gap-3 sm:grid-cols-2', className)}>
-        {withContent.map((division, index) => {
+        {divisions.map((division, index) => {
           const champion = division.podium.find((spot) => spot.placing === 1)
           return (
             <Card
@@ -109,7 +112,7 @@ export function WinnersShowcase({
   if (variant === 'tv') {
     return (
       <div className={cn('grid gap-6 lg:grid-cols-2', className)}>
-        {withContent.map((division) => {
+        {divisions.map((division) => {
           const champion = division.podium.find((spot) => spot.placing === 1)
           const runnerUp = division.podium.find((spot) => spot.placing === 2)
           const third = division.podium.find((spot) => spot.placing === 3)
@@ -153,7 +156,7 @@ export function WinnersShowcase({
 
   return (
     <div className={cn('space-y-14', className)}>
-      {withContent.map((division) => (
+      {divisions.map((division) => (
         <section key={division.divisionSlug} aria-labelledby={`winners-${division.divisionSlug}`}>
           <div className="mb-6 flex flex-wrap items-center justify-center gap-2 text-center">
             <HollyIcon size={22} className="text-[var(--color-brand-holly)]" aria-hidden="true" />
@@ -171,7 +174,11 @@ export function WinnersShowcase({
             />
           </div>
 
-          {division.podium.length > 0 && <PodiumStage spots={division.podium} />}
+          {divisionAwardState(division) === 'pending' ? (
+            <DivisionPending division={division} />
+          ) : (
+            division.podium.length > 0 && <PodiumStage spots={division.podium} />
+          )}
 
           {division.fourth && (
             <p className="mt-5 flex flex-wrap items-center justify-center gap-2 text-sm text-[var(--color-ink-soft)]">
