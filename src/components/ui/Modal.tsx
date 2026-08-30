@@ -82,11 +82,14 @@ export function Modal({ open, onClose, title, description, children, className }
         aria-describedby={description ? 'ss-modal-description' : undefined}
         tabIndex={-1}
         className={cn(
-          'relative z-10 w-full max-w-lg rounded-[var(--radius-xl)] bg-white p-6 shadow-[var(--shadow-lift)] animate-pop-in outline-none',
+          // Cap the height and let only the body scroll, so a tall dialog keeps
+          // its title and close button pinned and can never push its own save
+          // button off-screen inside an unscrollable fixed container.
+          'relative z-10 flex max-h-[calc(100dvh-2rem)] w-full max-w-lg flex-col rounded-[var(--radius-xl)] bg-white shadow-[var(--shadow-lift)] animate-pop-in outline-none',
           className
         )}
       >
-        <div className="mb-4 flex items-start justify-between gap-4">
+        <div className="flex shrink-0 items-start justify-between gap-4 px-6 pt-6 pb-4">
           <h2 id="ss-modal-title" className="text-xl font-bold text-[var(--color-plum)]">
             {title}
           </h2>
@@ -107,11 +110,11 @@ export function Modal({ open, onClose, title, description, children, className }
           </button>
         </div>
         {description && (
-          <p id="ss-modal-description" className="mb-4 text-[var(--color-ink-soft)]">
+          <p id="ss-modal-description" className="shrink-0 px-6 pb-4 text-[var(--color-ink-soft)]">
             {description}
           </p>
         )}
-        {children}
+        <div className="min-h-0 flex-1 overflow-y-auto px-6 pb-6">{children}</div>
       </div>
     </div>
   )

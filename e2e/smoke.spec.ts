@@ -30,6 +30,8 @@ const GATED_ROUTES = [
   '/dashboard',
   '/admin',
   '/admin/checklist',
+  '/admin/teams',
+  '/admin/matches',
   '/scoring',
   '/tabulator',
   '/scoresheets',

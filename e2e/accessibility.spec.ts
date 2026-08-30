@@ -35,6 +35,8 @@ const AUDITED_ROUTES = [
   '/dashboard',
   '/admin',
   '/admin/checklist',
+  '/admin/teams',
+  '/admin/matches',
   '/scoring',
   '/tv/court-1',
 ] as const
