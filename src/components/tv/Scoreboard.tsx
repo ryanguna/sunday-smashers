@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { evaluateGame } from '@/lib/draw'
 import { subscribeToCourt } from '@/lib/tv/data'
-import type { CourtSnapshot, TvConnectionStatus, TvUpcomingMatch } from '@/lib/tv/types'
+import type { CourtSnapshot, TvConnectionStatus, TvLiveMatch, TvUpcomingMatch } from '@/lib/tv/types'
 import { ConnectionIndicator } from './ConnectionIndicator'
 import { ScoreDigits } from './ScoreDigits'
 import { ElapsedClock } from './ElapsedClock'
@@ -153,30 +153,69 @@ export function Scoreboard({ initial, venueUpcoming }: ScoreboardProps) {
         </div>
       )}
 
-      {/* Main score area */}
-      <div className="relative z-10 grid flex-1 grid-cols-1 gap-[2vw] px-[3vw] pb-[2vh] lg:grid-cols-[1fr_22vw]">
-        <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-[2vw]">
-          <TeamScoreBlock
-            teamName={live.teamA.name}
-            players={live.teamA.players}
-            score={live.pointsA}
-            serving={live.status === 'live' && live.server === 'a'}
-            won={winningSide === 'a'}
-            align="right"
-          />
+      {/* Main score area — a top (names/serve) row, a centred group (huge
+          score digits, a large elapsed-time readout and per-team
+          progress-to-target bars) and the side panel, so the full viewport
+          height is used regardless of monitor size rather than leaving a
+          band of dead space below the digits. */}
+      <div className="relative z-10 grid min-h-0 flex-1 grid-cols-1 gap-[2vw] px-[3vw] pb-[2vh] lg:grid-cols-[1fr_22vw]">
+        <div className="flex min-h-0 flex-col">
+          <div className="grid grid-cols-[1fr_auto_1fr] items-start gap-[2vw] pt-[0.5vh]">
+            <TeamHeader
+              teamName={live.teamA.name}
+              players={live.teamA.players}
+              serving={live.status === 'live' && live.server === 'a'}
+              align="right"
+            />
+            <span aria-hidden="true" />
+            <TeamHeader
+              teamName={live.teamB.name}
+              players={live.teamB.players}
+              serving={live.status === 'live' && live.server === 'b'}
+              align="left"
+            />
+          </div>
 
-          <span className="font-[family-name:var(--font-heading)] text-[clamp(2rem,4vw,4.5rem)] font-black text-frost/30">
-            –
-          </span>
+          <div className="flex min-h-0 flex-1 flex-col justify-center gap-[2.5vh]">
+            <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-[2vw]">
+              <ScoreDigits
+                value={live.pointsA}
+                label={`${live.teamA.name} score`}
+                className={`text-center text-[clamp(8rem,48vh,38rem)] ${winningSide === 'a' ? 'text-[var(--color-brand-gold)] drop-shadow-[0_0_50px_rgba(255,200,97,0.55)]' : 'text-frost'}`}
+              />
 
-          <TeamScoreBlock
-            teamName={live.teamB.name}
-            players={live.teamB.players}
-            score={live.pointsB}
-            serving={live.status === 'live' && live.server === 'b'}
-            won={winningSide === 'b'}
-            align="left"
-          />
+              <span className="font-[family-name:var(--font-heading)] text-[clamp(2rem,4vw,4.5rem)] font-black text-frost/30">
+                –
+              </span>
+
+              <ScoreDigits
+                value={live.pointsB}
+                label={`${live.teamB.name} score`}
+                className={`text-center text-[clamp(8rem,48vh,38rem)] ${winningSide === 'b' ? 'text-[var(--color-brand-gold)] drop-shadow-[0_0_50px_rgba(255,200,97,0.55)]' : 'text-frost'}`}
+              />
+            </div>
+
+            {live.status === 'live' && (
+              <div className="flex items-center justify-center gap-3 text-frost/70">
+                <span aria-hidden="true" className="text-[clamp(1.2rem,2vw,2rem)]">
+                  ⏱
+                </span>
+                <ElapsedClock
+                  matchKey={live.matchId}
+                  className="font-[family-name:var(--font-heading)] text-[clamp(1.8rem,3.4vw,3.4rem)] font-extrabold tabular-nums text-frost"
+                />
+                <span className="text-[clamp(0.7rem,1vw,1.1rem)] font-bold uppercase tracking-[0.2em] text-frost/50">
+                  Elapsed
+                </span>
+              </div>
+            )}
+
+            <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-[2vw]">
+              <PointsProgress score={live.pointsA} target={live.pointsToWin} align="right" won={winningSide === 'a'} />
+              <MatchPointBadge live={live} />
+              <PointsProgress score={live.pointsB} target={live.pointsToWin} align="left" won={winningSide === 'b'} />
+            </div>
+          </div>
         </div>
 
         <aside className="flex min-h-[24vh] flex-col rounded-[var(--radius-xl)] bg-white/6 p-[1.4vw] backdrop-blur">
@@ -193,47 +232,85 @@ export function Scoreboard({ initial, venueUpcoming }: ScoreboardProps) {
   )
 }
 
-function TeamScoreBlock({
+function TeamHeader({
   teamName,
   players,
-  score,
   serving,
-  won,
   align,
 }: {
   teamName: string
   players: readonly [string, string]
-  score: number
   serving: boolean
-  won: boolean
   align: 'left' | 'right'
 }) {
   return (
-    <div className={`flex flex-col items-center gap-2 ${align === 'right' ? 'text-right' : 'text-left'} ${align === 'right' ? 'items-end' : 'items-start'}`}>
-      <div className={`flex items-center gap-2 ${align === 'right' ? 'flex-row-reverse' : ''}`}>
-        {serving && (
-          <span
-            aria-label="Serving"
-            title="Serving"
-            className="h-3 w-3 rounded-full bg-[var(--color-brand-mint)] shadow-[var(--shadow-glow-mint)]"
-          />
-        )}
-        <h2
-          className="font-[family-name:var(--font-heading)] text-[clamp(1.2rem,2.2vw,2.4rem)] font-extrabold leading-tight"
-          style={{ color: 'var(--color-frost)' }}
+    <div
+      className={`flex flex-col gap-2 ${align === 'right' ? 'items-end text-right' : 'items-start text-left'}`}
+    >
+      {serving && (
+        <span
+          className={`animate-pop-in flex items-center gap-1.5 rounded-[var(--radius-pill)] bg-[var(--color-brand-mint)] px-3 py-1 text-[clamp(0.65rem,0.9vw,0.95rem)] font-extrabold uppercase tracking-widest text-[var(--color-plum)] shadow-[var(--shadow-glow-mint)] ${align === 'right' ? 'flex-row-reverse' : ''}`}
         >
-          {teamName}
-        </h2>
-      </div>
+          <ShuttlecockIcon className="animate-bob h-[1.4em] w-[1.4em]" aria-hidden="true" />
+          Serving
+        </span>
+      )}
+      <h2
+        className="font-[family-name:var(--font-heading)] text-[clamp(1.2rem,2.2vw,2.4rem)] font-extrabold leading-tight"
+        style={{ color: 'var(--color-frost)' }}
+      >
+        {teamName}
+      </h2>
       <p className="text-[clamp(0.85rem,1.2vw,1.3rem)] font-semibold text-frost/60">
         {players[0]} &amp; {players[1]}
       </p>
-      <ScoreDigits
-        value={score}
-        label={`${teamName} score`}
-        className={`text-[clamp(7rem,17vw,21rem)] ${won ? 'text-[var(--color-brand-gold)] drop-shadow-[0_0_40px_rgba(255,200,97,0.55)]' : 'text-frost'}`}
-      />
     </div>
+  )
+}
+
+function PointsProgress({
+  score,
+  target,
+  align,
+  won,
+}: {
+  score: number
+  target: number
+  align: 'left' | 'right'
+  won: boolean
+}) {
+  const pct = Math.max(0, Math.min(100, (score / target) * 100))
+  return (
+    <div className={`flex flex-col gap-2 ${align === 'right' ? 'items-end' : 'items-start'}`}>
+      <div className="h-[1.6vh] w-full min-w-[10rem] overflow-hidden rounded-[var(--radius-pill)] bg-white/12">
+        <div
+          className={`h-full rounded-[var(--radius-pill)] transition-[width] duration-500 ${won ? 'bg-[var(--color-brand-gold)]' : 'bg-[var(--color-brand-mint)]'}`}
+          style={{ width: `${Math.round(pct)}%` }}
+        />
+      </div>
+      <span className="text-[clamp(0.8rem,1.1vw,1.15rem)] font-semibold text-frost/60">
+        {score} / {target} to win
+      </span>
+    </div>
+  )
+}
+
+/**
+ * "Match point" — the leading side wins outright by reaching `pointsToWin`
+ * (the draft rules play with no deuce), so it is a match point for a side
+ * the moment it sits one point below the target while the opponent hasn't
+ * already reached it.
+ */
+function MatchPointBadge({ live }: { live: TvLiveMatch }) {
+  if (live.status !== 'live') return null
+  const aMatchPoint = live.pointsA === live.pointsToWin - 1 && live.pointsB < live.pointsToWin
+  const bMatchPoint = live.pointsB === live.pointsToWin - 1 && live.pointsA < live.pointsToWin
+  if (!aMatchPoint && !bMatchPoint) return <span aria-hidden="true" />
+
+  return (
+    <span className="animate-pop-in whitespace-nowrap rounded-[var(--radius-pill)] bg-[var(--color-danger)] px-3 py-1 text-[clamp(0.65rem,1vw,1rem)] font-extrabold uppercase tracking-widest text-white shadow-[var(--shadow-glow-pink)]">
+      Match Point
+    </span>
   )
 }
 
