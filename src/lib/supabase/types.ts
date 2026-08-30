@@ -55,7 +55,7 @@ interface TableDef<Row, Insert, Update> {
   Relationships: []
 }
 
-export interface ProfileRow {
+export type ProfileRow = {
   id: string
   full_name: string
   nickname: string | null
@@ -71,14 +71,14 @@ export interface ProfileRow {
   updated_at: string
 }
 
-export interface UserRoleRow {
+export type UserRoleRow = {
   user_id: string
   role: UserRole
   granted_by: string | null
   created_at: string
 }
 
-export interface TournamentRow {
+export type TournamentRow = {
   id: string
   name: string
   slug: string
@@ -95,7 +95,7 @@ export interface TournamentRow {
   updated_at: string
 }
 
-export interface DivisionRow {
+export type DivisionRow = {
   id: string
   tournament_id: string
   name: string
@@ -115,7 +115,7 @@ export interface DivisionRow {
   updated_at: string
 }
 
-export interface RegistrationRow {
+export type RegistrationRow = {
   id: string
   tournament_id: string
   division_id: string
@@ -128,7 +128,7 @@ export interface RegistrationRow {
   updated_at: string
 }
 
-export interface TeamRow {
+export type TeamRow = {
   id: string
   division_id: string
   name: string | null
@@ -138,14 +138,14 @@ export interface TeamRow {
   updated_at: string
 }
 
-export interface TeamMemberRow {
+export type TeamMemberRow = {
   team_id: string
   player_id: string
   registration_id: string | null
   created_at: string
 }
 
-export interface PartnerInviteRow {
+export type PartnerInviteRow = {
   id: string
   division_id: string
   inviter_id: string
@@ -158,7 +158,7 @@ export interface PartnerInviteRow {
   responded_at: string | null
 }
 
-export interface PaymentRow {
+export type PaymentRow = {
   id: string
   registration_id: string
   amount_cents: number
@@ -171,7 +171,7 @@ export interface PaymentRow {
   updated_at: string
 }
 
-export interface CourtRow {
+export type CourtRow = {
   id: string
   tournament_id: string
   name: string
@@ -179,7 +179,7 @@ export interface CourtRow {
   created_at: string
 }
 
-export interface TimeSlotRow {
+export type TimeSlotRow = {
   id: string
   tournament_id: string
   starts_at: string
@@ -188,7 +188,7 @@ export interface TimeSlotRow {
   created_at: string
 }
 
-export interface MatchRow {
+export type MatchRow = {
   id: string
   division_id: string
   stage: MatchStageEnum
@@ -214,7 +214,7 @@ export interface MatchRow {
   updated_at: string
 }
 
-export interface ScoreEventRow {
+export type ScoreEventRow = {
   id: string
   match_id: string
   sequence: number
@@ -227,7 +227,7 @@ export interface ScoreEventRow {
   created_at: string
 }
 
-export interface ScoresheetRow {
+export type ScoresheetRow = {
   id: string
   match_id: string
   court_id: string | null
@@ -244,7 +244,7 @@ export interface ScoresheetRow {
   updated_at: string
 }
 
-export interface ScoresheetSignatureRow {
+export type ScoresheetSignatureRow = {
   id: string
   scoresheet_id: string
   player_id: string
@@ -252,7 +252,7 @@ export interface ScoresheetSignatureRow {
   signed_at: string
 }
 
-export interface DutyAssignmentRow {
+export type DutyAssignmentRow = {
   id: string
   match_id: string
   player_id: string
@@ -261,7 +261,7 @@ export interface DutyAssignmentRow {
   created_at: string
 }
 
-export interface AnnouncementRow {
+export type AnnouncementRow = {
   id: string
   tournament_id: string
   title: string
@@ -273,7 +273,7 @@ export interface AnnouncementRow {
   updated_at: string
 }
 
-export interface AwardRow {
+export type AwardRow = {
   id: string
   division_id: string
   team_id: string | null
@@ -284,7 +284,7 @@ export interface AwardRow {
   created_at: string
 }
 
-export interface PhotoRow {
+export type PhotoRow = {
   id: string
   tournament_id: string
   match_id: string | null
@@ -296,7 +296,7 @@ export interface PhotoRow {
   created_at: string
 }
 
-export interface ChecklistItemRow {
+export type ChecklistItemRow = {
   id: string
   tournament_id: string
   player_id: string
@@ -307,7 +307,7 @@ export interface ChecklistItemRow {
   notes: string | null
 }
 
-export interface AuditLogRow {
+export type AuditLogRow = {
   id: string
   actor_id: string | null
   action: string
@@ -317,7 +317,7 @@ export interface AuditLogRow {
   created_at: string
 }
 
-export interface SiteContentRow {
+export type SiteContentRow = {
   slug: string
   title: string
   body_markdown: string
@@ -328,7 +328,7 @@ export interface SiteContentRow {
 }
 
 /** Raw aggregates only — see the SQL view comment in schema.sql. */
-export interface StandingsViewRow {
+export type StandingsViewRow = {
   team_id: string
   division_id: string
   played: number
