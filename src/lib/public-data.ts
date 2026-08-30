@@ -80,7 +80,22 @@ export interface PublicTeam {
   players: PublicPlayer[]
 }
 
-export type PublicMatchStatus = 'scheduled' | 'in_progress' | 'completed' | 'forfeited'
+/**
+ * The subset of `MatchStatus` the public site can encounter.
+ *
+ * `'retired'` and `'walkover'` are distinct from `'forfeited'` on purpose: a
+ * retirement keeps the score actually played and carries no blame, a walkover
+ * means the opposition never arrived, and a forfeit is a penalty. Collapsing
+ * them would label an injured pair as having forfeited, which is a distinction
+ * players genuinely care about.
+ */
+export type PublicMatchStatus =
+  | 'scheduled'
+  | 'in_progress'
+  | 'completed'
+  | 'forfeited'
+  | 'walkover'
+  | 'retired'
 
 export interface PublicDutyAssignment {
   role: 'umpire_scorer' | 'scoresheet' | 'line_judge'
@@ -464,14 +479,22 @@ function matchRowToPublic(
   dutiesByMatch: Map<string, PublicDutyAssignment[]>,
 ): PublicMatch {
   const rules = matchStageRules(m)
+  // Map the DB status onto the public one explicitly. An earlier version
+  // collapsed `walkover` into `completed` and let anything unrecognised fall
+  // through to `scheduled`, which meant a *retired* match — a real result,
+  // with a real score — displayed publicly as if it had not been played yet.
   const status: PublicMatchStatus =
-    m.status === 'completed' || m.status === 'walkover'
+    m.status === 'completed'
       ? 'completed'
-      : m.status === 'forfeited'
-        ? 'forfeited'
-        : m.status === 'in_progress'
-          ? 'in_progress'
-          : 'scheduled'
+      : m.status === 'walkover'
+        ? 'walkover'
+        : m.status === 'retired'
+          ? 'retired'
+          : m.status === 'forfeited'
+            ? 'forfeited'
+            : m.status === 'in_progress'
+              ? 'in_progress'
+              : 'scheduled'
   const slot = m.time_slot_id ? slotById.get(m.time_slot_id) : undefined
 
   return {
@@ -756,6 +779,8 @@ export function statusToBadgeStatus(status: PublicMatchStatus): BadgeStatus {
     case 'in_progress':
       return 'live'
     case 'completed':
+    case 'retired':
+    case 'walkover':
       return 'final'
     case 'forfeited':
       return 'forfeit'
@@ -774,10 +799,42 @@ export function statusLabel(status: PublicMatchStatus): string {
       return 'Final'
     case 'forfeited':
       return 'Forfeit'
+    case 'walkover':
+      return 'Walkover'
+    case 'retired':
+      return 'Retired'
     case 'scheduled':
     default:
       return 'Upcoming'
   }
+}
+
+/**
+ * Whether a match has a result — as opposed to being scheduled or in play.
+ *
+ * Exists so call sites stop restating the list. Several independently wrote
+ * `status === 'completed' || status === 'forfeited'`, and every one of them
+ * silently excluded retirements and walkovers the moment those became real
+ * statuses, under-counting played matches and hiding scores that exist.
+ */
+export function isMatchDecided(status: PublicMatchStatus): boolean {
+  return (
+    status === 'completed' ||
+    status === 'forfeited' ||
+    status === 'walkover' ||
+    status === 'retired'
+  )
+}
+
+/**
+ * Whether a score is worth showing for this status.
+ *
+ * True for anything decided plus a match in play. A retirement keeps the score
+ * actually played, and a forfeit/walkover carries the normalised one, so all of
+ * them have something meaningful to display.
+ */
+export function showsScore(status: PublicMatchStatus): boolean {
+  return status === 'in_progress' || isMatchDecided(status)
 }
 
 /** Renders a team's display name, or its knockout placeholder source when not yet decided. */

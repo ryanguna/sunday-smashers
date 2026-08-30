@@ -13,6 +13,7 @@ import type {
   TimeSlotRow,
   TournamentRow,
 } from '@/lib/supabase/types'
+import { DECIDED_MATCH_STATUSES } from '@/lib/supabase/types'
 import { getAllDemoBundles, type DemoDivisionBundle } from '@/lib/demo-data'
 import {
   placementsFromMatches,
@@ -106,9 +107,8 @@ function demoData(): ScheduleWorkbenchData {
         slotId: demoSlotId(match.slotIndex),
         status: match.status as ScheduleMatchStatus,
         hasResult:
-          match.status === 'completed' ||
-          match.status === 'forfeited' ||
-          match.status === 'in_progress',
+          match.status === 'in_progress' ||
+          (DECIDED_MATCH_STATUSES as readonly string[]).includes(match.status),
       })
     }
   }

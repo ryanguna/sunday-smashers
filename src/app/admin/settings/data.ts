@@ -13,6 +13,7 @@ import type {
   TournamentRow,
   UserRoleRow,
 } from '@/lib/supabase/types'
+import { DECIDED_MATCH_STATUSES } from '@/lib/supabase/types'
 import {
   ASSIGNABLE_ROLES,
   defaultTournamentSettings,
@@ -124,7 +125,7 @@ function demoData(): SettingsPageData {
       drawPublished: matches.length > 0,
       matchesScheduled: countOf('scheduled'),
       matchesInProgress: countOf('in_progress'),
-      matchesCompleted: countOf('completed', 'forfeited'),
+      matchesCompleted: countOf(...DECIDED_MATCH_STATUSES),
     },
     entryCounts,
     tournamentId: null,
@@ -177,7 +178,7 @@ async function loadDrawState(supabase: SupabaseLike, divisionIds: string[]): Pro
   const [scheduled, inProgress, completed] = await Promise.all([
     countFor(['scheduled']),
     countFor(['in_progress']),
-    countFor(['completed', 'forfeited', 'walkover']),
+    countFor([...DECIDED_MATCH_STATUSES]),
   ])
 
   return {

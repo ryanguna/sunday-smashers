@@ -9,6 +9,8 @@ import {
   getSchedule,
   getStandings,
   groupMatchesByCourt,
+  isMatchDecided,
+  showsScore,
   matchesForPlayerQuery,
   statusLabel,
   statusToBadgeStatus,
@@ -199,6 +201,39 @@ describe('statusToBadgeStatus / statusLabel', () => {
     expect(statusLabel('in_progress')).toBe('Live')
     expect(statusLabel('completed')).toBe('Final')
     expect(statusLabel('forfeited')).toBe('Forfeit')
+  })
+
+  it('gives a retirement and a walkover their own wording, not "Forfeit"', () => {
+    // A retirement is an injury, a walkover is a no-show, a forfeit is a
+    // penalty. Labelling an injured pair as having forfeited is a distinction
+    // players care about, so these must never collapse together.
+    expect(statusLabel('retired')).toBe('Retired')
+    expect(statusLabel('walkover')).toBe('Walkover')
+    expect(statusLabel('forfeited')).toBe('Forfeit')
+
+    // All three are finished results, so all three read as final on a badge.
+    expect(statusToBadgeStatus('retired')).toBe('final')
+    expect(statusToBadgeStatus('walkover')).toBe('final')
+  })
+})
+
+describe('isMatchDecided / showsScore', () => {
+  it('counts every played-out result, not just completed and forfeited', () => {
+    // Four call sites hand-wrote this list and each omitted something
+    // different, under-counting played matches on the admin dashboard.
+    for (const s of ['completed', 'forfeited', 'walkover', 'retired'] as const) {
+      expect(isMatchDecided(s)).toBe(true)
+    }
+    expect(isMatchDecided('scheduled')).toBe(false)
+    expect(isMatchDecided('in_progress')).toBe(false)
+  })
+
+  it('shows a score for a retirement, which keeps the score actually played', () => {
+    expect(showsScore('retired')).toBe(true)
+    expect(showsScore('walkover')).toBe(true)
+    expect(showsScore('in_progress')).toBe(true)
+    // Nothing has happened yet, so there is no score to show.
+    expect(showsScore('scheduled')).toBe(false)
   })
 })
 

@@ -24,6 +24,7 @@
  * wall-clock reads. Server-only loading lives in the route folders.
  */
 
+import type { MatchStatus } from '@/lib/supabase/types'
 import type { MatchStage, TeamId } from './draw'
 import {
   assignToCourts,
@@ -69,12 +70,14 @@ export interface ScheduleSlot {
   label: string
 }
 
-export type ScheduleMatchStatus =
-  | 'scheduled'
-  | 'in_progress'
-  | 'completed'
-  | 'forfeited'
-  | 'walkover'
+/**
+ * Statuses a match can hold on the schedule board.
+ *
+ * Derived from `MatchStatus` rather than re-listed: this union previously
+ * omitted `retired`, so a retirement rendered with no status badge at all.
+ * `cancelled` is excluded because a called-off match leaves the board.
+ */
+export type ScheduleMatchStatus = Exclude<MatchStatus, 'cancelled'>
 
 /** A published fixture waiting to be given a court and a time slot. */
 export interface SchedulableMatch {

@@ -1,5 +1,5 @@
 import { Badge } from '@/components/ui'
-import { statusLabel, statusToBadgeStatus, teamDisplayName, type PublicMatch } from '@/lib/public-data'
+import { showsScore, statusLabel, statusToBadgeStatus, teamDisplayName, type PublicMatch } from '@/lib/public-data'
 import { cn } from '@/lib/cn'
 
 const STAGE_LABEL: Record<PublicMatch['stage'], string> = {
@@ -25,7 +25,7 @@ function TeamRow({ match, side }: TeamRowProps) {
   const otherScore = side === 'A' ? match.scoreB : match.scoreA
   const forfeited = match.forfeitedBy && team && match.forfeitedBy === team.id
   const isWinner = match.winnerTeamId != null && team != null && match.winnerTeamId === team.id
-  const showScore = match.status === 'in_progress' || match.status === 'completed' || match.status === 'forfeited'
+  const showScore = showsScore(match.status)
 
   return (
     <div

@@ -44,6 +44,7 @@ export function StagePill({ match }: { match: SchedulableMatch }) {
 export function MatchStatusBadge({ match }: { match: SchedulableMatch }) {
   if (match.status === 'in_progress') return <Badge status="live">Live</Badge>
   if (match.status === 'forfeited') return <Badge status="forfeit">Forfeit</Badge>
+  if (match.status === 'retired') return <Badge status="final">Retired</Badge>
   if (match.status === 'completed' || match.status === 'walkover')
     return <Badge status="final">Played</Badge>
   return null

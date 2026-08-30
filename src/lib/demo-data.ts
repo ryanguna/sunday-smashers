@@ -23,6 +23,7 @@
  * courtside TV scoreboard — unrelated, do not merge with this file.
  */
 
+import type { MatchStatus } from '@/lib/supabase/types'
 import {
   computeStandings,
   DEFAULT_ELIMS_RULES,
@@ -72,7 +73,15 @@ export interface DemoTeam {
   players: DemoPlayer[]
 }
 
-export type DemoMatchStatus = 'scheduled' | 'in_progress' | 'completed' | 'forfeited'
+/**
+ * Statuses the demo dataset can produce.
+ *
+ * Derived from `MatchStatus` rather than re-listed, so adding a status to the
+ * database union surfaces here instead of silently leaving demo mode unable to
+ * represent it. `cancelled` is excluded because the demo tournament never
+ * calls a match off.
+ */
+export type DemoMatchStatus = Exclude<MatchStatus, 'cancelled'>
 
 /** One duty roster row, resolved to a display name plus the stable player id. */
 export interface DemoDutyAssignment {

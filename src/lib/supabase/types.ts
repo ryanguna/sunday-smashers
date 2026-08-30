@@ -35,6 +35,25 @@ export type MatchStatus =
   | 'cancelled'
   /** Started and stopped mid-game (injury). Keeps the score actually played. */
   | 'retired'
+
+/**
+ * Every `MatchStatus` that represents a played-out result, as opposed to a
+ * match still to come, in play, or called off.
+ *
+ * Exported as a constant because four call sites independently hand-wrote this
+ * list and every one of them disagreed — variously omitting `walkover` and
+ * `retired` — which under-counted played matches on the admin dashboard.
+ * Add a status to the union above and the type error here is the reminder.
+ */
+export const DECIDED_MATCH_STATUSES = [
+  'completed',
+  'forfeited',
+  'walkover',
+  'retired',
+] as const satisfies readonly MatchStatus[]
+
+export type DecidedMatchStatus = (typeof DECIDED_MATCH_STATUSES)[number]
+
 export type DutyRole = 'umpire_scorer' | 'scoresheet' | 'line_judge'
 export type ScoresheetStatus = 'draft' | 'awaiting_signature' | 'submitted' | 'verified' | 'disputed'
 export type AwardType =
@@ -233,7 +252,12 @@ export type ScoreEventRow = {
   match_id: string
   sequence: number
   side: 'a' | 'b'
-  event_type: 'point' | 'undo' | 'forfeit' | 'game_start' | 'game_end'
+  /**
+   * Mirrors the `check` on `score_events.event_type`. `'walkover'` and
+   * `'retire'` arrived with migration 0006 so that an injured pair is not
+   * recorded — or displayed — as having forfeited.
+   */
+  event_type: 'point' | 'undo' | 'forfeit' | 'walkover' | 'retire' | 'game_start' | 'game_end'
   score_a_after: number
   score_b_after: number
   scored_by: string | null
