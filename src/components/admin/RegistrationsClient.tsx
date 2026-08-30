@@ -65,7 +65,13 @@ const ACTION_TONES = {
     className:
       'bg-[var(--color-success-bg)] text-[var(--color-success)] hover:bg-[var(--color-success)] hover:text-white',
     glyph: (
-      <path d="M5 12.5l4.5 4.5L19 7" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round" />
+      <path
+        d="M5 12.5l4.5 4.5L19 7"
+        stroke="currentColor"
+        strokeWidth="2.6"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
     ),
   },
   waitlist: {
@@ -82,7 +88,12 @@ const ACTION_TONES = {
     className:
       'bg-[var(--color-danger-bg)] text-[var(--color-danger)] hover:bg-[var(--color-danger)] hover:text-white',
     glyph: (
-      <path d="M7 7l10 10M17 7L7 17" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" />
+      <path
+        d="M7 7l10 10M17 7L7 17"
+        stroke="currentColor"
+        strokeWidth="2.6"
+        strokeLinecap="round"
+      />
     ),
   },
   details: {
@@ -91,7 +102,12 @@ const ACTION_TONES = {
     glyph: (
       <>
         <circle cx="12" cy="12" r="8.5" stroke="currentColor" strokeWidth="2" />
-        <path d="M12 11v5.5M12 7.6v.6" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" />
+        <path
+          d="M12 11v5.5M12 7.6v.6"
+          stroke="currentColor"
+          strokeWidth="2.2"
+          strokeLinecap="round"
+        />
       </>
     ),
   },
@@ -126,7 +142,7 @@ function ActionButton({
       onClick={onClick}
       className={cn(
         'inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full transition-colors disabled:opacity-35 disabled:hover:bg-inherit disabled:hover:text-inherit',
-        config.className
+        config.className,
       )}
     >
       <svg width="15" height="15" viewBox="0 0 24 24" fill="none" aria-hidden="true">
@@ -171,16 +187,19 @@ export function RegistrationsClient({
   const [pending, startTransition] = useTransition()
   const { toast } = useToast()
 
-  const visible = useMemo(() => filterRegistrations(registrations, filters), [registrations, filters])
+  const visible = useMemo(
+    () => filterRegistrations(registrations, filters),
+    [registrations, filters],
+  )
   const selectedRows = useMemo(
     () => visible.filter((row) => selected.includes(row.id)),
-    [visible, selected]
+    [visible, selected],
   )
   const allVisibleSelected = visible.length > 0 && visible.every((row) => selected.includes(row.id))
 
   function toggleRow(id: string) {
     setSelected((current) =>
-      current.includes(id) ? current.filter((rowId) => rowId !== id) : [...current, id]
+      current.includes(id) ? current.filter((rowId) => rowId !== id) : [...current, id],
     )
   }
 
@@ -201,7 +220,7 @@ export function RegistrationsClient({
     startTransition(async () => {
       const result = await updateRegistrationStatusAction(
         eligible.map((row) => row.id),
-        next
+        next,
       )
       toast({
         variant: result.ok ? 'success' : result.demo ? 'default' : 'danger',
@@ -209,7 +228,8 @@ export function RegistrationsClient({
           ? `${REGISTRATION_STATUS_LABELS[next]} — ${eligible.length} player${eligible.length === 1 ? '' : 's'}`
           : 'Not saved',
         description:
-          result.message + (skipped.length > 0 ? ` (${skipped.length} skipped — already there.)` : ''),
+          result.message +
+          (skipped.length > 0 ? ` (${skipped.length} skipped — already there.)` : ''),
       })
       if (result.ok) setSelected([])
     })
@@ -247,7 +267,7 @@ export function RegistrationsClient({
           'mb-4 flex flex-wrap items-center gap-2 rounded-[var(--radius-lg)] px-4 py-3 transition-colors',
           selectedRows.length > 0
             ? 'bg-[image:var(--gradient-candy)] text-white shadow-[var(--shadow-glow-pink)]'
-            : 'bg-white/70 text-[var(--color-ink-muted)] shadow-[var(--shadow-soft)]'
+            : 'bg-white/70 text-[var(--color-ink-muted)] shadow-[var(--shadow-soft)]',
         )}
         aria-live="polite"
       >
@@ -326,7 +346,7 @@ export function RegistrationsClient({
             {visible.map((row) => {
               const paymentStatus = derivePaymentStatus(
                 row.payment.amountPaidCents,
-                row.payment.amountCents
+                row.payment.amountCents,
               )
               const isSelected = selected.includes(row.id)
               const isOpen = expanded === row.id
@@ -395,13 +415,24 @@ export function RegistrationsClient({
                     </span>
                   </TableCell>
                   <TableCell label="Status">
-                    <Badge status={STATUS_BADGE[row.status]} title={REGISTRATION_STATUS_CHEER[row.status]}>
+                    <Badge
+                      status={STATUS_BADGE[row.status]}
+                      title={REGISTRATION_STATUS_CHEER[row.status]}
+                    >
                       {REGISTRATION_STATUS_LABELS[row.status]}
                     </Badge>
                   </TableCell>
                   <TableCell label="Payment">
                     <span className="text-left">
-                      <Badge status={paymentStatus === 'paid' ? 'paid' : paymentStatus === 'partial' ? 'pending' : 'unpaid'}>
+                      <Badge
+                        status={
+                          paymentStatus === 'paid'
+                            ? 'paid'
+                            : paymentStatus === 'partial'
+                              ? 'pending'
+                              : 'unpaid'
+                        }
+                      >
                         {PAYMENT_STATUS_LABELS[paymentStatus]}
                       </Badge>
                       <span className="mt-0.5 block text-xs text-[var(--color-ink-muted)]">
@@ -442,7 +473,10 @@ export function RegistrationsClient({
               )
 
               const detailsRow = isOpen ? (
-                <TableRow key={`${row.id}-details`} className="sm:bg-[var(--color-brand-lilac-light)]/25">
+                <TableRow
+                  key={`${row.id}-details`}
+                  className="sm:bg-[var(--color-brand-lilac-light)]/25"
+                >
                   <TableCell colSpan={7} className="sm:px-4 sm:py-3">
                     <div className="w-full text-left text-sm">
                       <p className="mb-1.5 flex items-center gap-1.5 text-xs font-bold uppercase tracking-wide text-[var(--color-ink-muted)]">
@@ -459,7 +493,9 @@ export function RegistrationsClient({
                           <dd>{row.phone ?? '—'}</dd>
                         </div>
                         <div>
-                          <dt className="text-xs text-[var(--color-ink-muted)]">Emergency contact</dt>
+                          <dt className="text-xs text-[var(--color-ink-muted)]">
+                            Emergency contact
+                          </dt>
                           <dd>{row.emergencyContactName ?? '—'}</dd>
                         </div>
                         <div>

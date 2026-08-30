@@ -37,7 +37,7 @@ function NavLink({
         'group flex items-center gap-2.5 rounded-[var(--radius-pill)] px-3 py-2 text-sm font-semibold font-[family-name:var(--font-heading)] transition-colors',
         active
           ? 'bg-[image:var(--gradient-candy)] text-white shadow-[var(--shadow-glow-pink)]'
-          : 'text-[var(--color-ink-soft)] hover:bg-[var(--color-brand-lilac-light)]/60 hover:text-[var(--color-plum)]'
+          : 'text-[var(--color-ink-soft)] hover:bg-[var(--color-brand-lilac-light)]/60 hover:text-[var(--color-plum)]',
       )}
     >
       <Icon
@@ -78,7 +78,9 @@ function SidebarBrand() {
     <div className="mb-5 flex items-center gap-2.5 rounded-[var(--radius-md)] bg-[image:var(--gradient-mint-sky)] px-3 py-2.5 text-white shadow-[var(--shadow-glow-mint)]">
       <ShuttlecockIcon size={22} className="animate-bob [animation-duration:4s]" />
       <div className="leading-tight">
-        <p className="font-[family-name:var(--font-heading)] text-sm font-extrabold">Admin console</p>
+        <p className="font-[family-name:var(--font-heading)] text-sm font-extrabold">
+          Admin console
+        </p>
         <p className="text-[0.7rem] opacity-90">Sunday Smashers HQ</p>
       </div>
     </div>
@@ -112,7 +114,12 @@ export function AdminShell({ children, demo = false }: { children: ReactNode; de
             className="flex items-center gap-2 rounded-[var(--radius-pill)] bg-[image:var(--gradient-candy)] px-3.5 py-2 text-sm font-bold text-white shadow-[var(--shadow-glow-pink)]"
           >
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-              <path d="M4 7h16M4 12h16M4 17h16" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" />
+              <path
+                d="M4 7h16M4 12h16M4 17h16"
+                stroke="currentColor"
+                strokeWidth="2.4"
+                strokeLinecap="round"
+              />
             </svg>
             Sections
           </button>
@@ -168,7 +175,12 @@ export function AdminShell({ children, demo = false }: { children: ReactNode; de
                 className="mb-5 shrink-0 rounded-full bg-white p-2 text-[var(--color-plum)] shadow-[var(--shadow-soft)]"
               >
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-                  <path d="M6 6l12 12M18 6L6 18" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" />
+                  <path
+                    d="M6 6l12 12M18 6L6 18"
+                    stroke="currentColor"
+                    strokeWidth="2.4"
+                    strokeLinecap="round"
+                  />
                 </svg>
               </button>
             </div>

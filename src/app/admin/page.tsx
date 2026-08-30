@@ -33,11 +33,20 @@ export const metadata: Metadata = {
 }
 
 const CAPACITY_COPY: Record<CapacityState, { label: string; className: string }> = {
-  open: { label: 'Plenty of room', className: 'bg-[var(--color-success-bg)] text-[var(--color-success)]' },
+  open: {
+    label: 'Plenty of room',
+    className: 'bg-[var(--color-success-bg)] text-[var(--color-success)]',
+  },
   filling: { label: 'Filling up', className: 'bg-[var(--color-info-bg)] text-[var(--color-info)]' },
-  'near-full': { label: 'Nearly full', className: 'bg-[var(--color-warn-bg)] text-[var(--color-warn)]' },
+  'near-full': {
+    label: 'Nearly full',
+    className: 'bg-[var(--color-warn-bg)] text-[var(--color-warn)]',
+  },
   full: { label: 'Full', className: 'bg-[var(--color-warn-bg)] text-[var(--color-warn)]' },
-  over: { label: 'Over capacity', className: 'bg-[var(--color-danger-bg)] text-[var(--color-danger)]' },
+  over: {
+    label: 'Over capacity',
+    className: 'bg-[var(--color-danger-bg)] text-[var(--color-danger)]',
+  },
 }
 
 export default async function AdminDashboardPage() {
@@ -113,7 +122,11 @@ export default async function AdminDashboardPage() {
             id="dash-divisions"
             className="mb-2.5 flex items-center gap-2 text-lg font-extrabold text-[var(--color-plum)]"
           >
-            <TrophyIcon size={20} className="text-[var(--color-brand-gold-dark)]" aria-hidden="true" />
+            <TrophyIcon
+              size={20}
+              className="text-[var(--color-brand-gold-dark)]"
+              aria-hidden="true"
+            />
             Divisions
           </h2>
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
@@ -173,81 +186,92 @@ export default async function AdminDashboardPage() {
 
           <div className="mt-6 grid grid-cols-1 gap-5 sm:grid-cols-2">
             <section aria-labelledby="dash-shirts">
-            <h2
-              id="dash-shirts"
-              className="mb-2.5 flex items-center gap-2 text-lg font-extrabold text-[var(--color-plum)]"
-            >
-              <MedalIcon size={20} className="text-[var(--color-brand-pink-dark)]" aria-hidden="true" />
-              Loot bag shirt sizes
-            </h2>
-            <Card variant="frosted" className="p-4">
-              <div className="flex flex-wrap gap-2">
-                {shirts.map((entry) => (
-                  <span
-                    key={entry.size}
-                    className="rounded-[var(--radius-pill)] bg-white px-3 py-1.5 text-sm font-semibold text-[var(--color-plum)] shadow-[var(--shadow-soft)]"
-                  >
-                    {entry.size}
-                    <span className="ml-1.5 rounded-[var(--radius-pill)] bg-[var(--color-brand-mint-light)] px-2 py-0.5 text-xs font-extrabold text-[var(--color-brand-mint-dark)]">
-                      {entry.count}
+              <h2
+                id="dash-shirts"
+                className="mb-2.5 flex items-center gap-2 text-lg font-extrabold text-[var(--color-plum)]"
+              >
+                <MedalIcon
+                  size={20}
+                  className="text-[var(--color-brand-pink-dark)]"
+                  aria-hidden="true"
+                />
+                Loot bag shirt sizes
+              </h2>
+              <Card variant="frosted" className="p-4">
+                <div className="flex flex-wrap gap-2">
+                  {shirts.map((entry) => (
+                    <span
+                      key={entry.size}
+                      className="rounded-[var(--radius-pill)] bg-white px-3 py-1.5 text-sm font-semibold text-[var(--color-plum)] shadow-[var(--shadow-soft)]"
+                    >
+                      {entry.size}
+                      <span className="ml-1.5 rounded-[var(--radius-pill)] bg-[var(--color-brand-mint-light)] px-2 py-0.5 text-xs font-extrabold text-[var(--color-brand-mint-dark)]">
+                        {entry.count}
+                      </span>
                     </span>
-                  </span>
-                ))}
-              </div>
-              <p className="mt-3 text-xs text-[var(--color-ink-soft)]">
-                Excludes rejected entries. Export the full list from{' '}
-                <Link href="/admin/registrations" className="font-bold underline underline-offset-2">
-                  Registrations
-                </Link>
-                .
-              </p>
-            </Card>
-          </section>
+                  ))}
+                </div>
+                <p className="mt-3 text-xs text-[var(--color-ink-soft)]">
+                  Excludes rejected entries. Export the full list from{' '}
+                  <Link
+                    href="/admin/registrations"
+                    className="font-bold underline underline-offset-2"
+                  >
+                    Registrations
+                  </Link>
+                  .
+                </p>
+              </Card>
+            </section>
 
             <section aria-labelledby="dash-pairing">
-            <h2
-              id="dash-pairing"
-              className="mb-2.5 flex items-center gap-2 text-lg font-extrabold text-[var(--color-plum)]"
-            >
-              <RacketIcon size={20} className="text-[var(--color-brand-lilac-dark)]" aria-hidden="true" />
-              Pairing queue
-            </h2>
-            <Card variant="frosted" className="p-4">
-              {agents.length === 0 ? (
-                <p className="text-sm text-[var(--color-ink-soft)]">
-                  Everyone has a partner. Christmas miracle. ✨
+              <h2
+                id="dash-pairing"
+                className="mb-2.5 flex items-center gap-2 text-lg font-extrabold text-[var(--color-plum)]"
+              >
+                <RacketIcon
+                  size={20}
+                  className="text-[var(--color-brand-lilac-dark)]"
+                  aria-hidden="true"
+                />
+                Pairing queue
+              </h2>
+              <Card variant="frosted" className="p-4">
+                {agents.length === 0 ? (
+                  <p className="text-sm text-[var(--color-ink-soft)]">
+                    Everyone has a partner. Christmas miracle. ✨
+                  </p>
+                ) : (
+                  <ul className="flex flex-col gap-2">
+                    {agents.slice(0, 6).map((agent) => (
+                      <li
+                        key={agent.id}
+                        className="flex items-center justify-between gap-2 rounded-[var(--radius-sm)] bg-white/70 px-3 py-2"
+                      >
+                        <span className="min-w-0">
+                          <span className="block truncate text-sm font-bold text-[var(--color-plum)]">
+                            {agent.playerName}
+                          </span>
+                          <span className="block truncate text-xs text-[var(--color-ink-muted)]">
+                            {agent.divisionName}
+                          </span>
+                        </span>
+                        <Badge status={agent.status === 'approved' ? 'approved' : 'pending'}>
+                          {REGISTRATION_STATUS_LABELS[agent.status]}
+                        </Badge>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+                <p className="mt-3 text-xs text-[var(--color-ink-soft)]">
+                  Pairing free agents into teams lives on the{' '}
+                  <Link href="/admin/teams" className="font-bold underline underline-offset-2">
+                    Teams
+                  </Link>{' '}
+                  page (coming soon — see the handover notes).
                 </p>
-              ) : (
-                <ul className="flex flex-col gap-2">
-                  {agents.slice(0, 6).map((agent) => (
-                    <li
-                      key={agent.id}
-                      className="flex items-center justify-between gap-2 rounded-[var(--radius-sm)] bg-white/70 px-3 py-2"
-                    >
-                      <span className="min-w-0">
-                        <span className="block truncate text-sm font-bold text-[var(--color-plum)]">
-                          {agent.playerName}
-                        </span>
-                        <span className="block truncate text-xs text-[var(--color-ink-muted)]">
-                          {agent.divisionName}
-                        </span>
-                      </span>
-                      <Badge status={agent.status === 'approved' ? 'approved' : 'pending'}>
-                        {REGISTRATION_STATUS_LABELS[agent.status]}
-                      </Badge>
-                    </li>
-                  ))}
-                </ul>
-              )}
-              <p className="mt-3 text-xs text-[var(--color-ink-soft)]">
-                Pairing free agents into teams lives on the{' '}
-                <Link href="/admin/teams" className="font-bold underline underline-offset-2">
-                  Teams
-                </Link>{' '}
-                page (coming soon — see the handover notes).
-              </p>
-            </Card>
-          </section>
+              </Card>
+            </section>
           </div>
         </section>
 

@@ -1,6 +1,6 @@
-"use client";
+'use client'
 
-import { useMemo, useState, useTransition } from "react";
+import { useMemo, useState, useTransition } from 'react'
 import {
   Badge,
   Button,
@@ -14,9 +14,9 @@ import {
   TableHeaderCell,
   TableRow,
   useToast,
-} from "@/components/ui";
-import { GiftIcon, SnowflakeIcon } from "@/components/icons";
-import { StatCard } from "./AdminUI";
+} from '@/components/ui'
+import { GiftIcon, SnowflakeIcon } from '@/components/icons'
+import { StatCard } from './AdminUI'
 import {
   clampPaidAmount,
   computeReconciliation,
@@ -34,10 +34,10 @@ import {
   type PaidFilter,
   type PaymentMethod,
   type RegistrationFilters,
-} from "@/lib/admin";
-import type { PaymentStatus } from "@/lib/supabase/types";
-import { updatePaymentAction } from "./actions";
-import { AdminFilterBar } from "./AdminFilterBar";
+} from '@/lib/admin'
+import type { PaymentStatus } from '@/lib/supabase/types'
+import { updatePaymentAction } from './actions'
+import { AdminFilterBar } from './AdminFilterBar'
 
 /**
  * The payments desk: mark players unpaid / partial / paid with an amount,
@@ -46,103 +46,88 @@ import { AdminFilterBar } from "./AdminFilterBar";
  */
 
 const PAID_FILTER_OPTIONS: { value: PaidFilter; label: string }[] = [
-  { value: "all", label: "Any payment" },
-  { value: "unpaid", label: "Unpaid" },
-  { value: "partial", label: "Partial" },
-  { value: "paid", label: "Paid" },
-  { value: "outstanding", label: "Owes money" },
-];
+  { value: 'all', label: 'Any payment' },
+  { value: 'unpaid', label: 'Unpaid' },
+  { value: 'partial', label: 'Partial' },
+  { value: 'paid', label: 'Paid' },
+  { value: 'outstanding', label: 'Owes money' },
+]
 
 function paymentBadge(status: PaymentStatus) {
-  return status === "paid"
-    ? "paid"
-    : status === "partial"
-      ? "pending"
-      : "unpaid";
+  return status === 'paid' ? 'paid' : status === 'partial' ? 'pending' : 'unpaid'
 }
 
 interface DraftPayment {
-  row: AdminRegistration;
-  amountText: string;
-  method: PaymentMethod | "";
-  reference: string;
+  row: AdminRegistration
+  amountText: string
+  method: PaymentMethod | ''
+  reference: string
 }
 
 export function PaymentsClient({
   registrations,
   divisions,
 }: {
-  registrations: AdminRegistration[];
-  divisions: AdminDivision[];
+  registrations: AdminRegistration[]
+  divisions: AdminDivision[]
 }) {
   const [filters, setFilters] = useState<RegistrationFilters>({
-    search: "",
-    divisionId: "all",
-    status: "all",
-    paid: "all",
+    search: '',
+    divisionId: 'all',
+    status: 'all',
+    paid: 'all',
     freeAgentsOnly: false,
-  });
-  const [draft, setDraft] = useState<DraftPayment | null>(null);
-  const [pending, startTransition] = useTransition();
-  const { toast } = useToast();
+  })
+  const [draft, setDraft] = useState<DraftPayment | null>(null)
+  const [pending, startTransition] = useTransition()
+  const { toast } = useToast()
 
   const visible = useMemo(
     () => filterRegistrations(registrations, filters),
     [registrations, filters],
-  );
-  const totals = useMemo(
-    () => computeReconciliation(registrations),
-    [registrations],
-  );
-  const visibleTotals = useMemo(
-    () => computeReconciliation(visible),
-    [visible],
-  );
+  )
+  const totals = useMemo(() => computeReconciliation(registrations), [registrations])
+  const visibleTotals = useMemo(() => computeReconciliation(visible), [visible])
 
   function openDraft(row: AdminRegistration) {
     setDraft({
       row,
       amountText: (row.payment.amountPaidCents / 100).toFixed(2),
-      method: row.payment.method ?? "",
-      reference: row.payment.reference ?? "",
-    });
+      method: row.payment.method ?? '',
+      reference: row.payment.reference ?? '',
+    })
   }
 
   function save(next: DraftPayment, overrideCents?: number) {
-    const parsed = overrideCents ?? parseAmountToCents(next.amountText);
+    const parsed = overrideCents ?? parseAmountToCents(next.amountText)
     if (parsed === null) {
       toast({
-        variant: "danger",
-        title: "That amount looks odd",
-        description: "Enter a dollar amount like 25 or 12.50.",
-      });
-      return;
+        variant: 'danger',
+        title: 'That amount looks odd',
+        description: 'Enter a dollar amount like 25 or 12.50.',
+      })
+      return
     }
-    const amountPaidCents = clampPaidAmount(
-      parsed,
-      next.row.payment.amountCents,
-    );
+    const amountPaidCents = clampPaidAmount(parsed, next.row.payment.amountCents)
     startTransition(async () => {
       const result = await updatePaymentAction({
         registrationId: next.row.id,
         paymentId: next.row.payment.id,
         amountCents: next.row.payment.amountCents,
         amountPaidCents,
-        method: next.method === "" ? null : next.method,
+        method: next.method === '' ? null : next.method,
         reference: next.reference,
-      });
+      })
       toast({
-        variant: result.ok ? "success" : result.demo ? "default" : "danger",
-        title: result.ok
-          ? `${next.row.playerName} — payment saved`
-          : "Not saved",
+        variant: result.ok ? 'success' : result.demo ? 'default' : 'danger',
+        title: result.ok ? `${next.row.playerName} — payment saved` : 'Not saved',
         description: result.message,
-      });
-      if (result.ok) setDraft(null);
-    });
+      })
+      if (result.ok) setDraft(null)
+    })
   }
 
-  const collectionPercent = Math.round(totals.collectionRate * 100);
+  const collectionPercent = Math.round(totals.collectionRate * 100)
 
   return (
     <>
@@ -236,7 +221,7 @@ export function PaymentsClient({
               const status = derivePaymentStatus(
                 row.payment.amountPaidCents,
                 row.payment.amountCents,
-              );
+              )
               return (
                 <TableRow key={row.id}>
                   <TableCell label="Player" className="sm:whitespace-nowrap">
@@ -260,24 +245,19 @@ export function PaymentsClient({
                   <TableCell label="Division" className="sm:whitespace-nowrap">
                     {row.divisionName}
                   </TableCell>
-                  <TableCell
-                    label="Paid / entry"
-                    className="sm:whitespace-nowrap"
-                  >
+                  <TableCell label="Paid / entry" className="sm:whitespace-nowrap">
                     <strong className="text-[var(--color-plum)]">
                       {formatCents(row.payment.amountPaidCents)}
                     </strong>
                     <span className="text-[var(--color-ink-muted)]">
-                      {" "}
+                      {' '}
                       / {formatCents(row.payment.amountCents)}
                     </span>
                   </TableCell>
                   <TableCell label="Method &amp; reference">
                     <span className="text-left">
                       <span className="block">
-                        {row.payment.method
-                          ? PAYMENT_METHOD_LABELS[row.payment.method]
-                          : "—"}
+                        {row.payment.method ? PAYMENT_METHOD_LABELS[row.payment.method] : '—'}
                       </span>
                       {row.payment.reference ? (
                         <span className="block text-xs text-[var(--color-ink-muted)]">
@@ -287,27 +267,22 @@ export function PaymentsClient({
                     </span>
                   </TableCell>
                   <TableCell label="Status">
-                    <Badge status={paymentBadge(status)}>
-                      {PAYMENT_STATUS_LABELS[status]}
-                    </Badge>
+                    <Badge status={paymentBadge(status)}>{PAYMENT_STATUS_LABELS[status]}</Badge>
                   </TableCell>
-                  <TableCell
-                    label="Record"
-                    className="sm:whitespace-nowrap sm:text-right"
-                  >
+                  <TableCell label="Record" className="sm:whitespace-nowrap sm:text-right">
                     <span className="flex flex-wrap justify-end gap-1.5 sm:flex-nowrap">
                       <Button
                         type="button"
                         size="sm"
                         variant="primary"
-                        disabled={pending || status === "paid"}
+                        disabled={pending || status === 'paid'}
                         onClick={() =>
                           save(
                             {
                               row,
-                              amountText: "",
-                              method: row.payment.method ?? "cash",
-                              reference: row.payment.reference ?? "",
+                              amountText: '',
+                              method: row.payment.method ?? 'cash',
+                              reference: row.payment.reference ?? '',
                             },
                             row.payment.amountCents,
                           )
@@ -327,7 +302,7 @@ export function PaymentsClient({
                     </span>
                   </TableCell>
                 </TableRow>
-              );
+              )
             })}
           </TableBody>
         </Table>
@@ -336,9 +311,7 @@ export function PaymentsClient({
       <Modal
         open={draft !== null}
         onClose={() => setDraft(null)}
-        title={
-          draft ? `Record payment — ${draft.row.playerName}` : "Record payment"
-        }
+        title={draft ? `Record payment — ${draft.row.playerName}` : 'Record payment'}
         description={
           draft
             ? `Entry fee ${formatCents(draft.row.payment.amountCents)} · ${draft.row.divisionName}`
@@ -349,8 +322,8 @@ export function PaymentsClient({
           <form
             className="flex flex-col gap-3"
             onSubmit={(event) => {
-              event.preventDefault();
-              save(draft);
+              event.preventDefault()
+              save(draft)
             }}
           >
             <div>
@@ -364,9 +337,7 @@ export function PaymentsClient({
                 id="pay-amount"
                 inputMode="decimal"
                 value={draft.amountText}
-                onChange={(event) =>
-                  setDraft({ ...draft, amountText: event.target.value })
-                }
+                onChange={(event) => setDraft({ ...draft, amountText: event.target.value })}
                 className="w-full rounded-[var(--radius-md)] border border-[var(--color-brand-lilac-light)] bg-white px-3.5 py-2.5 text-[var(--color-plum)]"
               />
               <div className="mt-2 flex flex-wrap gap-2">
@@ -374,7 +345,7 @@ export function PaymentsClient({
                   type="button"
                   size="sm"
                   variant="ghost"
-                  onClick={() => setDraft({ ...draft, amountText: "0.00" })}
+                  onClick={() => setDraft({ ...draft, amountText: '0.00' })}
                 >
                   Unpaid
                 </Button>
@@ -385,9 +356,7 @@ export function PaymentsClient({
                   onClick={() =>
                     setDraft({
                       ...draft,
-                      amountText: (draft.row.payment.amountCents / 200).toFixed(
-                        2,
-                      ),
+                      amountText: (draft.row.payment.amountCents / 200).toFixed(2),
                     })
                   }
                 >
@@ -400,9 +369,7 @@ export function PaymentsClient({
                   onClick={() =>
                     setDraft({
                       ...draft,
-                      amountText: (draft.row.payment.amountCents / 100).toFixed(
-                        2,
-                      ),
+                      amountText: (draft.row.payment.amountCents / 100).toFixed(2),
                     })
                   }
                 >
@@ -424,7 +391,7 @@ export function PaymentsClient({
                 onChange={(event) =>
                   setDraft({
                     ...draft,
-                    method: event.target.value as PaymentMethod | "",
+                    method: event.target.value as PaymentMethod | '',
                   })
                 }
                 className="w-full rounded-[var(--radius-md)] border border-[var(--color-brand-lilac-light)] bg-white px-3.5 py-2.5 text-[var(--color-plum)]"
@@ -448,20 +415,14 @@ export function PaymentsClient({
               <input
                 id="pay-reference"
                 value={draft.reference}
-                onChange={(event) =>
-                  setDraft({ ...draft, reference: event.target.value })
-                }
+                onChange={(event) => setDraft({ ...draft, reference: event.target.value })}
                 placeholder="e.g. Envelope 12, or bank ref SS-0042"
                 className="w-full rounded-[var(--radius-md)] border border-[var(--color-brand-lilac-light)] bg-white px-3.5 py-2.5 text-[var(--color-plum)]"
               />
             </div>
 
             <div className="mt-1 flex justify-end gap-2">
-              <Button
-                type="button"
-                variant="ghost"
-                onClick={() => setDraft(null)}
-              >
+              <Button type="button" variant="ghost" onClick={() => setDraft(null)}>
                 Cancel
               </Button>
               <Button type="submit" variant="primary" loading={pending}>
@@ -472,5 +433,5 @@ export function PaymentsClient({
         )}
       </Modal>
     </>
-  );
+  )
 }
