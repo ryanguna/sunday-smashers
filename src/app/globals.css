@@ -267,20 +267,30 @@ h1, h2, h3, h4, h5, h6 {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .animate-snowfall,
-  .animate-drift,
-  .animate-bob,
-  .animate-twinkle,
-  .animate-shimmer,
-  .animate-confetti,
-  .animate-pop-in,
-  .animate-fade-in {
-    animation: none !important;
-  }
-
-  .hover-lift,
-  * {
-    scroll-behavior: auto;
+  /*
+   * Blanket, not an allowlist.
+   *
+   * This block used to name our own .animate-* classes one by one, which meant
+   * it silently missed anything it didn't know about: Tailwind's built-in
+   * animate-pulse and animate-ping (the live-match indicator dots on /live,
+   * /dashboard and /gallery) kept animating, and CSS transitions — including
+   * the 0.3s score and 0.5s progress-bar transitions on the courtside TV view
+   * — were never covered at all. An allowlist is the wrong shape for "stop
+   * everything moving"; any future animation would have re-broken it.
+   *
+   * Durations are collapsed to ~0 rather than set to `none` so that animations
+   * with completion callbacks (confetti on a match win) still fire their end
+   * events and clean themselves up instead of hanging mid-flight.
+   */
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    animation-delay: 0ms !important;
+    transition-duration: 0.01ms !important;
+    transition-delay: 0ms !important;
+    scroll-behavior: auto !important;
   }
 
   .hover-lift:hover {
