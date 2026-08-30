@@ -1,6 +1,7 @@
 import { cache } from 'react'
 
 import { isSupabaseConfigured } from '@/lib/supabase/config'
+import { getAllDemoBundles, type DemoMatchStatus } from '@/lib/demo-data'
 import { createClient } from '@/lib/supabase/server'
 import type {
   CourtRow,
@@ -98,18 +99,34 @@ const DEMO_USERS: ManagedUser[] = [
   },
 ]
 
+/**
+ * Demo fallback. Division sizes, fixture counts and progress all come from the
+ * shared demo dataset (`src/lib/demo-data.ts`) so the previews here agree with
+ * the public schedule, standings and bracket pages.
+ */
 function demoData(): SettingsPageData {
   const settings = defaultTournamentSettings()
+  const bundles = getAllDemoBundles()
+
+  const entryCounts: Record<string, number> = {}
+  settings.divisions.forEach((division, index) => {
+    entryCounts[division.id] = bundles[index]?.teams.length ?? 0
+  })
+
+  const matches = bundles.flatMap((bundle) => bundle.matches)
+  const countOf = (...statuses: DemoMatchStatus[]) =>
+    matches.filter((match) => statuses.includes(match.status)).length
+
   return {
     settings,
     users: DEMO_USERS,
     drawState: {
-      drawPublished: true,
-      matchesScheduled: 118,
-      matchesInProgress: 0,
-      matchesCompleted: 0,
+      drawPublished: matches.length > 0,
+      matchesScheduled: countOf('scheduled'),
+      matchesInProgress: countOf('in_progress'),
+      matchesCompleted: countOf('completed', 'forfeited'),
     },
-    entryCounts: Object.fromEntries(settings.divisions.map((d) => [d.id, 11])),
+    entryCounts,
     tournamentId: null,
     currentUserId: 'demo-user-1',
     isDemo: true,
