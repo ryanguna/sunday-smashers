@@ -279,3 +279,91 @@ only and revoked from `public`/`anon`.
 | Admin publish inserts fixtures and writes an audit row | pass |
 | Republish over played matches is refused without `force` | pass |
 | Republish with `force = true` succeeds | pass |
+
+## Migration 0005 — `award_key` and `committee_checklist`
+
+Two more cases of structured state being smuggled into a text column, the same
+shape as the `[[featured]]` caption marker removed in 0003.
+
+**1. `awards.award_key`** — `award_type` is a closed enum, so configurable
+awards (MVP, Most Improved, Best Christmas Outfit) were being stored as
+`special_mention` with the real key packed into the citation as
+`[[award:<key>]] text`. That leaks storage syntax into user-visible prose,
+makes "every MVP award" unqueryable, and breaks as soon as an organiser types a
+square bracket. The migration adds a real column, backfills it by parsing any
+existing marker out of the citation (and strips the marker from the prose),
+constrains the format, and adds a unique index so one division cannot hand out
+the same award twice.
+
+**2. `public.committee_checklist`** — the committee readiness board (who is
+bringing what, by when) was persisted as a single JSON blob in `site_content`.
+`checklist_items` could not hold it: that table is per-player loot-bag/shirt/
+medal handout, a different thing. A single blob is also last-write-wins — two
+committee members ticking jobs at the same time silently lose one another's
+edits, which is exactly the scenario the board exists for. A `sync_committee_
+checklist_done` trigger keeps `done_at`/`done_by` consistent with `is_done`
+rather than trusting every caller to remember.
+
+### Verification (disposable Postgres 16, `supabase/schema.sql` + migration)
+
+| # | Assertion | Result |
+|---|---|---|
+| 1 | Legacy `[[award:mvp]] Carried the team all day` backfills to `award_key='mvp'`, citation `Carried the team all day` | pass |
+| 2 | No `[[award:` marker remains in any citation | pass |
+| 3 | Duplicate award key within a division is rejected | pass |
+| 4 | Malformed key (`Bad Key!`) rejected by `award_key_format` | pass |
+| 5 | Ticking an item auto-stamps `done_at`/`done_by` | pass |
+| 6 | Un-ticking clears `done_at`/`done_by` | pass |
+| 7 | Blank/whitespace label rejected | pass |
+| 8 | `anon` sees 0 rows **even with a blanket `GRANT SELECT`** | pass |
+| 9 | Signed-in non-admin sees 0 rows | pass |
+| 10 | Admin sees the row | pass |
+
+Assertions 8–10 matter: an earlier draft revoked `anon` but never granted
+`authenticated`, so the admin policy was unreachable and an admin would have
+got `permission denied` rather than the board. RLS narrows privileges; it never
+grants them. Privileges are now explicit rather than left to Supabase defaults.
+
+## Migration 0005 — `award_key` and `committee_checklist`
+
+Two more cases of structured state being smuggled into a text column, the same
+shape as the `[[featured]]` caption marker removed in 0003.
+
+**1. `awards.award_key`** — `award_type` is a closed enum, so configurable
+awards (MVP, Most Improved, Best Christmas Outfit) were being stored as
+`special_mention` with the real key packed into the citation as
+`[[award:<key>]] text`. That leaks storage syntax into user-visible prose,
+makes "every MVP award" unqueryable, and breaks as soon as an organiser types a
+square bracket. The migration adds a real column, backfills it by parsing any
+existing marker out of the citation (and strips the marker from the prose),
+constrains the format, and adds a unique index so one division cannot hand out
+the same award twice.
+
+**2. `public.committee_checklist`** — the committee readiness board (who is
+bringing what, by when) was persisted as a single JSON blob in `site_content`.
+`checklist_items` could not hold it: that table is per-player loot-bag/shirt/
+medal handout, a different thing. A single blob is also last-write-wins — two
+committee members ticking jobs at the same time silently lose one another's
+edits, which is exactly the scenario the board exists for. A
+`sync_committee_checklist_done` trigger keeps `done_at`/`done_by` consistent
+with `is_done` rather than trusting every caller to remember.
+
+### Verification (disposable Postgres 16, `supabase/schema.sql` + migration)
+
+| # | Assertion | Result |
+|---|---|---|
+| 1 | Legacy `[[award:mvp]] Carried the team all day` backfills to `award_key='mvp'`, citation `Carried the team all day` | pass |
+| 2 | No `[[award:` marker remains in any citation | pass |
+| 3 | Duplicate award key within a division is rejected | pass |
+| 4 | Malformed key (`Bad Key!`) rejected by `award_key_format` | pass |
+| 5 | Ticking an item auto-stamps `done_at`/`done_by` | pass |
+| 6 | Un-ticking clears `done_at`/`done_by` | pass |
+| 7 | Blank/whitespace label rejected | pass |
+| 8 | `anon` sees 0 rows **even with a blanket `GRANT SELECT`** | pass |
+| 9 | Signed-in non-admin sees 0 rows | pass |
+| 10 | Admin sees the row | pass |
+
+Assertions 8–10 matter: an earlier draft revoked `anon` but never granted
+`authenticated`, so the admin policy was unreachable and an admin would have
+got `permission denied` rather than the board. RLS narrows privileges; it never
+grants them. Privileges are now explicit rather than left to Supabase defaults.
