@@ -101,7 +101,7 @@ export const ADMIN_NAV: AdminNavItem[] = [
     group: 'Tournament day',
   },
   {
-    href: '/admin/tabulator',
+    href: '/tabulator',
     label: 'Tabulator',
     description: 'Verify scoresheets and resolve disputes.',
     icon: MedalIcon,

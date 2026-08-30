@@ -4,6 +4,7 @@ import { Analytics } from '@vercel/analytics/next'
 import { SpeedInsights } from '@vercel/speed-insights/next'
 import { SiteHeader } from '@/components/SiteHeader'
 import { SiteFooter } from '@/components/SiteFooter'
+import { SITE_URL } from '@/lib/site'
 import './globals.css'
 
 // Heavy geometric sans for headings — bold, rounded, friendly.
@@ -30,7 +31,6 @@ const pacifico = Pacifico({
   display: 'swap',
 })
 
-const SITE_URL = 'https://sunday-smashers.vercel.app'
 const OG_IMAGE = '/sunday-smashers-logo.jpg'
 
 export const metadata: Metadata = {
