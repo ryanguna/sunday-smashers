@@ -164,6 +164,7 @@ export default async function StandingsPage() {
         <SectionHeading
           eyebrow="Standings"
           title="Round-Robin Standings"
+          level={1}
           description="Every pair plays every other pair once. Wins decide the ranking; the top 4 in each division go through to the semi-finals."
         />
       </section>

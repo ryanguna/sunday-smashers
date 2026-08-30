@@ -22,6 +22,7 @@ export default async function SchedulePage() {
         <SectionHeading
           eyebrow="Schedule"
           title="Match Timetable"
+          level={1}
           description="Grouped by court and time slot. The players of the next match on each court officiate — umpire/scorer, scoresheet, and two line judges. Late arrivals or no-shows forfeit automatically."
         />
       </section>

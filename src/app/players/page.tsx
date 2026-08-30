@@ -33,6 +33,7 @@ export default async function PlayersPage() {
         <SectionHeading
           eyebrow="Players"
           title="Players & Teams"
+          level={1}
           description="Every pair entered in the tournament. Tap any name for their profile, stats and fixtures. For everyone's privacy, only names and public stats are shown here — no contact details."
         />
         {!isSupabaseConfigured() && (

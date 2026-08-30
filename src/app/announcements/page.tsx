@@ -22,6 +22,7 @@ export default async function AnnouncementsPage() {
 
       <section className="relative z-10 mx-auto max-w-3xl px-4 pt-14 pb-2 sm:px-6">
         <SectionHeading
+          level={1}
           eyebrow={
             <span className="inline-flex items-center gap-2">
               <HollyIcon size={16} />

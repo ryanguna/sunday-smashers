@@ -22,6 +22,7 @@ export default async function LivePage() {
         <SectionHeading
           eyebrow="Live"
           title="Live Scores"
+          level={1}
           description="In-progress matches update automatically — no need to refresh."
         />
       </section>

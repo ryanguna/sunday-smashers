@@ -136,6 +136,7 @@ export default async function BracketPage() {
         <SectionHeading
           eyebrow="Bracket"
           title="Semis & Finals"
+          level={1}
           description="Top 4 from the round robin: M1 is Rank 1 v Rank 4, M2 is Rank 2 v Rank 3. Losers battle for 3rd, winners play the championship — first to 21, no deuce."
         />
       </section>

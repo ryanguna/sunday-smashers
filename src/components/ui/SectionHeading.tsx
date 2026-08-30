@@ -7,6 +7,14 @@ export interface SectionHeadingProps {
   title: ReactNode
   description?: ReactNode
   align?: 'left' | 'center'
+  /**
+   * Heading level. Defaults to 2 because most uses are a section inside a page,
+   * but the *page title* must be level 1: a page whose headings start at h2
+   * gives screen-reader users navigating by heading nothing to land on, and
+   * leaves search engines with no primary heading. Appearance is identical at
+   * every level — this changes semantics only.
+   */
+  level?: 1 | 2 | 3
   className?: string
 }
 
@@ -15,8 +23,11 @@ export function SectionHeading({
   title,
   description,
   align = 'center',
+  level = 2,
   className,
 }: SectionHeadingProps) {
+  const Heading = `h${level}` as 'h1' | 'h2' | 'h3'
+
   return (
     <div className={cn(align === 'center' ? 'text-center' : 'text-left', className)}>
       {eyebrow && (
@@ -24,7 +35,9 @@ export function SectionHeading({
           {eyebrow}
         </p>
       )}
-      <h2 className="text-3xl font-extrabold text-[var(--color-plum)] sm:text-4xl">{title}</h2>
+      <Heading className="text-3xl font-extrabold text-[var(--color-plum)] sm:text-4xl">
+        {title}
+      </Heading>
       <div
         className={cn(
           'mt-3 flex items-center gap-2 text-[var(--color-brand-lilac)]',

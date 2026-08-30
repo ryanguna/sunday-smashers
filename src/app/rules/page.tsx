@@ -93,6 +93,7 @@ export default async function RulesPage() {
         <SectionHeading
           eyebrow="Rules & Info"
           title="Tournament Rules"
+          level={1}
           description="Everything you need to know about how the Sunday Smashers Christmas Mini Tournament is played and officiated."
         />
 

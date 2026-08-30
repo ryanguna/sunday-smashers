@@ -37,6 +37,7 @@ export default async function AwardsPage() {
 
       <section className="relative z-10 mx-auto max-w-5xl px-4 pb-8 pt-14 sm:px-6">
         <SectionHeading
+          level={1}
           eyebrow="Roll of honour"
           title={<GradientText shimmer>Awards &amp; MVPs</GradientText>}
           description={status.blurb}
