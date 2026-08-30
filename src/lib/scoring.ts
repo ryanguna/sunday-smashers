@@ -37,7 +37,8 @@
 
 import { evaluateGame, type StageRules, type TeamId } from '@/lib/draw'
 import { compareByStartTime, type DutyRole, type PlayerIdentity } from '@/lib/dashboard'
-import type { PublicMatch, PublicTeam } from '@/lib/public-data'
+import { isMatchDecided, type PublicMatch, type PublicTeam } from '@/lib/public-data'
+import type { MatchStatus, ScoreEventRow } from '@/lib/supabase/types'
 
 // ---------------------------------------------------------------------------
 // Core vocabulary
@@ -694,14 +695,14 @@ export function scoreAnnouncement(board: ScoreboardState, config: MatchScoringCo
 // Persistence mapping (`matches` + `score_events`)
 // ---------------------------------------------------------------------------
 
-/** Match status values the console can write. Mirrors the `match_status` enum. */
-export type ScoringMatchStatus =
-  | 'scheduled'
-  | 'in_progress'
-  | 'completed'
-  | 'forfeited'
-  | 'walkover'
-  | 'retired'
+/**
+ * Match status values the console can write.
+ *
+ * Derived from the `match_status` enum rather than restated, so adding a
+ * status is a compile error here instead of a silent omission. Only
+ * `'cancelled'` is excluded — an umpire cannot cancel a fixture from court.
+ */
+export type ScoringMatchStatus = Exclude<MatchStatus, 'cancelled'>
 
 /** Each ending has its own `match_status`, so nothing has to parse a reason string. */
 const END_KIND_STATUS: Record<MatchEndKind, ScoringMatchStatus> = {
@@ -783,7 +784,7 @@ export interface ScoreEventInsert {
   match_id: string
   sequence: number
   side: ScoringSide
-  event_type: 'point' | 'undo' | 'forfeit' | 'walkover' | 'retire' | 'game_start' | 'game_end'
+  event_type: ScoreEventRow['event_type']
   score_a_after: number
   score_b_after: number
   note: string | null
@@ -1264,9 +1265,8 @@ export function scoringAssignments(
 }
 
 function assignmentState(match: PublicMatch): AssignmentState {
-  if (match.status === 'in_progress') return 'live'
-  if (match.status === 'scheduled') return 'upcoming'
-  return 'done'
+  if (isMatchDecided(match.status)) return 'done'
+  return match.status === 'in_progress' ? 'live' : 'upcoming'
 }
 
 export interface AssignmentGroups {

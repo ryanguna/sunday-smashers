@@ -15,7 +15,6 @@ import {
   type ScoringTeam,
 } from '@/lib/scoring'
 import type { StageRules } from '@/lib/draw'
-import type { ScoreEventRow } from '@/lib/supabase/types'
 
 /**
  * Write actions behind the courtside scoring console.
@@ -129,16 +128,7 @@ export async function saveScore(payload: SaveScorePayload): Promise<ScoringActio
       scored_by: user.id,
     }))
     if (rows.length > 0) {
-      // `supabase/schema.sql` and migration 0006 both accept 'walkover' and
-      // 'retire', but `ScoreEventRow.event_type` in
-      // `src/lib/supabase/types.ts` still lists only the original five. That
-      // file is owned centrally, so this cast bridges the gap until it is
-      // widened — remove it then. Reported alongside this change.
-      const payload = rows.map((row) => ({
-        ...row,
-        event_type: row.event_type as ScoreEventRow['event_type'],
-      }))
-      const { error: insertError } = await supabase.from('score_events').insert(payload)
+      const { error: insertError } = await supabase.from('score_events').insert(rows)
       if (insertError) return { ok: false, message: friendlyError(insertError.message) }
     }
 
