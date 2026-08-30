@@ -37,11 +37,22 @@ const GATED_ROUTES = [
   '/scoresheets',
 ] as const
 
+/**
+ * Vercel's analytics and speed-insights scripts are injected by the layout but
+ * only served by Vercel's edge network. Under `next start` — which is how CI
+ * runs these tests — they 404, which is expected infrastructure noise rather
+ * than an application fault. Everything else must be silent.
+ */
+const IGNORED_REQUEST_PREFIXES = ['/_vercel/']
+
 /** Collects page errors and console errors so a test can assert none occurred. */
 function watchForErrors(page: Page): string[] {
   const errors: string[] = []
   page.on('console', (msg) => {
-    if (msg.type() === 'error') errors.push(msg.text())
+    if (msg.type() !== 'error') return
+    const source = msg.location()?.url ?? ''
+    if (IGNORED_REQUEST_PREFIXES.some((prefix) => source.includes(prefix))) return
+    errors.push(`${msg.text()} (${source})`)
   })
   page.on('pageerror', (err) => errors.push(err.message))
   return errors
