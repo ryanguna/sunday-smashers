@@ -48,11 +48,7 @@ export async function getProfile(): Promise<ProfileRow | null> {
   const user = await getCurrentUser()
   if (!user) return null
   const { data } = await supabase.from('profiles').select('*').eq('id', user.id).maybeSingle()
-  // `ProfileRow` etc. in `src/lib/supabase/types.ts` are declared with `interface`, which
-  // TypeScript's structural checks don't treat as satisfying `Record<string, unknown>` —
-  // so the generated `Database['public']['Tables']` schema resolves to `never` for every
-  // query result. Cast back to the real row shape rather than editing that (out-of-scope) file.
-  return data as ProfileRow | null
+  return data
 }
 
 /** All roles granted to the signed-in user (empty array if signed out / demo mode). */
@@ -74,8 +70,43 @@ export async function isAdmin(): Promise<boolean> {
   return hasRole('admin')
 }
 
-/** Redirects to `/login?next=<path>` unless a session exists. Returns the signed-in user. */
+/**
+ * The stand-in identity used by `requireAuth`/`requireRole` in demo mode.
+ *
+ * This is NOT a security hole. Demo mode means `isSupabaseConfigured()` is
+ * false, so there is no database, no session store and no auth system at all —
+ * there is nothing to authorise access *to*. Every Server Action in the app
+ * short-circuits on the same check before it reaches `createClient()`, so no
+ * write can occur either. The alternative (redirecting to `/login`) sends the
+ * visitor to a sign-in form that cannot work, which made the entire admin
+ * console, scoring and tabulator surfaces unreachable in the one mode that
+ * runs with no setup.
+ *
+ * The moment real Supabase env vars are present this value is never
+ * constructed and the genuine session checks below apply.
+ */
+const DEMO_USER = {
+  id: '00000000-0000-0000-0000-000000000000',
+  aud: 'authenticated',
+  role: 'authenticated',
+  email: 'demo@sundaysmashers.example',
+  app_metadata: {},
+  user_metadata: { full_name: 'Demo Organiser' },
+  created_at: '2026-01-01T00:00:00.000Z',
+} as unknown as User
+
+/** True when the app is running without Supabase configured. */
+export function isDemoMode(): boolean {
+  return !isSupabaseConfigured()
+}
+
+/**
+ * Redirects to `/login?next=<path>` unless a session exists. Returns the
+ * signed-in user. In demo mode, resolves to `DEMO_USER` so guarded pages
+ * render their demo state instead of bouncing to an unusable login form.
+ */
 export async function requireAuth(currentPath: string): Promise<User> {
+  if (!isSupabaseConfigured()) return DEMO_USER
   const user = await getCurrentUser()
   if (!user) {
     redirect(loginRedirectPath(currentPath))
@@ -89,6 +120,9 @@ export async function requireAuth(currentPath: string): Promise<User> {
  */
 export async function requireRole(role: UserRole, currentPath: string): Promise<User> {
   const user = await requireAuth(currentPath)
+  // In demo mode `requireAuth` returned the stand-in organiser; there are no
+  // role rows to consult, so grant the role rather than bouncing to /403.
+  if (!isSupabaseConfigured()) return user
   const roles = await getUserRoles()
   if (!roles.includes(role) && !roles.includes('admin')) {
     redirect('/403')
