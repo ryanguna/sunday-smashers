@@ -509,7 +509,17 @@ export function knockoutToMatchInserts(
  * and the RPC always inserts as `scheduled`, so those three columns are
  * deliberately absent.
  */
-export interface PublishDrawMatch {
+/*
+ * Declared as a `type`, not an `interface`, on purpose: only type aliases get
+ * an implicit index signature, so only a type alias is assignable to the
+ * generated `Json` parameter of `publish_draw()` without a cast.
+ *
+ * Every field is explicitly `| null` rather than optional. `JSON.stringify`
+ * silently drops `undefined` values, so an optional key would post a fixture
+ * with the field simply missing — the RPC would then apply its own default
+ * instead of what the admin configured. Nulls survive the round trip.
+ */
+export type PublishDrawMatch = {
   round: number | null
   bracket_key: 'M1' | 'M2' | 'THIRD' | 'FINAL' | null
   team_a_id: string | null
@@ -520,7 +530,7 @@ export interface PublishDrawMatch {
 }
 
 /** A single `publish_draw()` call: every fixture for one division + stage. */
-export interface PublishDrawCall {
+export type PublishDrawCall = {
   stage: MatchStage
   matches: PublishDrawMatch[]
 }
@@ -544,13 +554,13 @@ export function toPublishDrawCalls(inserts: readonly MatchInsert[]): PublishDraw
       calls.push(call)
     }
     call.matches.push({
-      round: insert.round,
-      bracket_key: insert.bracket_key,
-      team_a_id: insert.team_a_id,
-      team_b_id: insert.team_b_id,
+      round: insert.round ?? null,
+      bracket_key: insert.bracket_key ?? null,
+      team_a_id: insert.team_a_id ?? null,
+      team_b_id: insert.team_b_id ?? null,
       points_to_win: insert.points_to_win,
       deuce_enabled: insert.deuce_enabled,
-      cap: insert.cap,
+      cap: insert.cap ?? null,
     })
   }
 

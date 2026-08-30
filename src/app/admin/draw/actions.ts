@@ -5,7 +5,7 @@ import { revalidatePath } from 'next/cache'
 import { isSupabaseConfigured } from '@/lib/supabase/config'
 import { createClient } from '@/lib/supabase/server'
 import { getCurrentUser, isAdmin } from '@/lib/auth'
-import type { Json, MatchRow } from '@/lib/supabase/types'
+import type { Json, MatchRow, MatchStageEnum } from '@/lib/supabase/types'
 import {
   generateKnockout,
   generateRoundRobin,
@@ -19,7 +19,6 @@ import {
   knockoutToMatchInserts,
   publishSafety,
   toPublishDrawCalls,
-  type PublishDrawMatch,
   type ExistingMatchSummary,
   type MatchInsert,
 } from '@/lib/draw-admin'
@@ -83,24 +82,6 @@ async function writeAudit(
   }
 }
 
-/**
- * `publish_draw()` is not declared in the generated `Database` types
- * (`src/lib/supabase/types.ts` belongs to another owner), so the call is
- * narrowed locally instead. Delete this shim once the RPC is regenerated
- * into the schema types.
- */
-interface PublishDrawArgs {
-  p_division_id: string
-  p_stage: MatchRow['stage']
-  p_matches: PublishDrawMatch[]
-  p_force: boolean
-}
-
-type PublishDrawRpc = (
-  fn: 'publish_draw',
-  args: PublishDrawArgs
-) => PromiseLike<{ data: number | null; error: { message: string } | null }>
-
 function revalidateDraw() {
   revalidatePath('/admin/draw')
   revalidatePath('/admin/draw/knockout')
@@ -140,7 +121,7 @@ interface PublishOptions {
  */
 async function replaceStage(
   divisionId: string,
-  stages: readonly MatchRow['stage'][],
+  stages: readonly MatchStageEnum[],
   inserts: MatchInsert[],
   options: PublishOptions,
   label: string
@@ -171,8 +152,7 @@ async function replaceStage(
   let stageIndex = 0
 
   for (const call of toPublishDrawCalls(inserts)) {
-    const publishDraw = supabase.rpc as unknown as PublishDrawRpc
-    const { data, error } = await publishDraw('publish_draw', {
+    const { data, error } = await supabase.rpc('publish_draw', {
       p_division_id: divisionId,
       p_stage: call.stage,
       p_matches: call.matches,

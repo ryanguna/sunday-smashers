@@ -430,6 +430,27 @@ describe('toPublishDrawCalls', () => {
   it('returns nothing for an empty draw', () => {
     expect(toPublishDrawCalls([])).toEqual([])
   })
+
+  it('never emits undefined, which JSON.stringify would silently drop', () => {
+    const calls = toPublishDrawCalls([
+      ...fixturesToMatchInserts([{ round: 1, teamA: 'a', teamB: 'b' }], 'div-1', DEFAULT_ELIMS_RULES),
+      ...knockoutToMatchInserts(
+        generateKnockout(standings(), undefined, DEFAULT_FINALS_RULES),
+        'div-1',
+        DEFAULT_FINALS_RULES
+      ),
+    ])
+
+    for (const call of calls) {
+      for (const match of call.matches) {
+        for (const [key, value] of Object.entries(match)) {
+          expect(value, `${call.stage}.${key} must be null, never undefined`).not.toBeUndefined()
+        }
+        // Every field must survive the trip to Postgres as jsonb.
+        expect(JSON.parse(JSON.stringify(match))).toEqual(match)
+      }
+    }
+  })
 })
 
 describe('describePublishRpcError', () => {
