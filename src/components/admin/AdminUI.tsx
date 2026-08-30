@@ -108,7 +108,7 @@ export function AlertTile({
   const content = (
     <div className={cn('rounded-[var(--radius-md)] p-3.5', alertToneClasses[tone])}>
       <p className="font-[family-name:var(--font-heading)] text-sm font-bold">{title}</p>
-      <p className="mt-0.5 text-sm opacity-90">{detail}</p>
+      <p className="mt-0.5 text-sm">{detail}</p>
       {href && <p className="mt-1.5 text-xs font-bold underline underline-offset-2">Take a look →</p>}
     </div>
   )

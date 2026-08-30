@@ -80,7 +80,7 @@ export function ConflictRail({
               <Icon size={15} aria-hidden="true" className="shrink-0" />
               {conflict.title}
             </p>
-            <p className="mt-0.5 text-[0.8rem] opacity-90">
+            <p className="mt-0.5 text-[0.8rem]">
               {humanise(conflict.detail, names, slotLabels)}
             </p>
             {onFocusMatch && conflict.matchIds.length > 0 && (

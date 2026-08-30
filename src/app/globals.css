@@ -14,23 +14,23 @@
   /* ---- Brand pastel palette (poster-matched) ---- */
   --color-brand-pink: #ff8fc7;
   --color-brand-pink-light: #ffd6ec;
-  --color-brand-pink-dark: #e85aa3;
+  --color-brand-pink-dark: #b5196a;
 
   --color-brand-lilac: #b8a0f0;
   --color-brand-lilac-light: #e3d8ff;
-  --color-brand-lilac-dark: #8e6fe0;
+  --color-brand-lilac-dark: #663dd5;
 
   --color-brand-mint: #7fe0c0;
   --color-brand-mint-light: #d3fbec;
-  --color-brand-mint-dark: #38b48a;
+  --color-brand-mint-dark: #25775b;
 
   --color-brand-sky: #7ec8f2;
   --color-brand-sky-light: #d6efff;
-  --color-brand-sky-dark: #3f9bd9;
+  --color-brand-sky-dark: #206ca0;
 
   --color-brand-gold: #ffc861;
   --color-brand-gold-light: #ffe9bd;
-  --color-brand-gold-dark: #e0a020;
+  --color-brand-gold-dark: #855e12;
 
   --color-brand-holly: #3f8f5f;
   --color-brand-berry: #d9435e;
@@ -46,13 +46,13 @@
   --color-plum: #3a1f4d;
 
   /* ---- Semantic (still festive) ---- */
-  --color-success: #2f9e6b;
+  --color-success: #23754f;
   --color-success-bg: #d9f6e6;
-  --color-warn: #c98a12;
+  --color-warn: #8d610d;
   --color-warn-bg: #fff1d1;
-  --color-danger: #d63a5c;
+  --color-danger: #bc2748;
   --color-danger-bg: #ffe1e8;
-  --color-info: #3f8fd9;
+  --color-info: #226aad;
   --color-info-bg: #dff1ff;
 
   /* ---- Radii ---- */

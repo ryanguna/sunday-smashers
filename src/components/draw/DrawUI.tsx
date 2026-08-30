@@ -52,7 +52,7 @@ export function DrawAlert({
       <span className="mt-0.5 shrink-0">{levelIcon[level]}</span>
       <div className="min-w-0 flex-1">
         <p className="font-[family-name:var(--font-heading)] font-bold">{title}</p>
-        {detail && <p className="mt-0.5 opacity-90">{detail}</p>}
+        {detail && <p className="mt-0.5">{detail}</p>}
       </div>
       {action && <div className="shrink-0">{action}</div>}
     </div>

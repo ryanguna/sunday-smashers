@@ -57,7 +57,7 @@ export function PublishScheduleModal({
           <p className="font-[family-name:var(--font-heading)] text-sm font-bold">
             {safety.headline}
           </p>
-          <p className="mt-0.5 text-sm opacity-90">{safety.detail}</p>
+          <p className="mt-0.5 text-sm">{safety.detail}</p>
         </div>
 
         <dl className="grid grid-cols-3 gap-2 text-center">

@@ -82,7 +82,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
             <div className="flex items-start justify-between gap-3">
               <div>
                 <p className="font-[family-name:var(--font-heading)] font-bold">{item.title}</p>
-                {item.description && <p className="mt-0.5 text-sm opacity-90">{item.description}</p>}
+                {item.description && <p className="mt-0.5 text-sm">{item.description}</p>}
               </div>
               <button
                 type="button"

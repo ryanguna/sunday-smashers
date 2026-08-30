@@ -325,7 +325,7 @@ export function DutyRosterConsole({
                           {entry.courtName} · {entry.slotLabel}
                         </p>
                         <p>{matchLabel(entry.match, teamNames)}</p>
-                        <p className="mt-1 opacity-90">
+                        <p className="mt-1">
                           Nobody is playing next on this court — grab a committee member or a
                           volunteer for this one.
                         </p>
