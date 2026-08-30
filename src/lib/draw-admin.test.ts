@@ -20,6 +20,8 @@ import {
   ineligibleTeams,
   knockoutReadiness,
   knockoutToMatchInserts,
+  toPublishDrawCalls,
+  describePublishRpcError,
   publishSafety,
   reorder,
   roundRobinProgress,
@@ -345,6 +347,118 @@ describe('fixture → matches row mapping', () => {
     expect(rows[0]).toMatchObject({ team_a_id: 'a', team_b_id: 'd', points_to_win: 21 })
     expect(rows[1]).toMatchObject({ team_a_id: 'b', team_b_id: 'c' })
     expect(rows[3]).toMatchObject({ team_a_id: null, team_b_id: null, round: null })
+  })
+})
+
+describe('toPublishDrawCalls', () => {
+  const standings = (): StandingRow[] =>
+    ['a', 'b', 'c', 'd'].map((teamId, i) => ({
+      teamId,
+      rank: i + 1,
+      played: 3,
+      wins: 3 - i,
+      losses: i,
+      forfeits: 0,
+      pointsFor: 45,
+      pointsAgainst: 30,
+      pointDiff: 15,
+      tiebreak: 'wins' as const,
+      needsAdminDecision: false,
+    }))
+
+  it('produces a single call for a round robin, in round order', () => {
+    const calls = toPublishDrawCalls(
+      fixturesToMatchInserts(
+        [
+          { round: 2, teamA: 'c', teamB: 'd' },
+          { round: 1, teamA: 'a', teamB: 'b' },
+        ],
+        'div-1',
+        DEFAULT_ELIMS_RULES
+      )
+    )
+    expect(calls).toHaveLength(1)
+    expect(calls[0].stage).toBe('elims')
+    expect(calls[0].matches.map((m) => m.round)).toEqual([1, 2])
+  })
+
+  it('drops the columns the RPC supplies itself', () => {
+    const [call] = toPublishDrawCalls(
+      fixturesToMatchInserts([{ round: 1, teamA: 'a', teamB: 'b' }], 'div-1', {
+        pointsToWin: 21,
+        deuce: true,
+        cap: 30,
+      })
+    )
+    expect(call.matches[0]).toEqual({
+      round: 1,
+      bracket_key: null,
+      team_a_id: 'a',
+      team_b_id: 'b',
+      points_to_win: 21,
+      deuce_enabled: true,
+      cap: 30,
+    })
+    expect(call.matches[0]).not.toHaveProperty('division_id')
+    expect(call.matches[0]).not.toHaveProperty('stage')
+    expect(call.matches[0]).not.toHaveProperty('status')
+  })
+
+  it('splits the knockout into one call per stage, in playing order', () => {
+    const calls = toPublishDrawCalls(
+      knockoutToMatchInserts(
+        generateKnockout(standings(), undefined, DEFAULT_FINALS_RULES),
+        'div-1',
+        DEFAULT_FINALS_RULES
+      )
+    )
+    expect(calls.map((c) => c.stage)).toEqual(['semi', 'third_place', 'final'])
+    expect(calls[0].matches.map((m) => m.bracket_key)).toEqual(['M1', 'M2'])
+    expect(calls[2].matches[0]).toMatchObject({ team_a_id: null, team_b_id: null })
+  })
+
+  it('keeps every fixture and never loses one to grouping', () => {
+    const inserts = knockoutToMatchInserts(
+      generateKnockout(standings(), undefined, DEFAULT_FINALS_RULES),
+      'div-1',
+      DEFAULT_FINALS_RULES
+    )
+    const total = toPublishDrawCalls(inserts).reduce((sum, c) => sum + c.matches.length, 0)
+    expect(total).toBe(inserts.length)
+  })
+
+  it('returns nothing for an empty draw', () => {
+    expect(toPublishDrawCalls([])).toEqual([])
+  })
+})
+
+describe('describePublishRpcError', () => {
+  it('explains a lost admin role', () => {
+    expect(describePublishRpcError('insufficient_privilege: Only admins may publish a draw')).toMatch(
+      /not an admin/i
+    )
+  })
+
+  it('names the played matches the database refused to destroy', () => {
+    const message = describePublishRpcError(
+      'Refusing to replace 7 match(es) in this division that already have results. Re-run with force to override.'
+    )
+    expect(message).toContain('7 match(es)')
+    expect(message).toMatch(/nothing was changed/i)
+  })
+
+  it('points at the missing migration', () => {
+    expect(
+      describePublishRpcError('Could not find the function public.publish_draw(...) in the schema cache')
+    ).toMatch(/0004_publish_draw_rpc/)
+  })
+
+  it('falls back to the raw message without losing it', () => {
+    expect(describePublishRpcError('connection reset')).toContain('connection reset')
+  })
+
+  it('survives an empty message', () => {
+    expect(describePublishRpcError('   ')).toMatch(/unknown error/)
   })
 })
 

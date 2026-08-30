@@ -503,6 +503,85 @@ export function knockoutToMatchInserts(
   }))
 }
 
+/**
+ * One element of the `p_matches` array accepted by the `publish_draw()`
+ * Postgres function. The division and stage travel as their own arguments,
+ * and the RPC always inserts as `scheduled`, so those three columns are
+ * deliberately absent.
+ */
+export interface PublishDrawMatch {
+  round: number | null
+  bracket_key: 'M1' | 'M2' | 'THIRD' | 'FINAL' | null
+  team_a_id: string | null
+  team_b_id: string | null
+  points_to_win: number
+  deuce_enabled: boolean
+  cap: number | null
+}
+
+/** A single `publish_draw()` call: every fixture for one division + stage. */
+export interface PublishDrawCall {
+  stage: MatchStage
+  matches: PublishDrawMatch[]
+}
+
+/**
+ * Splits `MatchInsert[]` into one `publish_draw()` call per stage, because
+ * the RPC swaps exactly one division+stage per transaction. Fixture order
+ * within a stage is preserved. Stages appear in the order they are first
+ * seen, which for `knockoutToMatchInserts` is semis → third → final: the
+ * order they will actually be played.
+ */
+export function toPublishDrawCalls(inserts: readonly MatchInsert[]): PublishDrawCall[] {
+  const calls: PublishDrawCall[] = []
+  const byStage = new Map<MatchStage, PublishDrawCall>()
+
+  for (const insert of inserts) {
+    let call = byStage.get(insert.stage)
+    if (!call) {
+      call = { stage: insert.stage, matches: [] }
+      byStage.set(insert.stage, call)
+      calls.push(call)
+    }
+    call.matches.push({
+      round: insert.round,
+      bracket_key: insert.bracket_key,
+      team_a_id: insert.team_a_id,
+      team_b_id: insert.team_b_id,
+      points_to_win: insert.points_to_win,
+      deuce_enabled: insert.deuce_enabled,
+      cap: insert.cap,
+    })
+  }
+
+  return calls
+}
+
+/**
+ * Turns a raw Postgres error from `publish_draw()` into something an admin
+ * standing courtside can act on. The RPC is the last line of defence behind
+ * `publishSafety()`, so if it fires the UI has usually already been told a
+ * different story — say so plainly rather than leaking SQLSTATE noise.
+ */
+export function describePublishRpcError(message: string): string {
+  const raw = message.trim()
+
+  if (/insufficient_privilege|only admins may publish/i.test(raw)) {
+    return 'The database rejected this: your account is not an admin any more. Sign in again as an admin and retry.'
+  }
+
+  const played = /refusing to replace (\d+) match/i.exec(raw)
+  if (played) {
+    return `The database blocked the swap because ${played[1]} match(es) in this stage already have results. Tick the "permanently delete recorded results" confirmation if you really must start again — nothing was changed.`
+  }
+
+  if (/could not find the function|does not exist|pgrst202/i.test(raw)) {
+    return 'The publish_draw database function is missing. Apply the 0004_publish_draw_rpc migration, then try again — nothing was changed.'
+  }
+
+  return `The database refused to publish the draw: ${raw || 'unknown error'}. Nothing was changed.`
+}
+
 // ---------------------------------------------------------------------------
 // Standings + manual tiebreaks
 // ---------------------------------------------------------------------------

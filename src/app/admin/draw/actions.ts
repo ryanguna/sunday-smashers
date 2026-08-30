@@ -14,9 +14,12 @@ import {
   type TeamId,
 } from '@/lib/draw'
 import {
+  describePublishRpcError,
   fixturesToMatchInserts,
   knockoutToMatchInserts,
   publishSafety,
+  toPublishDrawCalls,
+  type PublishDrawMatch,
   type ExistingMatchSummary,
   type MatchInsert,
 } from '@/lib/draw-admin'
@@ -29,13 +32,17 @@ import { TIEBREAK_AUDIT_ACTION } from './data'
  * people *navigating* to the console, but a Server Action is a public POST
  * endpoint and must defend itself. RLS on `matches` is the final backstop.
  *
- * ATOMICITY: supabase-js cannot open a transaction from the client library,
- * so "replace the draw" is a delete followed by a single multi-row insert.
- * The insert itself is atomic (one statement, all-or-nothing), and the
- * delete only ever runs after `publishSafety()` has confirmed the admin
- * explicitly accepted the replacement — so the worst case is an empty draw
- * that can be regenerated, never a half-written one. A `publish_draw()`
- * Postgres function would make the pair truly transactional; see the report.
+ * ATOMICITY: publishing goes through the `publish_draw()` Postgres function
+ * (migration 0004), which does the delete + insert for one division+stage
+ * inside a single server-side transaction. A failure can therefore no longer
+ * leave a division with zero fixtures on tournament day. The RPC re-checks
+ * `is_admin()` itself, refuses to destroy played matches unless forced, and
+ * writes its own `draw.published` audit row — so this file deliberately does
+ * *not* log publishes, only the things the RPC knows nothing about.
+ *
+ * `publishSafety()` still runs first: the RPC is the last line of defence,
+ * but the admin should be told what they are about to destroy *before* they
+ * confirm, not by a database error afterwards.
  *
  * In demo mode every action is an honest no-op so the console stays
  * clickable with no database.
@@ -76,6 +83,24 @@ async function writeAudit(
   }
 }
 
+/**
+ * `publish_draw()` is not declared in the generated `Database` types
+ * (`src/lib/supabase/types.ts` belongs to another owner), so the call is
+ * narrowed locally instead. Delete this shim once the RPC is regenerated
+ * into the schema types.
+ */
+interface PublishDrawArgs {
+  p_division_id: string
+  p_stage: MatchRow['stage']
+  p_matches: PublishDrawMatch[]
+  p_force: boolean
+}
+
+type PublishDrawRpc = (
+  fn: 'publish_draw',
+  args: PublishDrawArgs
+) => PromiseLike<{ data: number | null; error: { message: string } | null }>
+
 function revalidateDraw() {
   revalidatePath('/admin/draw')
   revalidatePath('/admin/draw/knockout')
@@ -105,15 +130,20 @@ interface PublishOptions {
 }
 
 /**
- * Shared publish pipeline: safety check → delete the stage's existing
- * fixtures → insert the new ones → audit.
+ * Shared publish pipeline: read what is already there → `publishSafety()` →
+ * one `publish_draw()` transaction per stage.
+ *
+ * A knockout spans three stages, so it takes three calls. Each is atomic on
+ * its own; they are ordered semis → third → final so that a mid-way failure
+ * leaves the *earlier* rounds published (which is the recoverable direction —
+ * the semis are what gets played first).
  */
 async function replaceStage(
   divisionId: string,
   stages: readonly MatchRow['stage'][],
   inserts: MatchInsert[],
   options: PublishOptions,
-  audit: { action: string; metadata: Record<string, Json> }
+  label: string
 ): Promise<DrawActionResult> {
   const supabase = await createClient()
 
@@ -133,31 +163,41 @@ async function replaceStage(
     return { ok: false, message: `${safety.headline}. ${safety.detail}` }
   }
 
-  if (existing.length > 0) {
-    const { error: deleteError } = await supabase
-      .from('matches')
-      .delete()
-      .eq('division_id', divisionId)
-      .in('stage', stages)
-    if (deleteError) {
-      return { ok: false, message: `Could not clear the old draw: ${deleteError.message}` }
+  // The admin has seen exactly how many results this will destroy and ticked
+  // the box, so the RPC's own refusal is redundant here — but only here.
+  const force = safety.resultCount > 0 && options.confirmDestroyResults === true
+
+  let published = 0
+  let stageIndex = 0
+
+  for (const call of toPublishDrawCalls(inserts)) {
+    const publishDraw = supabase.rpc as unknown as PublishDrawRpc
+    const { data, error } = await publishDraw('publish_draw', {
+      p_division_id: divisionId,
+      p_stage: call.stage,
+      p_matches: call.matches,
+      p_force: force,
+    })
+
+    if (error) {
+      const detail = describePublishRpcError(error.message)
+      if (stageIndex === 0) {
+        return { ok: false, message: detail }
+      }
+      revalidateDraw()
+      return {
+        ok: false,
+        count: published,
+        message: `${label} was only partly published — ${published} fixture(s) are live but the ${call.stage.replace('_', ' ')} stage failed. ${detail}`,
+      }
     }
-  }
 
-  const { error: insertError } = await supabase.from('matches').insert(inserts)
-  if (insertError) {
-    return { ok: false, message: `Could not publish the draw: ${insertError.message}` }
+    published += typeof data === 'number' ? data : call.matches.length
+    stageIndex += 1
   }
-
-  await writeAudit(audit.action, divisionId, {
-    ...audit.metadata,
-    fixtures: inserts.length,
-    replaced: existing.length,
-    destroyed_results: safety.resultCount,
-  })
 
   revalidateDraw()
-  return { ok: true, count: inserts.length, message: '' }
+  return { ok: true, count: published, message: '' }
 }
 
 export interface PublishRoundRobinInput extends PublishOptions {
@@ -190,13 +230,19 @@ export async function publishRoundRobinAction(
     ['elims'],
     fixturesToMatchInserts(fixtures, input.divisionId, input.rules),
     input,
-    {
-      action: 'draw.published',
-      metadata: { order: input.orderedTeamIds, seed: input.seed, stage: 'elims' },
-    }
+    'The round robin'
   )
 
   if (!result.ok) return result
+
+  // publish_draw() logs the publish itself; this records the *human* choice
+  // behind it — the draw order and reshuffle seed — which the RPC cannot see.
+  await writeAudit('draw.order_recorded', input.divisionId, {
+    stage: 'elims',
+    order: input.orderedTeamIds,
+    seed: input.seed,
+  })
+
   return {
     ...result,
     message: `Ho ho ho — ${result.count} round robin fixtures are live. 🎄`,
@@ -247,14 +293,22 @@ export async function publishKnockoutAction(
     ['semi', 'third_place', 'final'],
     knockoutToMatchInserts(knockout, input.divisionId, input.rules),
     input,
-    {
-      action: 'draw.knockout_published',
-      metadata: { qualifiers: input.rankedTeamIds.slice(0, 4), stage: 'knockout' },
-    }
+    'The bracket'
   )
 
   if (!result.ok) return result
-  return { ...result, message: 'The bracket is live — semis, Battle for 3rd and the Final. 🏆' }
+
+  // The RPC logs one row per stage; this records who the four qualifiers were.
+  await writeAudit('draw.knockout_published', input.divisionId, {
+    stage: 'knockout',
+    qualifiers: input.rankedTeamIds.slice(0, 4),
+    fixtures: result.count ?? 0,
+  })
+
+  return {
+    ...result,
+    message: `The bracket is live — ${result.count} fixtures: semis, Battle for 3rd and the Final. 🏆`,
+  }
 }
 
 export interface TiebreakDecisionInput {
