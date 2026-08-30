@@ -49,6 +49,7 @@ const DEMO_PROFILE: ProfileRow = {
   bio: 'Net kills and candy canes. 🍬',
   created_at: '2026-08-01T00:00:00.000Z',
   updated_at: '2026-08-01T00:00:00.000Z',
+  email: 'ivy.novak@example.com',
 }
 
 const DEMO_REGISTRATION: RegistrationSnapshot = {

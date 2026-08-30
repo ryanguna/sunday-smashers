@@ -138,15 +138,52 @@ create table if not exists public.profiles (
   avatar_url text,
   bio text,
   created_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
+  updated_at timestamptz not null default now(),
+  -- Read-only mirror of auth.users.email (migration 0007). auth.users stays
+  -- the source of truth; the guard trigger below reverts direct writes.
+  -- Declared LAST deliberately: migration 0007 appends it with ALTER TABLE, so
+  -- putting it here keeps a freshly-loaded database column-for-column
+  -- identical to an upgraded one rather than merely equivalent.
+  email text
 );
 
 comment on table public.profiles is
   'One row per auth.users row. Phone / emergency contact are private (never selected by anon/public policies).';
 
+comment on column public.profiles.email is
+  'Read-only mirror of auth.users.email, maintained by trigger. Never write this directly — change the auth user instead. Admin/own visibility only.';
+
 drop trigger if exists set_updated_at on public.profiles;
 create trigger set_updated_at before update on public.profiles
   for each row execute function public.set_updated_at();
+
+-- `email` is a mirror, not user data. If a player could edit it directly they
+-- could point it at an address they do not control, and the organiser's
+-- registration export would then quietly disagree with the address the account
+-- actually signs in with. Column-level GRANTs would fail open the next time
+-- someone adds a column, so the column is guarded by a trigger instead: any
+-- writer that has not announced itself via the transaction-local GUC has its
+-- change to `email` silently reverted, leaving the rest of the UPDATE intact.
+create or replace function public.guard_profile_email()
+returns trigger
+language plpgsql
+as $$
+begin
+  if new.email is distinct from old.email
+     and coalesce(current_setting('app.sync_profile_email', true), 'off') <> 'on'
+  then
+    new.email := old.email;
+  end if;
+  return new;
+end;
+$$;
+
+comment on function public.guard_profile_email() is
+  'Reverts direct writes to profiles.email. Only the auth.users sync triggers, which set app.sync_profile_email, may change it.';
+
+drop trigger if exists guard_profile_email on public.profiles;
+create trigger guard_profile_email before update on public.profiles
+  for each row execute function public.guard_profile_email();
 
 -- Auto-create a profile row whenever a new auth user signs up.
 create or replace function public.handle_new_user()
@@ -156,8 +193,14 @@ security definer
 set search_path = public
 as $$
 begin
-  insert into public.profiles (id, full_name)
-  values (new.id, coalesce(new.raw_user_meta_data ->> 'full_name', split_part(new.email, '@', 1)))
+  -- INSERT is not covered by guard_profile_email (an UPDATE trigger), so the
+  -- email can be written straight in here without the GUC.
+  insert into public.profiles (id, full_name, email)
+  values (
+    new.id,
+    coalesce(new.raw_user_meta_data ->> 'full_name', split_part(new.email, '@', 1)),
+    new.email
+  )
   on conflict (id) do nothing;
 
   insert into public.user_roles (user_id, role)
@@ -167,6 +210,36 @@ begin
   return new;
 end;
 $$;
+
+-- Keep the mirror in step when a player changes their address in account
+-- settings, so the organiser's export never points at an old inbox.
+create or replace function public.sync_profile_email()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  perform set_config('app.sync_profile_email', 'on', true);
+
+  update public.profiles
+     set email = new.email
+   where id = new.id;
+
+  perform set_config('app.sync_profile_email', 'off', true);
+  return new;
+end;
+$$;
+
+comment on function public.sync_profile_email() is
+  'Mirrors an auth.users email change onto profiles. auth.users remains the source of truth.';
+
+drop trigger if exists on_auth_user_email_changed on auth.users;
+create trigger on_auth_user_email_changed
+  after update of email on auth.users
+  for each row
+  when (old.email is distinct from new.email)
+  execute function public.sync_profile_email();
 
 drop trigger if exists on_auth_user_created on auth.users;
 create trigger on_auth_user_created

@@ -74,6 +74,15 @@ export type ProfileRow = {
   bio: string | null
   created_at: string
   updated_at: string
+  /**
+   * Read-only mirror of `auth.users.email`, maintained by trigger.
+   *
+   * Never write this — it is reverted by `guard_profile_email`. Change the
+   * auth user instead and the mirror follows. Visible only to the owner and
+   * to admins (`profiles_select_own`); deliberately absent from
+   * `player_directory`.
+   */
+  email: string | null
 }
 
 export type UserRoleRow = {
@@ -385,7 +394,15 @@ type Insertable<Row, RequiredKeys extends keyof Row> = Partial<Row> & Pick<Row, 
 export type Database = {
   public: {
     Tables: {
-      profiles: TableDef<ProfileRow, Insertable<ProfileRow, 'id' | 'full_name'>, Partial<ProfileRow>>
+      // `email` is excluded from the Update type on purpose: it is a
+      // trigger-maintained mirror of auth.users, and the database silently
+      // reverts direct writes. Better a compile error than a write that
+      // appears to succeed and is then discarded.
+      profiles: TableDef<
+        ProfileRow,
+        Insertable<ProfileRow, 'id' | 'full_name'>,
+        Partial<Omit<ProfileRow, 'email'>>
+      >
       user_roles: TableDef<UserRoleRow, Insertable<UserRoleRow, 'user_id' | 'role'>, Partial<UserRoleRow>>
       tournaments: TableDef<
         TournamentRow,

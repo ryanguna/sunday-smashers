@@ -406,3 +406,61 @@ ordered `… retired, cancelled`. Any `order by status` would then sort
 differently in production than in a fresh environment — the kind of divergence
 that only shows up once. `schema.sql` now declares `retired` last to match
 what the migration produces.
+
+## Migration 0007 — `profiles.email`
+
+Three separate features independently hit the same wall: player email lives in
+`auth.users`, which the anon key cannot read and PostgREST cannot join. The
+consequences were practical, not cosmetic — the admin registrations CSV export
+(the tool an organiser actually uses to email everyone about start times) had
+no address column, and `RolesManager` rendered the literal string
+"Email hidden — lives in Supabase auth" where a contact belonged.
+
+`public.profiles` now carries an `email` column. That table is already
+own-or-admin under `profiles_select_own`, so nothing became public, and
+`player_directory` whitelists columns explicitly so the signed-in partner
+lookup still cannot see an address.
+
+**`auth.users` remains the source of truth.** The column is a read-only mirror
+kept in step by triggers on signup and on email change. This matters: if a
+player could edit `profiles.email` directly they could point it at an address
+they do not control, and the organiser's export would then quietly disagree
+with the address the account actually signs in with. Contact details that lie
+are worse than contact details that are missing.
+
+Column-level `GRANT`s were the obvious tool and the wrong one — revoking a
+single column means dropping the table-level `UPDATE` grant and re-granting
+every remaining column by name, which fails open the moment someone adds a
+column and forgets the list. Instead `guard_profile_email` reverts unauthorised
+writes to that one column while letting the rest of the `UPDATE` through, and
+the two legitimate writers announce themselves with a transaction-local GUC.
+The Update type in `src/lib/supabase/types.ts` also omits `email`, so writing it
+is a compile error rather than a write that appears to succeed and is discarded.
+
+### Verification
+
+Validated against disposable `postgres:16` containers on both a fresh
+`schema.sql` load and an upgrade from the previous schema.
+
+| # | Assertion | Result |
+| --- | --- | --- |
+| 1 | Backfill populates rows that predate the column | pass |
+| 2 | New signup populates `email` via `handle_new_user` | pass |
+| 3 | Changing `auth.users.email` syncs through to `profiles` | pass |
+| 4 | A direct write to `profiles.email` is reverted | pass |
+| 5 | ...while sibling columns in the same `UPDATE` still save | pass |
+| 6 | The GUC does not leak to later statements on the connection | pass |
+| 7 | `player_directory` exposes no `email` column | pass |
+| 8 | `anon` holds no `SELECT` privilege on `profiles` | pass |
+| 9 | A signed-in player can read their own address | pass |
+| 10 | ...but cannot read another player's row at all | pass |
+| 11 | ...while still seeing that player in `player_directory` | pass |
+
+Assertion 9 failed on first run because the test harness set
+`request.jwt.claims` while the `auth.uid()` stub reads
+`request.jwt.claim.sub` — a defect in the harness, not the schema.
+
+As with 0006, a fresh install and an upgraded database were compared
+column-for-column. `ALTER TABLE` appends, so `schema.sql` declares `email`
+**last** rather than beside the other profile fields; the two are now byte
+-identical rather than merely equivalent.

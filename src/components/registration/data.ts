@@ -81,6 +81,7 @@ const DEMO_PROFILE: ProfileRow = {
   bio: null,
   created_at: '2026-08-01T00:00:00.000Z',
   updated_at: '2026-08-01T00:00:00.000Z',
+  email: 'holly.smasher@example.com',
 }
 
 export function demoRegistrationContext(): RegistrationContext {
