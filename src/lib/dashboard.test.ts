@@ -676,6 +676,20 @@ describe('registration and payment status', () => {
       'hasn’t been recorded',
     )
   })
+
+  it('sends anyone who owes money to /pay, not /register', () => {
+    // /register says nothing about money: a player told to pay used to land on
+    // a page that could not tell them the amount, the method or who to pay.
+    const base: RegistrationSnapshot = {
+      status: 'approved',
+      payment: 'unpaid',
+      amountDueCents: 2500,
+      amountPaidCents: 0,
+      divisionName: "Men's Doubles",
+    }
+    expect(paymentStatusView(base).href).toBe('/pay')
+    expect(paymentStatusView({ ...base, payment: 'partial', amountPaidCents: 1000 }).href).toBe('/pay')
+  })
 })
 
 describe('dashboardStage', () => {

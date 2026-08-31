@@ -31,6 +31,7 @@ const AUDITED_ROUTES = [
   '/gallery',
   '/announcements',
   '/register',
+  '/pay',
   '/login',
   '/dashboard',
   '/admin',

@@ -666,7 +666,7 @@ export function paymentStatusView(snapshot: RegistrationSnapshot): StatusView {
       label: 'Part paid',
       message: `${formatMoney(amountPaidCents)} received, ${formatMoney(outstanding)} still to go.`,
       nudge: 'Settle the balance before tournament day so you’re on the draw.',
-      href: '/register',
+      href: '/pay',
       actionLabel: 'Payment details',
     }
   }
@@ -678,7 +678,7 @@ export function paymentStatusView(snapshot: RegistrationSnapshot): StatusView {
         ? `${formatMoney(amountDueCents)} entry fee is still outstanding.`
         : 'Your entry fee hasn’t been recorded yet.',
     nudge: 'Pay the organisers to confirm your spot — unpaid entries can be released.',
-    href: '/register',
+    href: '/pay',
     actionLabel: 'How to pay',
   }
 }
