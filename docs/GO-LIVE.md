@@ -199,17 +199,58 @@ Before sharing the link with players, do one of:
    records (*Sending › Domains › Add New Domain*). Best option if the club
    owns a domain. Unverified domains send to spam, which from the player's
    side is indistinguishable from not sending at all.
-2. **Use a provider that verifies a single sender address** rather than a
-   whole domain — Brevo and Resend both do this on their free tiers, and it
-   avoids needing DNS access.
+2. **Use a provider that verifies a single sender address**, if there is no
+   domain and no DNS access. Resend's free tier allows sending from one
+   verified address without domain DNS (3,000/month). Brevo's free tier is
+   300/day but wants DKIM on your own domain — without it, mail goes out from
+   a generic `brevosend.com` sender, which is worse for trust than it sounds
+   when the message is an account-confirmation link.
 3. **Turn off email confirmation** and accept the trade below.
 
 Because the app sends **no email of its own** — partner invites are in-app
 rows, not messages — email is only ever used by Supabase Auth for three
 things: confirming a new account, resetting a password, and magic-link
-sign-in. Option 3 removes the first and third; only **password reset** is
-genuinely lost, and with the event a long way off, "forgot my password" is
-the one that will eventually be needed.
+sign-in.
+
+### Why not SMS instead?
+
+Reasonable question, since almost every player is on a phone. The answer is
+no, and the blocker is regulatory rather than technical.
+
+- **ACMA's SMS Sender ID Register has been mandatory since 1 July 2026.**
+  Alphanumeric sender IDs must be registered, and registration has to be
+  linked to a registered business name or ABN. A social badminton group
+  typically has neither. Unregistered senders are not blocked, but they are
+  delivered marked **"Unverified"** and filed in a separate inbox — which is
+  precisely where a one-time code goes to die.
+- **There is no free tier.** Australian SMS runs around AUD 0.05 per message
+  with the major providers. Not much money for one event, but it means a card
+  on file and a metered pipeline for a one-day tournament.
+- **A trial account repeats the mistake we are already in.** Twilio's trial
+  credit only sends to *pre-verified* numbers — the same restriction as the
+  Mailgun sandbox, arrived at from a different direction.
+- **It would not remove the round trip.** An SMS code still means leaving the
+  browser, reading a code and typing it back. That is not less friction than
+  a password; it is differently shaped friction.
+
+The insight behind the question is right, though: the problem is the round
+trip, not the channel. Removing the confirmation step removes the round trip
+for everyone, on any device, for free — which is option 3.
+
+Phone numbers are still worth collecting as *profile* data (they already are,
+on `profiles.phone`), for ringing a pair who have not shown up on the day.
+That is a different job from authentication and needs no provider.
+
+### The trade in option 3, stated exactly
+
+Turning off *Confirm email* loses **nothing that currently works**. Password
+reset is often cited as the casualty, but reset is an email too — so while
+delivery is broken it is already unavailable, with or without confirmation.
+What confirmation actually buys is proof the address belongs to the person
+signing up; without it, someone could register using another player's
+address. For a club tournament where the committee can see every registration
+in the admin console, that is a manageable risk, and the honest reason to
+turn it back on later.
 
 The app handles both. With confirmation off it skips the "check your inbox"
 screen rather than stranding someone who is already logged in, and if Supabase
