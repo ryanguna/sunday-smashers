@@ -11,6 +11,35 @@ what remains below is the irreducible list.
 
 ---
 
+## Where this project has already got to
+
+Steps 1 and 2 are **done** for the live project — recorded here so nobody
+repeats them:
+
+| | |
+| --- | --- |
+| Supabase project | `xkxsjafexqexnnkyujou` (region `ap-southeast-1`) |
+| Migrations | `0001`–`0010` applied; tracked in `supabase_migrations.schema_migrations` |
+| Security | 51/51 RLS attacks replayed **against this database** and rolled back |
+| Storage | all three buckets and ten policies created by migration 0001 |
+| Vercel | `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SITE_URL` set |
+| Site | https://sunday-smashers.vercel.app |
+
+**What is left:** the Supabase API key. It is the one value that cannot be read
+out of the database or derived from anything else, so a human has to paste it
+in once:
+
+```bash
+./scripts/finish-go-live.sh <publishable-or-anon-key>
+```
+
+That sets the variable and redeploys. Then do steps 3 and 4.
+
+*Preview* deliberately has **no** Supabase variables, so pull-request previews
+stay in demo mode and cannot write to the real tournament. Do not "fix" this.
+
+---
+
 ## Before you start
 
 You need:
@@ -58,17 +87,35 @@ the policies are badly broken — which is exactly how four tournament-day
 blockers once hid in plain sight. That suite runs as `anon` and
 `authenticated`, which is the only way the policies are real.
 
+That proves the *migrations* are safe. It cannot prove the *deployment* is —
+a migration applied out of order, a policy edited in the dashboard or a grant
+the platform restored would all slip through. To replay the identical attacks
+against the real database, and roll back so it is left untouched:
+
+```bash
+SUPABASE_DB_URL='postgresql://postgres.<ref>:<password>@<pooler-host>:5432/postgres' \
+  npm run verify:live-db     # expect "51 passed, 0 failed"
+```
+
+Use the **session** pooler (port 5432), not the transaction pooler (6543) —
+the checks need `set local role` to survive across statements. The connection
+string is in the Supabase dashboard under *Connect*.
+
 ---
 
 ## 2. Point the site at the database
 
 In **Vercel › Project › Settings › Environment Variables**, add both of these
-to *Production*, *Preview* and *Development*:
+to *Production* and *Development* (not *Preview* — see above):
 
 | Name | Value |
 | --- | --- |
 | `NEXT_PUBLIC_SUPABASE_URL` | `https://<project-ref>.supabase.co` |
-| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | the anon/publishable key |
+| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | the publishable (`sb_publishable_…`) or legacy anon key |
+
+Never add the **secret / service-role** key. A `NEXT_PUBLIC_*` variable is
+shipped to every browser that loads the site, and that key bypasses row-level
+security completely. `scripts/finish-go-live.sh` refuses one on sight.
 
 Then **redeploy** — environment variables are read at build time, so an
 existing deployment will not pick them up.
@@ -94,9 +141,11 @@ Get this wrong and confirmation links bounce people to a broken page.
 **Authentication › Email templates** — the defaults work, but they say
 "Supabase". Worth ten minutes to make them say Sunday Smashers.
 
-**Storage** — create a public bucket named `photos` if you want the gallery to
-accept uploads. The app reads and moderates photos; it does not create the
-bucket.
+**Storage** — nothing to do. Migration 0001 creates all three buckets
+(`avatars` and `gallery` public, `scoresheet-photos` private) along with their
+ten access policies. Confirm under *Storage* that they exist rather than
+creating anything by hand: a bucket made through the dashboard gets no
+policies, and uploads to it fail in a way that looks like a bug in the app.
 
 ---
 
