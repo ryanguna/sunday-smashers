@@ -1,7 +1,6 @@
 import type { Metadata } from 'next'
 
 import { requireAdmin } from '@/lib/auth'
-import { isSupabaseConfigured } from '@/lib/supabase/config'
 import {
   AdminDataErrorBanner,
   AdminDemoBanner,
@@ -23,14 +22,12 @@ export const metadata: Metadata = {
  *
  * Guarded with `requireAdmin()` in its own right — the `/admin` layout
  * already guards the tree, but a page that can rewrite the whole schedule
- * should not depend on a layout it does not own. Demo mode (no Supabase env
- * vars) skips the redirect exactly as the layout does, so the console is
- * reviewable in CI with sample data and nothing real to protect.
+ * should not depend on a layout it does not own. In demo mode `requireAdmin`
+ * resolves to the stand-in organiser rather than redirecting, so the console
+ * stays reviewable in CI with sample data and nothing real to protect.
  */
 export default async function AdminDrawPage() {
-  if (isSupabaseConfigured()) {
-    await requireAdmin('/admin/draw')
-  }
+  await requireAdmin('/admin/draw')
 
   const { divisions, isDemo, error } = await getDrawWorkbenchData()
 

@@ -1,7 +1,6 @@
 import type { Metadata } from 'next'
 
 import { requireAdmin } from '@/lib/auth'
-import { isSupabaseConfigured } from '@/lib/supabase/config'
 import {
   AdminDataErrorBanner,
   AdminDemoBanner,
@@ -23,9 +22,7 @@ export const metadata: Metadata = {
  * Guarded in its own right — see the note on `/admin/draw`.
  */
 export default async function AdminKnockoutPage() {
-  if (isSupabaseConfigured()) {
-    await requireAdmin('/admin/draw/knockout')
-  }
+  await requireAdmin('/admin/draw/knockout')
 
   const { divisions, isDemo, error } = await getDrawWorkbenchData()
 

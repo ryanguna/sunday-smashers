@@ -1,7 +1,6 @@
 import type { Metadata } from 'next'
 
 import { requireAdmin } from '@/lib/auth'
-import { isSupabaseConfigured } from '@/lib/supabase/config'
 import {
   AdminDataErrorBanner,
   AdminDemoBanner,
@@ -24,9 +23,7 @@ export const metadata: Metadata = {
  * one — with manual reassignment for the gaps.
  */
 export default async function AdminDutyRosterPage() {
-  if (isSupabaseConfigured()) {
-    await requireAdmin('/admin/duty-roster')
-  }
+  await requireAdmin('/admin/duty-roster')
 
   const { matches, courts, slots, teams, savedPlacements, manualDuties, isDemo, error } =
     await getScheduleWorkbenchData()

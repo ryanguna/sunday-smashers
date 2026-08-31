@@ -1,7 +1,6 @@
 import type { Metadata } from 'next'
 
 import { requireAdmin } from '@/lib/auth'
-import { isSupabaseConfigured } from '@/lib/supabase/config'
 import {
   AdminDataErrorBanner,
   AdminDemoBanner,
@@ -23,14 +22,12 @@ export const metadata: Metadata = {
  *
  * Guarded with `requireAdmin()` in its own right rather than leaning on the
  * `/admin` layout, because this page can rewrite a result that has already
- * been verified and moved into the standings. Demo mode (no Supabase env
- * vars) skips the redirect exactly as the layout does, so CI can render it
- * with the sample tournament.
+ * been verified and moved into the standings. In demo mode `requireAdmin`
+ * resolves to the stand-in organiser rather than redirecting, so CI can still
+ * render it with the sample tournament.
  */
 export default async function AdminMatchesPage() {
-  if (isSupabaseConfigured()) {
-    await requireAdmin('/admin/matches')
-  }
+  await requireAdmin('/admin/matches')
 
   const { rows, divisions, matches, courts, slots, teams, placements, overrides, isDemo, error } =
     await getMatchAdminData()

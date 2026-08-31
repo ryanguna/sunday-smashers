@@ -20,7 +20,6 @@ import {
   TeamCard,
 } from '@/components/dashboard'
 import { requireAuth } from '@/lib/auth'
-import { isSupabaseConfigured } from '@/lib/supabase/config'
 import { loadDashboardData } from './data'
 
 export const metadata: Metadata = {
@@ -35,15 +34,14 @@ export const dynamic = 'force-dynamic'
 /**
  * The player dashboard.
  *
- * Guarded by `requireAuth('/dashboard')` whenever Supabase is configured.
- * In demo mode there is no login flow to redirect to (see the note in
- * `src/proxy.ts`), so the page renders a sample player from the bundled
- * demo dataset instead of bouncing to a login page that can't work.
+ * Guarded by `requireAuth('/dashboard')`. In demo mode there is no login flow
+ * to redirect to (see the note in `src/proxy.ts`), so `requireAuth` resolves to
+ * the stand-in player and the page renders the bundled demo dataset instead of
+ * bouncing to a login page that can't work. On an unconfigured production
+ * deployment it redirects to `/setup` rather than serving that to the public.
  */
 export default async function DashboardPage() {
-  if (isSupabaseConfigured()) {
-    await requireAuth('/dashboard')
-  }
+  await requireAuth('/dashboard')
 
   const { demo, profile, dashboard, announcements, now } = await loadDashboardData()
   const {

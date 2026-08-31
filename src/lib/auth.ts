@@ -1,6 +1,6 @@
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
-import { isSupabaseConfigured } from '@/lib/supabase/config'
+import { isSupabaseConfigured, isUnconfiguredProductionDeployment } from '@/lib/supabase/config'
 import type { ProfileRow, UserRole, UserRoleRow } from '@/lib/supabase/types'
 import type { User } from '@supabase/supabase-js'
 import { loginRedirectPath } from '@/lib/auth-utils'
@@ -73,14 +73,20 @@ export async function isAdmin(): Promise<boolean> {
 /**
  * The stand-in identity used by `requireAuth`/`requireRole` in demo mode.
  *
- * This is NOT a security hole. Demo mode means `isSupabaseConfigured()` is
- * false, so there is no database, no session store and no auth system at all —
- * there is nothing to authorise access *to*. Every Server Action in the app
- * short-circuits on the same check before it reaches `createClient()`, so no
- * write can occur either. The alternative (redirecting to `/login`) sends the
- * visitor to a sign-in form that cannot work, which made the entire admin
- * console, scoring and tabulator surfaces unreachable in the one mode that
- * runs with no setup.
+ * This is safe *because of where demo mode is allowed to happen*. Demo mode
+ * means `isSupabaseConfigured()` is false, so there is no database, no session
+ * store and no auth system at all — there is nothing to authorise access
+ * *to*. Every Server Action short-circuits on the same check before it
+ * reaches `createClient()`, so no write can occur either. The alternative
+ * (redirecting to `/login`) sends the visitor to a sign-in form that cannot
+ * work, which made the entire admin console, scoring and tabulator surfaces
+ * unreachable in the one mode that runs with no setup.
+ *
+ * What this reasoning does *not* cover is a production deployment that is
+ * missing its environment variables. There the same code opens an admin
+ * console to the public internet, and no amount of "it's only demo data"
+ * makes that look acceptable to someone who finds it. `requireAuth` refuses
+ * that case up front — see `isUnconfiguredProductionDeployment`.
  *
  * The moment real Supabase env vars are present this value is never
  * constructed and the genuine session checks below apply.
@@ -106,6 +112,12 @@ export function isDemoMode(): boolean {
  * render their demo state instead of bouncing to an unusable login form.
  */
 export async function requireAuth(currentPath: string): Promise<User> {
+  // A live deployment with no credentials is a misconfiguration, not a demo.
+  // Handing out the stand-in organiser here would serve the admin console to
+  // anyone who guesses the URL, so send them somewhere that explains itself
+  // instead. `/setup` is public by necessity and already reports the
+  // unconfigured state along with what to do about it.
+  if (isUnconfiguredProductionDeployment()) redirect('/setup')
   if (!isSupabaseConfigured()) return DEMO_USER
   const user = await getCurrentUser()
   if (!user) {
@@ -132,4 +144,24 @@ export async function requireRole(role: UserRole, currentPath: string): Promise<
 
 export async function requireAdmin(currentPath: string): Promise<User> {
   return requireRole('admin', currentPath)
+}
+
+/**
+ * Guard for surfaces that stay browsable in demo mode, such as the `/admin`
+ * tree.
+ *
+ * Callers used to write this themselves as
+ * `if (isSupabaseConfigured()) await requireAdmin(path)`, which reads as a
+ * guard but silently disables itself in exactly the state where it is skipped.
+ * That is fine locally and in CI, and became a public admin console the moment
+ * the production deployment shipped without its environment variables — the
+ * guard never ran, so nothing inside `requireAuth` could catch it.
+ *
+ * Returns `true` when the caller should render its demo state.
+ */
+export async function requireAdminOrDemo(currentPath: string): Promise<boolean> {
+  if (isUnconfiguredProductionDeployment()) redirect('/setup')
+  if (!isSupabaseConfigured()) return true
+  await requireAdmin(currentPath)
+  return false
 }

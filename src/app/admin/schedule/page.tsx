@@ -1,7 +1,6 @@
 import type { Metadata } from 'next'
 
 import { requireAdmin } from '@/lib/auth'
-import { isSupabaseConfigured } from '@/lib/supabase/config'
 import {
   AdminDataErrorBanner,
   AdminDemoBanner,
@@ -23,13 +22,11 @@ export const metadata: Metadata = {
  *
  * Guarded with `requireAdmin()` in its own right rather than leaning on the
  * `/admin` layout — this page can move a match that is already being played.
- * Demo mode (no Supabase env vars) skips the redirect exactly as the layout
- * does, so CI can render it with sample data.
+ * In demo mode `requireAdmin` resolves to the stand-in organiser rather than
+ * redirecting, so CI can still render it with sample data.
  */
 export default async function AdminSchedulePage() {
-  if (isSupabaseConfigured()) {
-    await requireAdmin('/admin/schedule')
-  }
+  await requireAdmin('/admin/schedule')
 
   const { matches, courts, slots, teams, savedPlacements, isDemo, error } =
     await getScheduleWorkbenchData()
