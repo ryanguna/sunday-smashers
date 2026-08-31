@@ -138,6 +138,34 @@ further.
 
 Get this wrong and confirmation links bounce people to a broken page.
 
+### Email delivery — do not skip this one
+
+**Out of the box, Supabase will not email your players at all.** Until a
+project has custom SMTP configured, Supabase Auth refuses to deliver to any
+address that is not a member of your Supabase *organisation*, and rejects the
+rest with *"Email address not authorized"*. It also warns that its built-in
+sender "is not meant for production use" and rate-limits it without notice.
+
+So the committee can sign themselves up, conclude it all works, and then watch
+every single player fail at the first screen. Pick one of these before
+sharing the link:
+
+- **Configure custom SMTP** (*Authentication › Emails › SMTP Settings*) with
+  Resend, SendGrid, Postmark or even a Gmail app password. This is the real
+  fix: confirmation emails *and* password resets both start working. Also
+  raise *Rate Limits › Emails*, which defaults to **30 new users per hour** —
+  low enough to matter on the evening registration opens.
+- **Or turn off email confirmation** (*Authentication › Sign In / Providers ›
+  Email › Confirm email*). Players are signed straight in and land on
+  onboarding, no email needed. The catch: **password reset stops working**,
+  because that is an email too. Fine for a one-day club tournament, as long as
+  you know that is the trade.
+
+The app handles both. With confirmation off it skips the "check your inbox"
+screen rather than stranding someone who is already logged in, and if Supabase
+refuses the address it says so in plain English instead of showing the raw
+error.
+
 **Authentication › Email templates** — the defaults work, but they say
 "Supabase". Worth ten minutes to make them say Sunday Smashers.
 
@@ -260,8 +288,10 @@ Publish the tournament and turn on *Open registration* (step 6). The switch
 beats the calendar.
 
 **A confirmation email never arrives.**
-Check spam first. The signup screen has a *Resend* button. If the address was
-mistyped, use *Wrong email? Start again*.
+Check spam first, and use the *Resend* button on the signup screen. If it is
+happening to *everyone*, it is almost certainly step 3: with no custom SMTP,
+Supabase only emails members of your own organisation and refuses everyone
+else. The signup screen says so when it can detect it.
 
 **"An admin already exists" on `/setup`.**
 Someone has already claimed the seat. They can add you from *Settings › Roles*.

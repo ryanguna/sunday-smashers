@@ -3,6 +3,7 @@ import {
   RESEND_COOLDOWN_SECONDS,
   canResend,
   isAlreadyRegisteredError,
+  isEmailNotAuthorizedError,
   isRateLimitedError,
   isUnconfirmedEmailError,
   resendButtonLabel,
@@ -71,5 +72,14 @@ describe('error message classifiers', () => {
     expect(isRateLimitedError('Email rate limit exceeded')).toBe(true)
     expect(isRateLimitedError('For security purposes, you can only request this after 44 seconds')).toBe(true)
     expect(isRateLimitedError('Network error')).toBe(false)
+  })
+
+  it('spots an address Supabase refuses to email', () => {
+    // The verbatim message from a project with no custom SMTP configured.
+    expect(isEmailNotAuthorizedError('Email address not authorized')).toBe(true)
+    expect(isEmailNotAuthorizedError('Email address not authorised')).toBe(true)
+    expect(isEmailNotAuthorizedError('Email rate limit exceeded')).toBe(false)
+    expect(isEmailNotAuthorizedError(null)).toBe(false)
+    expect(isEmailNotAuthorizedError(undefined)).toBe(false)
   })
 })

@@ -13,7 +13,7 @@ import { isSupabaseConfigured } from '@/lib/supabase/config'
 import { sanitiseNextPath } from '@/lib/auth-utils'
 import { resolveAuthCallbackError } from '../auth/auth-errors'
 import { ResendConfirmation, SpamFolderNote } from '../auth/ResendConfirmation'
-import { isUnconfirmedEmailError } from '../auth/resend-cooldown'
+import { isUnconfirmedEmailError, isEmailNotAuthorizedError } from '../auth/resend-cooldown'
 
 type Mode = 'password' | 'magic-link'
 
@@ -76,7 +76,11 @@ function LoginForm() {
     })
     setLoading(false)
     if (otpError) {
-      setError(otpError.message)
+      setError(
+        isEmailNotAuthorizedError(otpError.message)
+          ? 'We can’t send email to that address yet — the tournament’s email delivery hasn’t been switched on. Please let an organiser know.'
+          : otpError.message,
+      )
       return
     }
     setMagicLinkSent(true)

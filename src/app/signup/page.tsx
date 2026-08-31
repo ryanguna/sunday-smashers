@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState, type FormEvent } from 'react'
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui'
 import { GiftIcon } from '@/components/icons'
 import { AuthShell } from '@/components/auth/AuthShell'
@@ -10,7 +11,7 @@ import { AlertBanner, DemoModeNotice } from '@/components/auth/DemoModeNotice'
 import { createClient } from '@/lib/supabase/client'
 import { isSupabaseConfigured } from '@/lib/supabase/config'
 import { ResendConfirmation, SpamFolderNote } from '../auth/ResendConfirmation'
-import { isAlreadyRegisteredError } from '../auth/resend-cooldown'
+import { isAlreadyRegisteredError, isEmailNotAuthorizedError } from '../auth/resend-cooldown'
 
 interface FormErrors {
   fullName?: string
@@ -38,7 +39,9 @@ export default function SignupPage() {
   const [loading, setLoading] = useState(false)
   const [submitted, setSubmitted] = useState(false)
   const [existingAccount, setExistingAccount] = useState(false)
+  const [emailUndeliverable, setEmailUndeliverable] = useState(false)
   const doneRef = useRef<HTMLDivElement>(null)
+  const router = useRouter()
 
   // Send focus to the confirmation once it appears, so a screen reader reads
   // "check your email" instead of leaving the user on a vanished form.
@@ -51,13 +54,14 @@ export default function SignupPage() {
     if (loading) return
     setServerError(null)
     setExistingAccount(false)
+    setEmailUndeliverable(false)
     const validation = validate(fullName, email, password, confirmPassword)
     setErrors(validation)
     if (Object.keys(validation).length > 0) return
 
     setLoading(true)
     const supabase = createClient()
-    const { error } = await supabase.auth.signUp({
+    const { data, error } = await supabase.auth.signUp({
       email,
       password,
       options: {
@@ -71,7 +75,19 @@ export default function SignupPage() {
         setExistingAccount(true)
         return
       }
+      if (isEmailNotAuthorizedError(error.message)) {
+        setEmailUndeliverable(true)
+        return
+      }
       setServerError(error.message)
+      return
+    }
+    // When the project has email confirmation switched off, Supabase signs the
+    // player in immediately and sends nothing. Telling them to go and click a
+    // link that will never arrive would strand someone who is, in fact,
+    // already logged in.
+    if (data.session) {
+      router.replace('/onboarding')
       return
     }
     setSubmitted(true)
@@ -113,6 +129,22 @@ export default function SignupPage() {
       ) : (
         <form onSubmit={handleSubmit} noValidate>
           {serverError && <AlertBanner>{serverError}</AlertBanner>}
+          {emailUndeliverable && (
+            <div
+              role="alert"
+              className="mb-4 rounded-[var(--radius-md)] bg-[var(--color-warn-bg)] p-3.5 text-sm text-[var(--color-warn)]"
+            >
+              <p className="font-[family-name:var(--font-heading)] font-bold">
+                We can&apos;t email you just yet
+              </p>
+              <p className="mt-1.5 font-medium">
+                This one is on us, not you — the tournament&apos;s email delivery
+                hasn&apos;t been switched on, so the confirmation link can&apos;t be
+                sent to <strong>{email}</strong>. Please let an organiser know, and
+                try again once they&apos;ve sorted it.
+              </p>
+            </div>
+          )}
           {existingAccount && (
             <div
               role="alert"

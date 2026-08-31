@@ -61,3 +61,21 @@ export function isRateLimitedError(message: string | null | undefined): boolean 
   const text = message.toLowerCase()
   return text.includes('rate limit') || text.includes('too many requests') || text.includes('security purposes')
 }
+
+/**
+ * True when Supabase refused to email the address at all.
+ *
+ * Until a project configures custom SMTP, Supabase Auth will only deliver to
+ * addresses belonging to the project's own organisation members; everyone
+ * else is rejected outright with "Email address not authorized". For a club
+ * tournament that means every single player signup fails, which looks
+ * exactly like a broken app unless we say otherwise.
+ *
+ * This is the committee's problem to fix, never the player's, so the copy
+ * points at the organiser rather than offering a retry that cannot work.
+ */
+export function isEmailNotAuthorizedError(message: string | null | undefined): boolean {
+  if (!message) return false
+  const text = message.toLowerCase()
+  return text.includes('not authorized') || text.includes('not authorised')
+}
