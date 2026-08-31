@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback } from 'react'
+import { useCallback, useState } from 'react'
 import { TextField } from '@/components/auth'
 import { BaubleIcon, HollyIcon, SnowflakeIcon } from '@/components/icons'
 import {
@@ -13,6 +13,7 @@ import {
   type SettingsChange,
   type TournamentDetails,
 } from '@/lib/settings'
+import { formatEntryFee, parseEntryFeeCents } from '@/lib/setup'
 import { FieldGrid, IssueList, SettingsCard } from './Chrome'
 import { SaveBar } from './SaveBar'
 import { useSettingsDraft, type DraftSaveResult } from './useSettingsDraft'
@@ -41,6 +42,19 @@ export function TournamentDetailsForm({ initial, save, readOnly = false }: Tourn
       setDraft((current) => ({ ...current, [key]: value }))
     },
     [setDraft],
+  )
+
+  // The fee is typed as dollars but stored as integer cents. Keeping the raw
+  // text lets someone type "2" on the way to "25" without the value snapping
+  // to $2 under their cursor.
+  const [feeText, setFeeTextRaw] = useState(() => (initial.entryFeeCents / 100).toFixed(2))
+  const setFeeText = useCallback(
+    (next: string) => {
+      setFeeTextRaw(next)
+      const cents = parseEntryFeeCents(next)
+      if (cents !== null) set('entryFeeCents', cents)
+    },
+    [set],
   )
 
   const error = (path: string) => firstErrorFor(issues, path)
@@ -206,6 +220,42 @@ export function TournamentDetailsForm({ initial, save, readOnly = false }: Tourn
         </FieldGrid>
 
         <IssueList issues={issues} />
+      </SettingsCard>
+
+      <SettingsCard
+        title="Entry fee & payment"
+        description="What one player pays, and how they pay it. Both appear on /pay, which is where every “How to pay” button in the app sends them."
+        icon={<HollyIcon size={20} />}
+        tone="mint"
+      >
+        <FieldGrid>
+          <TextField
+            label="Entry fee per player"
+            inputMode="decimal"
+            value={feeText}
+            onChange={(event) => setFeeText(event.target.value)}
+            hint={`${formatEntryFee(draft.entryFeeCents)} each — ${formatEntryFee(draft.entryFeeCents * 2)} a pair.`}
+            error={error('details.entryFeeCents')}
+            disabled={readOnly}
+          />
+        </FieldGrid>
+        <div className="mt-4">
+          <label className="mb-1 block text-sm font-semibold text-[var(--color-ink)]" htmlFor="payment-instructions">
+            How to pay
+          </label>
+          <textarea
+            id="payment-instructions"
+            rows={4}
+            value={draft.paymentInstructions}
+            onChange={(event) => set('paymentInstructions', event.target.value)}
+            placeholder={'Bank transfer to Sunday Smashers\nBSB 000-000  Acct 1234 5678\nUse your name as the reference — or cash to any committee member at the hall.'}
+            disabled={readOnly}
+            className="w-full rounded-2xl border border-[var(--color-line)] bg-white px-4 py-3 text-[var(--color-ink)] outline-none focus:border-[var(--color-brand-lilac)]"
+          />
+          <p className="mt-1 text-sm text-[var(--color-ink-soft)]">
+            Shown verbatim on /pay. Leave blank and players are told to contact the committee instead.
+          </p>
+        </div>
       </SettingsCard>
 
       <SaveBar

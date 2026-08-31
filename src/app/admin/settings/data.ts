@@ -16,6 +16,7 @@ import type {
 import { DECIDED_MATCH_STATUSES } from '@/lib/supabase/types'
 import {
   ASSIGNABLE_ROLES,
+  DEFAULT_ENTRY_FEE_CENTS,
   defaultTournamentSettings,
   divisionSettingsFromRow,
   EMPTY_DRAW_STATE,
@@ -308,9 +309,14 @@ async function loadLive(): Promise<SettingsPageRows> {
         registrationOpensAt: tournament.registration_opens_at,
         registrationClosesAt: tournament.registration_closes_at ?? fallback.details.registrationClosesAt,
         registrationCloseConfirmed: extras.details?.registrationCloseConfirmed ?? false,
-        contactName: extras.details?.contactName ?? '',
-        contactEmail: extras.details?.contactEmail ?? '',
-        contactPhone: extras.details?.contactPhone ?? '',
+        // Real columns since migration 0010, and they are what
+        // `tournament_public` publishes to the landing page and /pay. The
+        // extras blob is only consulted for rows saved before that migration.
+        contactName: tournament.contact_name ?? extras.details?.contactName ?? '',
+        contactEmail: tournament.contact_email ?? extras.details?.contactEmail ?? '',
+        contactPhone: tournament.contact_phone ?? extras.details?.contactPhone ?? '',
+        entryFeeCents: tournament.entry_fee_cents ?? DEFAULT_ENTRY_FEE_CENTS,
+        paymentInstructions: tournament.payment_instructions ?? '',
       },
       divisions,
       courts: courtRows.length

@@ -140,11 +140,20 @@ In `/admin/settings`, in this order:
 
 ## 6. Open the doors
 
-Still in `/admin/settings`:
+Open `/admin/settings`. The first card, **Going live**, holds both switches:
 
-1. **Publish the tournament.** Until this is on, the public site shows nothing
-   and `/register` will not accept anyone.
-2. **Open registration.**
+1. **Publish this tournament.** Until this is on, the public site shows the
+   built-in placeholder details and `/register` will not accept anyone.
+2. **Open the registration sheet now.**
+
+The second switch stays disabled until the first is on, and turning publishing
+off takes registration down with it — registration open on an unpublished
+tournament is a trap, because the public site reads `tournament_public`, which
+only contains published rows, so the flag would never reach a single player.
+
+Fill in the **entry fee** and **payment instructions** on the same page while
+you are there: `/pay` is where every "How to pay" button in the app sends
+players, and it reads both straight off this row.
 
 The open/closed switch **overrides the calendar**. You do not have to wait for
 the configured opening date to arrive — flip it on and the sheet opens, which

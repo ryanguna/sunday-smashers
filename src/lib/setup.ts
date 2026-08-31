@@ -137,11 +137,15 @@ export function slugify(name: string): string {
     .replace(/-+$/g, '')
 }
 
-export interface SetupFormValues extends TournamentDetails {
+/**
+ * The first-run form. It carries the entry fee as *typed text* rather than
+ * `TournamentDetails.entryFeeCents`, so a half-typed "12." is a validation
+ * message instead of a silent NaN — hence the omit.
+ */
+export interface SetupFormValues extends Omit<TournamentDetails, 'entryFeeCents'> {
   slug: string
   /** Entry fee per player, as typed — dollars, free text so we can validate it. */
   entryFee: string
-  paymentInstructions: string
   doorsOpenAt: string
 }
 
@@ -153,9 +157,15 @@ export function parseEntryFeeCents(input: string): number | null {
   return Math.round(Number(trimmed) * 100)
 }
 
+/**
+ * Formats a fee for display, dollar sign included.
+ *
+ * The sign belongs here rather than at each call site: while callers added
+ * their own, /pay shipped without one and quoted a bare "25".
+ */
 export function formatEntryFee(cents: number | null | undefined): string {
   if (cents == null) return ''
-  return (cents / 100).toFixed(2).replace(/\.00$/, '')
+  return `$${(cents / 100).toFixed(2).replace(/\.00$/, '')}`
 }
 
 /**
@@ -164,7 +174,11 @@ export function formatEntryFee(cents: number | null | undefined): string {
  * else (slug, fee, doors-open time).
  */
 export function validateSetupForm(values: SetupFormValues): SettingsIssue[] {
-  const issues: SettingsIssue[] = [...validateTournamentDetails(values)]
+  const issues: SettingsIssue[] = [
+    // The shared rules, with the typed fee resolved to cents so the one
+    // validator covers both screens. An unparseable fee is reported below.
+    ...validateTournamentDetails({ ...values, entryFeeCents: parseEntryFeeCents(values.entryFee) ?? 0 }),
+  ]
 
   const slug = values.slug.trim()
   if (!slug) {

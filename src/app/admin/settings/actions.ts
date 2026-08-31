@@ -165,6 +165,15 @@ export async function saveTournamentDetailsAction(details: TournamentDetails): P
       venue_name: details.venueName.trim() || null,
       venue_address: details.venueAddress.trim() || null,
       description: details.description.trim() || null,
+      // Real columns since migration 0010. These previously went only into the
+      // `site_content` extras blob, which nothing player-facing reads — so the
+      // landing page's organiser line and /pay stayed blank no matter how
+      // carefully the committee filled the form in.
+      contact_name: details.contactName.trim() || null,
+      contact_email: details.contactEmail.trim() || null,
+      contact_phone: details.contactPhone.trim() || null,
+      entry_fee_cents: details.entryFeeCents,
+      payment_instructions: details.paymentInstructions.trim() || null,
     })
     .eq('id', current.tournamentId)
 
@@ -173,9 +182,7 @@ export async function saveTournamentDetailsAction(details: TournamentDetails): P
   await mergeExtras(supabase, SETTINGS_EXTRAS_SLUG, 'Tournament settings extras', (blob) => ({
     ...blob,
     details: {
-      contactName: details.contactName.trim(),
-      contactEmail: details.contactEmail.trim(),
-      contactPhone: details.contactPhone.trim(),
+      // Only the fields with no column of their own live on here now.
       registrationCloseConfirmed: details.registrationCloseConfirmed,
     },
   }))
@@ -188,6 +195,7 @@ export async function saveTournamentDetailsAction(details: TournamentDetails): P
 
   revalidatePath(SETTINGS_PATH)
   revalidatePath('/')
+  revalidatePath('/pay')
   return { ok: true, message: 'Tournament details saved. Ho ho ho!', changes, issues }
 }
 

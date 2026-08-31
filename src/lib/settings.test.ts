@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
+  type TournamentDetails,
   describeLiveStatus,
   diffLiveStatus,
   validateLiveStatus,
@@ -888,5 +889,36 @@ describe('live status (going live)', () => {
     const changes = diffLiveStatus(status(), status({ isPublished: true }))
     expect(changes).toHaveLength(1)
     expect(changes[0]).toMatchObject({ label: 'Published', before: 'off', after: 'on' })
+  })
+})
+
+describe('entry fee and payment instructions', () => {
+  const details = (over: Partial<TournamentDetails> = {}): TournamentDetails => ({
+    ...defaultTournamentSettings().details,
+    ...over,
+  })
+
+  it('rejects a negative or non-integer fee', () => {
+    expect(hasErrors(validateTournamentDetails(details({ entryFeeCents: -1 })))).toBe(true)
+    expect(hasErrors(validateTournamentDetails(details({ entryFeeCents: 12.5 })))).toBe(true)
+  })
+
+  it('warns when players are charged but never told how to pay', () => {
+    // /pay renders these instructions verbatim; without them a player who is
+    // told to pay has nothing to act on.
+    const issues = validateTournamentDetails(details({ entryFeeCents: 2500, paymentInstructions: '  ' }))
+    expect(issues.some((i) => i.path === 'details.paymentInstructions')).toBe(true)
+  })
+
+  it('is happy once instructions exist', () => {
+    const issues = validateTournamentDetails(
+      details({ entryFeeCents: 2500, paymentInstructions: 'Bank transfer, BSB 000-000.' }),
+    )
+    expect(issues.some((i) => i.path === 'details.paymentInstructions')).toBe(false)
+  })
+
+  it('does not nag about instructions for a free tournament', () => {
+    const issues = validateTournamentDetails(details({ entryFeeCents: 0, paymentInstructions: '' }))
+    expect(issues.some((i) => i.path === 'details.paymentInstructions')).toBe(false)
   })
 })

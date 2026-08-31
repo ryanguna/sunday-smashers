@@ -106,6 +106,11 @@ export interface TournamentDetails {
   contactName: string
   contactEmail: string
   contactPhone: string
+  /** What one player pays. This is the figure every player-facing surface
+   *  quotes (`/pay`, the landing page), so it lives on the tournament row. */
+  entryFeeCents: number
+  /** Free text: bank details, "cash to Nadia at the hall", whatever suits. */
+  paymentInstructions: string
 }
 
 export interface CourtSettings {
@@ -242,6 +247,8 @@ export function defaultTournamentSettings(): TournamentSettings {
       contactName: 'Sunday Smashers Committee',
       contactEmail: 'hello@sundaysmashers.example',
       contactPhone: '',
+      entryFeeCents: DEFAULT_ENTRY_FEE_CENTS,
+      paymentInstructions: '',
     },
     divisions,
     courts: [
@@ -598,6 +605,20 @@ export function validateTournamentDetails(details: TournamentDetails): SettingsI
   }
   if (!details.contactEmail.trim() && !details.contactPhone.trim()) {
     issues.push(warn('details.contactEmail', 'Add at least one way for players to reach the committee.'))
+  }
+
+  if (!Number.isInteger(details.entryFeeCents) || details.entryFeeCents < 0) {
+    issues.push(err('details.entryFeeCents', 'Entry fee must be zero or more.'))
+  } else if (details.entryFeeCents > 100_000) {
+    issues.push(warn('details.entryFeeCents', 'That is a hefty entry fee — double-check the amount.'))
+  }
+  if (details.entryFeeCents > 0 && !details.paymentInstructions.trim()) {
+    issues.push(
+      warn(
+        'details.paymentInstructions',
+        'Players are told to pay but not how. /pay shows this text — add bank details or a drop-off point.',
+      ),
+    )
   }
 
   return issues
@@ -1170,6 +1191,8 @@ const DETAIL_LABELS: Record<keyof TournamentDetails, string> = {
   contactName: 'Contact name',
   contactEmail: 'Contact email',
   contactPhone: 'Contact phone',
+  entryFeeCents: 'Entry fee',
+  paymentInstructions: 'Payment instructions',
 }
 
 export function diffDetails(before: TournamentDetails, after: TournamentDetails): SettingsChange[] {

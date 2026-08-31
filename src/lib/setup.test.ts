@@ -122,8 +122,8 @@ describe('parseEntryFeeCents', () => {
   })
 
   it('round-trips through formatEntryFee', () => {
-    expect(formatEntryFee(parseEntryFeeCents('25'))).toBe('25')
-    expect(formatEntryFee(parseEntryFeeCents('25.50'))).toBe('25.50')
+    expect(formatEntryFee(parseEntryFeeCents('25'))).toBe('$25')
+    expect(formatEntryFee(parseEntryFeeCents('25.50'))).toBe('$25.50')
     expect(formatEntryFee(null)).toBe('')
   })
 })

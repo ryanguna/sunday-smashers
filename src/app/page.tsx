@@ -327,7 +327,7 @@ export default async function HomePage() {
                     {' '}
                     Entry is{' '}
                     <span className="font-semibold">
-                      ${formatEntryFee(tournament.entryFeeCents)}
+                      {formatEntryFee(tournament.entryFeeCents)}
                     </span>{' '}
                     per player.
                   </>
