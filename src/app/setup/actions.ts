@@ -10,7 +10,7 @@ import {
   type SetupFormValues,
   type SetupStatus,
 } from '@/lib/setup'
-import { isSupabaseConfigured } from '@/lib/supabase/config'
+import { isSupabaseConfigured, supabaseAnonKey, supabaseUrl } from '@/lib/supabase/config'
 import { createClient } from '@/lib/supabase/server'
 
 /**
@@ -36,7 +36,16 @@ export async function readSetupStatus(): Promise<SetupStatus> {
   if (!isSupabaseConfigured()) {
     // Demo mode has no database. Report that honestly so /setup explains what
     // is missing, rather than claiming an organiser and tournament exist.
-    return { isConfigured: false, hasAdmin: false, hasTournament: false, isSignedIn: false }
+    // Pass on which half is present so the page can name the missing value
+    // instead of repeating steps the committee has already done.
+    return {
+      isConfigured: false,
+      hasAdmin: false,
+      hasTournament: false,
+      isSignedIn: false,
+      hasUrl: supabaseUrl.length > 0,
+      hasKey: supabaseAnonKey.length > 0,
+    }
   }
 
   const supabase = await createClient()

@@ -40,6 +40,37 @@ case "$KEY" in
     exit 1 ;;
 esac
 
+# Check the key actually belongs to THIS project before deploying it.
+#
+# Supabase keys all look alike, and a key from a different project fails with a
+# 401 that surfaces as "the site is still in demo mode" — indistinguishable
+# from having set nothing at all. This exact mistake has already happened once
+# here. One HTTP call rules it out.
+TMP_ENV="$(mktemp)"
+trap 'rm -f "$TMP_ENV"' EXIT
+PROJECT_URL=""
+# `|| true` throughout: a failure to read the URL must not abort the script
+# under `set -e`, it just means we skip the check.
+if npx --yes vercel@latest env pull "$TMP_ENV" --environment=production --yes >/dev/null 2>&1; then
+  PROJECT_URL="$(sed -n 's/^NEXT_PUBLIC_SUPABASE_URL="\(.*\)"$/\1/p' "$TMP_ENV" | head -1 || true)"
+fi
+
+if [ -n "$PROJECT_URL" ]; then
+  echo "Checking the key against $PROJECT_URL ..."
+  STATUS="$(curl -s -o /dev/null -w '%{http_code}' "$PROJECT_URL/rest/v1/" -H "apikey: $KEY")"
+  if [ "$STATUS" = "401" ] || [ "$STATUS" = "403" ]; then
+    echo >&2
+    echo "Refusing: $PROJECT_URL rejected that key (HTTP $STATUS)." >&2
+    echo "It is most likely from a different Supabase project. Copy it from" >&2
+    echo "the dashboard for this project: Project Settings > API Keys." >&2
+    exit 1
+  fi
+  echo "Key accepted by the project (HTTP $STATUS)."
+else
+  echo "Warning: could not read NEXT_PUBLIC_SUPABASE_URL from Vercel, so the" >&2
+  echo "key could not be checked. Continuing." >&2
+fi
+
 VAR=NEXT_PUBLIC_SUPABASE_ANON_KEY
 # Production and Development only. Preview is left unset on purpose so pull
 # request previews stay in demo mode and cannot write to the real tournament.

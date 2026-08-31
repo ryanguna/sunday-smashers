@@ -201,4 +201,26 @@ describe('deriveSetupStage — no database connected', () => {
     )
     expect(info.stage).toBe('unconfigured')
   })
+
+  it('names the missing key when only the URL is set', () => {
+    // The live deployment's actual state. Telling the committee to "create a
+    // Supabase project and run the migrations" there sends them to redo work
+    // that is already finished and buries the one value still outstanding.
+    const info = deriveSetupStage(status({ isConfigured: false, hasUrl: true, hasKey: false }))
+    expect(info.stage).toBe('unconfigured')
+    expect(info.heading).toBe('One value left to connect')
+    expect(info.blurb).toContain('NEXT_PUBLIC_SUPABASE_ANON_KEY')
+  })
+
+  it('still asks for the whole setup when nothing is wired up', () => {
+    const info = deriveSetupStage(status({ isConfigured: false, hasUrl: false, hasKey: false }))
+    expect(info.heading).toBe('Connect a database first')
+  })
+
+  it('does not claim the key is missing when the key is the half that is set', () => {
+    // A key with no URL is still unconfigured, but the advice above would be
+    // actively wrong.
+    const info = deriveSetupStage(status({ isConfigured: false, hasUrl: false, hasKey: true }))
+    expect(info.heading).toBe('Connect a database first')
+  })
 })

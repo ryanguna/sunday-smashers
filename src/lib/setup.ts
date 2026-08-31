@@ -41,6 +41,14 @@ export interface SetupStatus {
   hasAdmin: boolean
   hasTournament: boolean
   isSignedIn: boolean
+  /**
+   * Which half of the connection is present. Both false means nothing has been
+   * wired yet; a URL with no key is the far more common state, because the key
+   * is the one value that has to be copied out of the Supabase dashboard by
+   * hand.
+   */
+  hasUrl?: boolean
+  hasKey?: boolean
 }
 
 export interface SetupStepInfo {
@@ -64,6 +72,21 @@ export function deriveSetupStage(status: SetupStatus): SetupStepInfo {
   // Reporting "setup is done" here would tell an organiser an organiser and a
   // tournament exist when in fact no database does.
   if (!status.isConfigured) {
+    // Telling someone to do work they have already done is how a runbook loses
+    // their trust: they either redo it or stop reading. A project whose URL is
+    // set has plainly been created and migrated, and exactly one value is
+    // still missing — so say that instead of restating the whole sequence.
+    if (status.hasUrl && !status.hasKey) {
+      return {
+        stage: 'unconfigured',
+        step: 1,
+        totalSteps: TOTAL_STEPS,
+        heading: 'One value left to connect',
+        blurb:
+          'The Supabase project is connected but NEXT_PUBLIC_SUPABASE_ANON_KEY is missing, so the app is still running on sample data. Copy the publishable key from Supabase (Project Settings › API Keys), set it in Vercel for Production, and redeploy.',
+      }
+    }
+
     return {
       stage: 'unconfigured',
       step: 1,

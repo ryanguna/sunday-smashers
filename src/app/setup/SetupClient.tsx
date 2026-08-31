@@ -115,21 +115,45 @@ export function SetupClient({ status }: { status: SetupStatus }) {
   }
 
   if (info.stage === 'unconfigured') {
+    // When the URL is already set, the project exists and the migrations have
+    // plainly run. Listing them again sends the committee to redo finished
+    // work and hides the single step that is actually outstanding.
+    const onlyKeyMissing = status.hasUrl === true && status.hasKey !== true
+    const code = 'rounded bg-black/5 px-1'
+
     return (
       <StepShell {...info}>
         <ol className="ml-5 list-decimal space-y-2 text-sm text-[var(--color-ink-soft)]">
-          <li>
-            Create a Supabase project and run the migrations in{' '}
-            <code className="rounded bg-black/5 px-1">supabase/migrations</code>.
-          </li>
-          <li>
-            Set <code className="rounded bg-black/5 px-1">NEXT_PUBLIC_SUPABASE_URL</code> and{' '}
-            <code className="rounded bg-black/5 px-1">NEXT_PUBLIC_SUPABASE_ANON_KEY</code>, then redeploy.
-          </li>
-          <li>Return here to claim the first organiser account and create the tournament.</li>
+          {onlyKeyMissing ? (
+            <>
+              <li>
+                In Supabase, open <strong>Project Settings › API Keys</strong> and copy the{' '}
+                <strong>publishable</strong> key (it starts with{' '}
+                <code className={code}>sb_publishable_</code>). Not the secret one.
+              </li>
+              <li>
+                Run <code className={code}>./scripts/finish-go-live.sh &lt;key&gt;</code> from the
+                repository. It checks the key against this project, sets{' '}
+                <code className={code}>NEXT_PUBLIC_SUPABASE_ANON_KEY</code> and redeploys.
+              </li>
+              <li>Return here to claim the first organiser account and create the tournament.</li>
+            </>
+          ) : (
+            <>
+              <li>
+                Create a Supabase project and run the migrations in{' '}
+                <code className={code}>supabase/migrations</code>.
+              </li>
+              <li>
+                Set <code className={code}>NEXT_PUBLIC_SUPABASE_URL</code> and{' '}
+                <code className={code}>NEXT_PUBLIC_SUPABASE_ANON_KEY</code>, then redeploy.
+              </li>
+              <li>Return here to claim the first organiser account and create the tournament.</li>
+            </>
+          )}
         </ol>
         <p className="mt-4 text-sm text-[var(--color-ink-soft)]">
-          The full sequence is written up in <code className="rounded bg-black/5 px-1">docs/GO-LIVE.md</code>.
+          The full sequence is written up in <code className={code}>docs/GO-LIVE.md</code>.
         </p>
       </StepShell>
     )
