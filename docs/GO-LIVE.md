@@ -180,10 +180,36 @@ sharing the link:
   because that is an email too. Fine for a one-day club tournament, as long as
   you know that is the trade.
 
-**Status: done.** SMTP is configured against a Mailgun account, so the first
-option is the one in force. Check that Mailgun's sending domain is verified and
-has SPF and DKIM records published, or the mail sends successfully and lands in
-spam — which looks identical to not sending at all from the player's side.
+**Status: SMTP is configured against a Mailgun account, but on a *sandbox*
+sending domain (`sandbox….mailgun.org`), which cannot run the tournament.**
+
+A Mailgun sandbox domain delivers only to **authorized recipients**: at most
+**five** addresses, each of which has to click a verification link from
+Mailgun first. Everyone else is refused with a permanent SMTP 550, which
+reaches the player as a failed signup. With more than five players, most of
+the field simply cannot create an account.
+
+It is genuinely useful for *rehearsal* — add your own address as an authorized
+recipient and you can walk the whole flow and read the real templates on a
+phone. It is not a thing to open registration on.
+
+Before sharing the link with players, do one of:
+
+1. **Add a real sending domain to Mailgun** and publish its SPF and DKIM
+   records (*Sending › Domains › Add New Domain*). Best option if the club
+   owns a domain. Unverified domains send to spam, which from the player's
+   side is indistinguishable from not sending at all.
+2. **Use a provider that verifies a single sender address** rather than a
+   whole domain — Brevo and Resend both do this on their free tiers, and it
+   avoids needing DNS access.
+3. **Turn off email confirmation** and accept the trade below.
+
+Because the app sends **no email of its own** — partner invites are in-app
+rows, not messages — email is only ever used by Supabase Auth for three
+things: confirming a new account, resetting a password, and magic-link
+sign-in. Option 3 removes the first and third; only **password reset** is
+genuinely lost, and with the event a long way off, "forgot my password" is
+the one that will eventually be needed.
 
 The app handles both. With confirmation off it skips the "check your inbox"
 screen rather than stranding someone who is already logged in, and if Supabase
@@ -328,18 +354,24 @@ surfaces this as a bare 500; the signup screen now translates it into "email
 delivery isn't working — tell an organiser", but the fix is in the dashboard.
 
 Narrow it down before changing anything, because the two causes need
-different fixes:
+different fixes.
 
-- **Does it fail for every recipient?** Try a Gmail address and your own.
-  *All* addresses failing rules out Mailgun's sandbox restriction (a sandbox
-  domain only delivers to *authorized recipients*, so a sandbox problem fails
-  for strangers and succeeds for you).
-- **How long does the request take?** Time it:
-  `curl -o /dev/null -w '%{time_total}\n' -X POST "$URL/auth/v1/signup" …`
-  Roughly **2 seconds** means Supabase connected and the provider said no —
-  host and port are fine, so suspect credentials or the sender address.
-  **10 seconds or more** is a connection timeout: wrong host or a blocked
-  port.
+**Is the sending domain a sandbox?** (`sandbox….mailgun.org`) If so, start
+here — a sandbox rejects any recipient not on its **authorized recipients**
+list with a permanent SMTP 550, which Supabase reports as this exact 500.
+
+Beware the tempting-but-wrong test: "it fails for *every* address, so it
+can't be the sandbox restriction." That inference only holds if one of the
+addresses tested was actually *authorized*. A sandbox fails for every
+unauthorized address, so testing three strangers' addresses proves nothing.
+Test the one address you know is on the list.
+
+**How long does the request take?** Time it:
+`curl -o /dev/null -w '%{time_total}\n' -X POST "$URL/auth/v1/signup" …`
+Roughly **2 seconds** means Supabase connected and the provider refused —
+host and port are fine, so suspect the recipient, the credentials or the
+sender address. **10 seconds or more** is a connection timeout: wrong host or
+a blocked port.
 
 For Mailgun specifically, in *Authentication › Emails › SMTP Settings*:
 
@@ -348,8 +380,9 @@ For Mailgun specifically, in *Authentication › Emails › SMTP Settings*:
 | Host | `smtp.mailgun.org` — but `smtp.eu.mailgun.org` if the domain was created in the **EU** region. Getting this wrong is a timeout, not a rejection. |
 | Port | `587` |
 | Username | the full SMTP login, e.g. `postmaster@mg.yourdomain.com` — *not* your Mailgun account email |
-| Password | the domain's **SMTP password** from *Sending › Domain settings › SMTP credentials* — *not* the Mailgun API key. This is the single most common cause. |
-| Sender email | must be **at the Mailgun domain** (`no-reply@mg.yourdomain.com`). A sender at some other domain is rejected even when the credentials are perfect. |
+| Password | the domain's **SMTP password** from *Sending › Domain settings › SMTP credentials* — *not* the Mailgun API key |
+| Sender email | must be **at the sending domain**. A sender at some other domain is rejected even when the credentials are perfect. |
+| Recipient | on a sandbox domain, must be one of the five **authorized recipients**, verified by clicking Mailgun's link |
 
 The exact SMTP reply is in **Supabase › Logs › Auth**; search the `error_id`
 from the failed response. Mailgun's own *Sending › Logs* will show the
