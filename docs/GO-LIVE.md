@@ -151,8 +151,8 @@ every single player fail at the first screen. Pick one of these before
 sharing the link:
 
 - **Configure custom SMTP** (*Authentication › Emails › SMTP Settings*) with
-  Resend, SendGrid, Postmark or even a Gmail app password. This is the real
-  fix: confirmation emails *and* password resets both start working. Also
+  Mailgun, Resend, SendGrid, Postmark or even a Gmail app password. This is the
+  real fix: confirmation emails *and* password resets both start working. Also
   raise *Rate Limits › Emails*, which defaults to **30 new users per hour** —
   low enough to matter on the evening registration opens.
 - **Or turn off email confirmation** (*Authentication › Sign In / Providers ›
@@ -161,13 +161,23 @@ sharing the link:
   because that is an email too. Fine for a one-day club tournament, as long as
   you know that is the trade.
 
+**Status: done.** SMTP is configured against a Mailgun account, so the first
+option is the one in force. Check that Mailgun's sending domain is verified and
+has SPF and DKIM records published, or the mail sends successfully and lands in
+spam — which looks identical to not sending at all from the player's side.
+
 The app handles both. With confirmation off it skips the "check your inbox"
 screen rather than stranding someone who is already logged in, and if Supabase
 refuses the address it says so in plain English instead of showing the raw
 error.
 
-**Authentication › Email templates** — the defaults work, but they say
-"Supabase". Worth ten minutes to make them say Sunday Smashers.
+**Authentication › Emails › Templates** — festive replacements for the default
+"Supabase" wording live in `supabase/templates/`. Paste each file into the
+matching tab and copy the subject lines from `supabase/templates/README.md`.
+
+Note that **custom SMTP does not move templating to Mailgun**: Supabase renders
+every auth email itself and only uses Mailgun to deliver it. Mailgun's own
+template feature is never invoked, so there is nothing to create there.
 
 **Storage** — nothing to do. Migration 0001 creates all three buckets
 (`avatars` and `gallery` public, `scoresheet-photos` private) along with their
