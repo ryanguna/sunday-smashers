@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest'
 import {
+  describeLiveStatus,
+  diffLiveStatus,
+  validateLiveStatus,
+  type LiveStatus,
   analyseRoleChange,
   analyseRulesChange,
   analyseSettingsRulesChange,
@@ -846,5 +850,43 @@ describe('summariseStage', () => {
     expect(summariseStage({ pointsToWin: 15, deuce: false, cap: null })).toBe('first to 15, no deuce')
     expect(summariseStage({ pointsToWin: 21, deuce: true, cap: null })).toBe('first to 21, deuce, no cap')
     expect(summariseStage({ pointsToWin: 21, deuce: true, cap: 30 })).toBe('first to 21, deuce, cap 30')
+  })
+})
+
+describe('live status (going live)', () => {
+  const status = (over: Partial<LiveStatus> = {}): LiveStatus => ({
+    isPublished: false,
+    isRegistrationOpen: false,
+    ...over,
+  })
+
+  it('refuses registration open on an unpublished tournament', () => {
+    // The trap: `tournament_public` filters to published rows, so the public
+    // site would never see the flag. The committee would believe they had
+    // opened registration while every player was still told it was closed.
+    const issues = validateLiveStatus(status({ isRegistrationOpen: true }))
+    expect(hasErrors(issues)).toBe(true)
+    expect(issues[0]?.path).toBe('tournament.is_registration_open')
+  })
+
+  it('accepts every other combination', () => {
+    expect(validateLiveStatus(status())).toEqual([])
+    expect(validateLiveStatus(status({ isPublished: true }))).toEqual([])
+    expect(validateLiveStatus(status({ isPublished: true, isRegistrationOpen: true }))).toEqual([])
+  })
+
+  it('describes what each state actually means for a player', () => {
+    expect(describeLiveStatus(status())).toContain('Not published')
+    expect(describeLiveStatus(status({ isPublished: true }))).toContain('follows the calendar')
+    expect(describeLiveStatus(status({ isPublished: true, isRegistrationOpen: true }))).toContain(
+      'regardless of the calendar',
+    )
+  })
+
+  it('reports only the switches that actually moved', () => {
+    expect(diffLiveStatus(status(), status())).toEqual([])
+    const changes = diffLiveStatus(status(), status({ isPublished: true }))
+    expect(changes).toHaveLength(1)
+    expect(changes[0]).toMatchObject({ label: 'Published', before: 'off', after: 'on' })
   })
 })

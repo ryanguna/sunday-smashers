@@ -21,6 +21,7 @@ import {
   EMPTY_DRAW_STATE,
   type AssignableRole,
   type DrawState,
+  type LiveStatus,
   type ManagedUser,
   type TournamentSettings,
 } from '@/lib/settings'
@@ -52,6 +53,8 @@ interface SettingsPageRows {
   entryCounts: Record<string, number>
   tournamentId: string | null
   currentUserId: string | null
+  /** The two go-live switches, read straight off the tournament row. */
+  liveStatus: LiveStatus
 }
 
 export interface SettingsPageData extends SettingsPageRows {
@@ -135,6 +138,7 @@ function demoRows(): SettingsPageRows {
     entryCounts,
     tournamentId: null,
     currentUserId: 'demo-user-1',
+    liveStatus: { isPublished: false, isRegistrationOpen: false },
   }
 }
 
@@ -150,6 +154,7 @@ function emptyRows(): SettingsPageRows {
     entryCounts: {},
     tournamentId: null,
     currentUserId: null,
+    liveStatus: { isPublished: false, isRegistrationOpen: false },
   }
 }
 
@@ -333,5 +338,9 @@ async function loadLive(): Promise<SettingsPageRows> {
     entryCounts,
     tournamentId: tournament.id,
     currentUserId: user?.id ?? null,
+    liveStatus: {
+      isPublished: tournament.is_published === true,
+      isRegistrationOpen: tournament.is_registration_open === true,
+    },
   }
 }

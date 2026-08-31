@@ -1548,3 +1548,68 @@ export function newId(prefix: string, existing: readonly { id: string }[]): stri
   while (taken.has(`${prefix}-${n}`)) n++
   return `${prefix}-${n}`
 }
+
+// ---------------------------------------------------------------------------
+// Going live
+// ---------------------------------------------------------------------------
+
+/** The two switches that decide whether the public site shows anything real. */
+export interface LiveStatus {
+  /** Publishes the tournament: until this is on, `tournament_public` is empty
+   *  and the site falls back to built-in defaults. */
+  isPublished: boolean
+  /** Opens the registration sheet regardless of the calendar. */
+  isRegistrationOpen: boolean
+}
+
+/**
+ * Refuses the one combination that is a trap: registration open on an
+ * unpublished tournament. `tournament_public` filters to published rows, so
+ * the public site would never see the flag, players would still be told
+ * registration is closed, and the committee would be left believing they had
+ * opened it.
+ */
+export function validateLiveStatus(status: LiveStatus): SettingsIssue[] {
+  const issues: SettingsIssue[] = []
+  if (status.isRegistrationOpen && !status.isPublished) {
+    issues.push({
+      path: 'tournament.is_registration_open',
+      severity: 'error',
+      message:
+        'Publish the tournament first — while it is unpublished the public site cannot see it, so opening registration would have no effect.',
+    })
+  }
+  return issues
+}
+
+/** Plain-language read-back of what the two switches currently mean. */
+export function describeLiveStatus(status: LiveStatus): string {
+  if (!status.isPublished) {
+    return 'Not published. The public site is showing built-in placeholder details and nobody can register.'
+  }
+  return status.isRegistrationOpen
+    ? 'Published, and the registration sheet is open regardless of the calendar.'
+    : 'Published. Registration follows the calendar dates below.'
+}
+
+export function diffLiveStatus(before: LiveStatus, after: LiveStatus): SettingsChange[] {
+  const changes: SettingsChange[] = []
+  const say = (on: boolean) => (on ? 'on' : 'off')
+  if (before.isPublished !== after.isPublished) {
+    changes.push({
+      path: 'tournament.is_published',
+      label: 'Published',
+      before: say(before.isPublished),
+      after: say(after.isPublished),
+    })
+  }
+  if (before.isRegistrationOpen !== after.isRegistrationOpen) {
+    changes.push({
+      path: 'tournament.is_registration_open',
+      label: 'Registration open',
+      before: say(before.isRegistrationOpen),
+      after: say(after.isRegistrationOpen),
+    })
+  }
+  return changes
+}

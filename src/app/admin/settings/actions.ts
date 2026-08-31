@@ -11,7 +11,9 @@ import {
   analyseRoleChange,
   buildAuditEntry,
   diffCourts,
+  describeLiveStatus,
   diffDetails,
+  diffLiveStatus,
   diffDivisions,
   diffPrizes,
   diffTimeSlots,
@@ -23,9 +25,11 @@ import {
   validateDivision,
   validatePrizes,
   validateTimeSlots,
+  validateLiveStatus,
   validateTournamentDetails,
   type AssignableRole,
   type CourtSettings,
+  type LiveStatus,
   type DivisionSettings,
   type PrizeSettings,
   type SettingsChange,
@@ -469,4 +473,58 @@ export async function updateRoleAction(input: {
     warning: verdict.warning,
     changes,
   }
+}
+
+// ---------------------------------------------------------------------------
+// Going live
+// ---------------------------------------------------------------------------
+
+/**
+ * Publishes the tournament and opens/closes the registration sheet.
+ *
+ * This is the button the go-live runbook asks for. Without it the two columns
+ * that decide whether the public site shows anything real could only be
+ * changed by hand-writing SQL, which meant a committee could finish setup and
+ * still have a site that told every player registration was closed.
+ */
+export async function saveLiveStatusAction(status: LiveStatus): Promise<ActionResult> {
+  const admin = await ensureAdmin()
+
+  const issues = validateLiveStatus(status)
+  if (hasErrors(issues)) return invalid(issues)
+
+  const current = await loadSettingsPageData()
+  const changes = diffLiveStatus(current.liveStatus, status)
+  if (changes.length === 0) return noChanges()
+
+  if (!isSupabaseConfigured() || !current.tournamentId) {
+    return {
+      ok: true,
+      demo: true,
+      message: 'Demo mode — there is no tournament row to publish.',
+      changes,
+    }
+  }
+
+  const supabase = await createClient()
+  const { error } = await supabase
+    .from('tournaments')
+    .update({ is_published: status.isPublished, is_registration_open: status.isRegistrationOpen })
+    .eq('id', current.tournamentId)
+
+  if (error) return { ok: false, message: `Could not save: ${error.message}`, changes }
+
+  if (admin) {
+    await writeAudit(
+      supabase,
+      admin.id,
+      buildAuditEntry('tournament.live_status', 'tournament', current.tournamentId, changes),
+    )
+  }
+
+  revalidatePath(SETTINGS_PATH)
+  revalidatePath('/')
+  revalidatePath('/register')
+
+  return { ok: true, message: describeLiveStatus(status), changes }
 }
