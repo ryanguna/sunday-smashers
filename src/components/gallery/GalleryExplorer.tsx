@@ -95,7 +95,8 @@ function FairyLights() {
 
 export interface GalleryExplorerProps {
   photos: GalleryPhoto[]
-  tournamentId: string
+  /** Null when no tournament row exists yet — uploads are disabled. */
+  tournamentId: string | null
   /** True when Supabase isn't configured — uploads are disabled. */
   isDemo: boolean
 }
@@ -274,12 +275,19 @@ export function GalleryExplorer({ photos, tournamentId, isDemo }: GalleryExplore
         onNavigate={setLightboxIndex}
       />
 
-      {uploaderOpen && (
+      {uploaderOpen && tournamentId && (
         <PhotoUploader
           open
           onClose={() => setUploaderOpen(false)}
           tournamentId={tournamentId}
         />
+      )}
+
+      {uploaderOpen && !tournamentId && (
+        <p className="mt-6 rounded-[var(--radius-md)] bg-[var(--color-warn-bg)] p-3 text-center text-sm text-[var(--color-warn)]">
+          Photos can&rsquo;t be added just yet — the tournament hasn&rsquo;t been set up in the
+          admin console. Give the committee a nudge and try again shortly.
+        </p>
       )}
 
       {isDemo && (

@@ -1,7 +1,11 @@
 import type { Metadata } from 'next'
 
 import { requireAdmin } from '@/lib/auth'
-import { AdminDemoBanner } from '@/components/admin/AdminUI'
+import {
+  AdminDataErrorBanner,
+  AdminDemoBanner,
+  AdminEmptyState,
+} from '@/components/admin/AdminUI'
 import { getAdminAwardsData } from './data'
 import { AwardsAdminClient } from './AwardsAdminClient'
 
@@ -23,12 +27,22 @@ export const dynamic = 'force-dynamic'
 export default async function AdminAwardsPage() {
   await requireAdmin('/admin/awards')
 
-  const { divisions, definitions, isDemo } = await getAdminAwardsData()
+  const { divisions, definitions, isDemo, error } = await getAdminAwardsData()
 
   return (
     <div className="space-y-6">
       {isDemo && <AdminDemoBanner />}
-      <AwardsAdminClient divisions={divisions} definitions={definitions} isDemo={isDemo} />
+      {error && <AdminDataErrorBanner message={error} />}
+      {divisions.length === 0 ? (
+        <AdminEmptyState
+          title="No podium to fill in yet"
+          description="Awards are suggested from the final placings, so the ceremony page stays quiet until the draw is published and the knockout is played out."
+          href="/admin/draw/knockout"
+          linkLabel="See standings & knockout"
+        />
+      ) : (
+        <AwardsAdminClient divisions={divisions} definitions={definitions} isDemo={isDemo} />
+      )}
     </div>
   )
 }

@@ -10,6 +10,8 @@ import {
   TrophyIcon,
 } from '@/components/icons'
 import { CountdownSection } from '@/components/CountdownSection'
+import { loadPublicTournamentConfig } from '@/lib/tournament-config'
+import { formatEntryFee } from '@/lib/setup'
 import { AnnouncementsStrip } from '@/components/announcements'
 import { FeaturedPhotoStrip } from '@/components/gallery'
 import { loadFeaturedPhotos } from '@/components/gallery/data'
@@ -87,10 +89,11 @@ export default async function HomePage() {
   // and photos render nothing when empty, and the podium only appears once
   // a division has actually been crowned — before match day the countdown
   // stays the hero rather than a row of "to be decided" placeholders.
-  const [{ now, announcements }, { views: awardViews }, featuredPhotos] = await Promise.all([
+  const [{ now, announcements }, { views: awardViews }, featuredPhotos, tournament] = await Promise.all([
     getAnnouncementsFeed(await announcementsClient()),
     getPublicAwards(),
     loadFeaturedPhotos(),
+    loadPublicTournamentConfig(),
   ])
   const showWinners = hasAnyWinners(awardViews)
 
@@ -137,7 +140,7 @@ export default async function HomePage() {
         </div>
 
         <div className="mx-auto mt-10 max-w-md">
-          <CountdownSection />
+          <CountdownSection dates={tournament.dates} />
         </div>
       </section>
 
@@ -275,9 +278,42 @@ export default async function HomePage() {
           <Card variant="outline">
             <CardBody>
               <h3 className="font-extrabold text-[var(--color-plum)]">📍 Venue</h3>
-              <p className="mt-2 text-sm">
-                More details to be revealed soon — check back here or watch for an announcement.
-              </p>
+              {tournament.venueName || tournament.venueAddress ? (
+                <p className="mt-2 text-sm">
+                  {tournament.venueName && (
+                    <span className="font-semibold">{tournament.venueName}</span>
+                  )}
+                  {tournament.venueName && tournament.venueAddress && <br />}
+                  {tournament.venueAddress && (
+                    <a
+                      className="underline decoration-dotted underline-offset-2 hover:text-[var(--color-brand-pink-dark)]"
+                      href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(
+                        [tournament.venueName, tournament.venueAddress].filter(Boolean).join(', '),
+                      )}`}
+                      target="_blank"
+                      rel="noreferrer"
+                    >
+                      {tournament.venueAddress}
+                    </a>
+                  )}
+                  {tournament.doorsOpenAt && (
+                    <>
+                      <br />
+                      Doors open{' '}
+                      {new Date(tournament.doorsOpenAt).toLocaleTimeString('en-AU', {
+                        hour: 'numeric',
+                        minute: '2-digit',
+                        timeZone: 'Australia/Sydney',
+                      })}
+                      .
+                    </>
+                  )}
+                </p>
+              ) : (
+                <p className="mt-2 text-sm">
+                  More details to be revealed soon — check back here or watch for an announcement.
+                </p>
+              )}
             </CardBody>
           </Card>
           <Card variant="outline">
@@ -286,10 +322,48 @@ export default async function HomePage() {
               <p className="mt-2 text-sm">
                 Your own racket, non-marking court shoes, a water bottle and your festive spirit.
                 Shuttles are provided.
+                {tournament.entryFeeCents != null && (
+                  <>
+                    {' '}
+                    Entry is{' '}
+                    <span className="font-semibold">
+                      ${formatEntryFee(tournament.entryFeeCents)}
+                    </span>{' '}
+                    per player.
+                  </>
+                )}
               </p>
             </CardBody>
           </Card>
         </div>
+
+        {(tournament.contactName || tournament.contactPhone || tournament.contactEmail) && (
+          <p className="mt-6 text-center text-sm text-[var(--color-ink-muted)]">
+            Questions? Ask{' '}
+            <span className="font-semibold text-[var(--color-plum)]">
+              {tournament.contactName ?? 'the committee'}
+            </span>
+            {tournament.contactPhone && (
+              <>
+                {' '}
+                on{' '}
+                <a className="underline underline-offset-2" href={`tel:${tournament.contactPhone.replace(/\s+/g, '')}`}>
+                  {tournament.contactPhone}
+                </a>
+              </>
+            )}
+            {tournament.contactEmail && (
+              <>
+                {' '}
+                or at{' '}
+                <a className="underline underline-offset-2" href={`mailto:${tournament.contactEmail}`}>
+                  {tournament.contactEmail}
+                </a>
+              </>
+            )}
+            .
+          </p>
+        )}
       </section>
 
       {/* ---------------------------------------------------------------- */}

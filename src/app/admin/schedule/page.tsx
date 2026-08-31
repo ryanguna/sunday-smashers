@@ -2,7 +2,12 @@ import type { Metadata } from 'next'
 
 import { requireAdmin } from '@/lib/auth'
 import { isSupabaseConfigured } from '@/lib/supabase/config'
-import { AdminDemoBanner, AdminPageHeader } from '@/components/admin/AdminUI'
+import {
+  AdminDataErrorBanner,
+  AdminDemoBanner,
+  AdminEmptyState,
+  AdminPageHeader,
+} from '@/components/admin/AdminUI'
 import { Button } from '@/components/ui'
 import { ShuttlecockIcon } from '@/components/icons'
 import { ScheduleBuilder } from '@/components/schedule/ScheduleBuilder'
@@ -26,7 +31,7 @@ export default async function AdminSchedulePage() {
     await requireAdmin('/admin/schedule')
   }
 
-  const { matches, courts, slots, teams, savedPlacements, isDemo } =
+  const { matches, courts, slots, teams, savedPlacements, isDemo, error } =
     await getScheduleWorkbenchData()
 
   return (
@@ -43,6 +48,15 @@ export default async function AdminSchedulePage() {
         }
       />
       {isDemo && <AdminDemoBanner />}
+      {error && <AdminDataErrorBanner message={error} />}
+      {matches.length === 0 ? (
+        <AdminEmptyState
+          title="No fixtures to lay out yet"
+          description="The grid fills up the moment a draw is published. Generate the round robin first, then come back and give every match a court and a time."
+          href="/admin/draw"
+          linkLabel="Publish a draw"
+        />
+      ) : (
       <ScheduleBuilder
         matches={matches}
         courts={courts}
@@ -51,6 +65,7 @@ export default async function AdminSchedulePage() {
         savedPlacements={savedPlacements}
         isDemo={isDemo}
       />
+      )}
     </>
   )
 }

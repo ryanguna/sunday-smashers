@@ -1,6 +1,6 @@
 import { cache } from 'react'
 
-import { isSupabaseConfigured } from '@/lib/supabase/config'
+import { loadLiveOrDemo, rowsOrThrow } from '@/lib/demo-mode'
 import { createClient } from '@/lib/supabase/server'
 import type {
   AuditLogRow,
@@ -55,11 +55,16 @@ export interface DrawDivisionData {
   manualTiebreaks: ManualTiebreak[]
 }
 
-export interface DrawWorkbenchData {
+interface DrawWorkbenchRows {
   divisions: DrawDivisionData[]
-  isDemo: boolean
   /** True when a tournament settings module supplied the stage rules. */
   rulesFromSettings: boolean
+}
+
+export interface DrawWorkbenchData extends DrawWorkbenchRows {
+  isDemo: boolean
+  /** Set when a live query failed; `divisions` is empty in that case. */
+  error: string | null
 }
 
 // ---------------------------------------------------------------------------
@@ -139,12 +144,15 @@ function demoDivision(bundle: DemoDivisionBundle): DrawDivisionData {
   }
 }
 
-function demoData(): DrawWorkbenchData {
+function demoRows(): DrawWorkbenchRows {
   return {
     divisions: getAllDemoBundles().map(demoDivision),
-    isDemo: true,
     rulesFromSettings: false,
   }
+}
+
+function emptyRows(): DrawWorkbenchRows {
+  return { divisions: [], rulesFromSettings: true }
 }
 
 // ---------------------------------------------------------------------------
@@ -214,144 +222,143 @@ function manualTiebreaksFor(rows: readonly AuditLogRow[], divisionId: string): M
 }
 
 /**
- * Loads every division with its entries, published fixtures and results.
- * Any failure falls back to the demo fixtures — an admin staring at a blank
- * draw page on tournament morning is worse than an obviously-labelled
- * sample.
+ * Loads every division with its entries, published fixtures and results. A
+ * configured project with no divisions yet returns none — the page says so
+ * and points at settings — see `@/lib/demo-mode` for the one rule.
  */
 export const getDrawWorkbenchData = cache(
   async function getDrawWorkbenchData(): Promise<DrawWorkbenchData> {
-    if (!isSupabaseConfigured()) return demoData()
-
-    try {
-      const supabase = await createClient()
-      const [
-        { data: divisionRows },
-        { data: teamRows },
-        { data: memberRows },
-        { data: profileRows },
-        { data: registrationRows },
-        { data: paymentRows },
-        { data: matchRows },
-        { data: auditRows },
-      ] = await Promise.all([
-        supabase.from('divisions').select('*'),
-        supabase.from('teams').select('*'),
-        supabase.from('team_members').select('*'),
-        supabase.from('profiles').select('id, full_name'),
-        supabase.from('registrations').select('*'),
-        supabase.from('payments').select('*'),
-        supabase.from('matches').select('*'),
-        supabase
-          .from('audit_log')
-          .select('*')
-          .eq('action', TIEBREAK_AUDIT_ACTION)
-          .order('created_at', { ascending: false })
-          .limit(200),
-      ])
-
-      const divisions = (divisionRows ?? []) as DivisionRow[]
-      if (divisions.length === 0) return demoData()
-
-      const teams = (teamRows ?? []) as TeamRow[]
-      const members = (memberRows ?? []) as TeamMemberRow[]
-      const profiles = (profileRows ?? []) as Pick<ProfileRow, 'id' | 'full_name'>[]
-      const registrations = (registrationRows ?? []) as RegistrationRow[]
-      const payments = (paymentRows ?? []) as PaymentRow[]
-      const matches = (matchRows ?? []) as MatchRow[]
-      const audit = (auditRows ?? []) as AuditLogRow[]
-
-      const nameById = new Map(profiles.map((p) => [p.id, p.full_name]))
-      const paymentByRegistration = new Map(payments.map((p) => [p.registration_id, p]))
-      const membersByTeam = new Map<string, TeamMemberRow[]>()
-      for (const member of members) {
-        membersByTeam.set(member.team_id, [...(membersByTeam.get(member.team_id) ?? []), member])
-      }
-
-      const pairedPlayers = new Set(members.map((member) => member.player_id))
-
-      return {
-        isDemo: false,
-        rulesFromSettings: true,
-        divisions: divisions.map((division) => {
-          const rules = divisionRules(division)
-          const divisionRegistrations = registrations.filter((r) => r.division_id === division.id)
-          const registrationByPlayer = new Map(divisionRegistrations.map((r) => [r.player_id, r]))
-
-          const divisionTeams = teams
-            .filter((team) => team.division_id === division.id)
-            .map<DrawTeamEntry>((team) => {
-              const teamMembers = membersByTeam.get(team.id) ?? []
-              const playerNames = teamMembers.map(
-                (member) => nameById.get(member.player_id) ?? 'Unknown player'
-              )
-              const teamRegistrations = teamMembers
-                .map((member) => registrationByPlayer.get(member.player_id))
-                .filter((row): row is RegistrationRow => row != null)
-
-              const approved =
-                teamMembers.length === 2 &&
-                teamRegistrations.length === teamMembers.length &&
-                teamRegistrations.every((row) => row.status === 'approved')
-
-              const paid =
-                teamRegistrations.length > 0 &&
-                teamRegistrations.every(
-                  (row) => paymentByRegistration.get(row.id)?.status === 'paid'
-                )
-
-              return {
-                id: team.id,
-                name: team.name ?? (playerNames.join(' & ') || 'Unnamed pair'),
-                players: playerNames,
-                seed: team.seed,
-                approved,
-                paid,
-              }
-            })
-
-          const divisionMatches = matches.filter((match) => match.division_id === division.id)
-          const elims = divisionMatches.filter((match) => match.stage === 'elims')
-          const knockout = divisionMatches.filter((match) => match.stage !== 'elims')
-
-          const knockoutResults: DrawDivisionData['knockoutResults'] = {}
-          for (const match of knockout) {
-            const played = toPlayed(match)
-            if (match.bracket_key && played) knockoutResults[match.bracket_key] = played
-          }
-
-          return {
-            id: division.id,
-            name: division.name,
-            gender: division.gender,
-            elimsRules: rules.elims,
-            finalsRules: rules.finals,
-            qualifyingPlaces: rules.qualifyingPlaces,
-            teams: divisionTeams,
-            pendingRegistrations: divisionRegistrations.filter((r) => r.status === 'pending').length,
-            unpairedPlayers: divisionRegistrations.filter(
-              (r) => r.status === 'approved' && !pairedPlayers.has(r.player_id)
-            ).length,
-            publishedElims: elims.map((match) => ({
-              id: match.id,
-              stage: match.stage,
-              hasResult: isDecided(match.status),
-            })),
-            publishedKnockout: knockout.map((match) => ({
-              id: match.id,
-              stage: match.stage,
-              hasResult: isDecided(match.status),
-            })),
-            playedElims: elims
-              .map(toPlayed)
-              .filter((played): played is PlayedMatch => played != null),
-            knockoutResults,
-            manualTiebreaks: manualTiebreaksFor(audit, division.id),
-          }
-        }),
-      }
-    } catch {
-      return demoData()
-    }
+    const { data, isDemo, error } = await loadLiveOrDemo<DrawWorkbenchRows>({
+      demo: demoRows,
+      empty: emptyRows,
+      live: loadLive,
+    })
+    return { ...data, isDemo, error }
   }
 )
+
+async function loadLive(): Promise<DrawWorkbenchRows> {
+  const supabase = await createClient()
+  const [
+    divisionResult,
+    teamResult,
+    memberResult,
+    profileResult,
+    registrationResult,
+    paymentResult,
+    matchResult,
+    auditResult,
+  ] = await Promise.all([
+    supabase.from('divisions').select('*'),
+    supabase.from('teams').select('*'),
+    supabase.from('team_members').select('*'),
+    supabase.from('profiles').select('id, full_name'),
+    supabase.from('registrations').select('*'),
+    supabase.from('payments').select('*'),
+    supabase.from('matches').select('*'),
+    supabase
+      .from('audit_log')
+      .select('*')
+      .eq('action', TIEBREAK_AUDIT_ACTION)
+      .order('created_at', { ascending: false })
+      .limit(200),
+  ])
+
+  const divisions = rowsOrThrow(divisionResult) as DivisionRow[]
+  const teams = rowsOrThrow(teamResult) as TeamRow[]
+  const members = rowsOrThrow(memberResult) as TeamMemberRow[]
+  const profiles = rowsOrThrow(profileResult) as Pick<ProfileRow, 'id' | 'full_name'>[]
+  const registrations = rowsOrThrow(registrationResult) as RegistrationRow[]
+  const payments = rowsOrThrow(paymentResult) as PaymentRow[]
+  const matches = rowsOrThrow(matchResult) as MatchRow[]
+  const audit = rowsOrThrow(auditResult) as AuditLogRow[]
+
+  const nameById = new Map(profiles.map((p) => [p.id, p.full_name]))
+  const paymentByRegistration = new Map(payments.map((p) => [p.registration_id, p]))
+  const membersByTeam = new Map<string, TeamMemberRow[]>()
+  for (const member of members) {
+    membersByTeam.set(member.team_id, [...(membersByTeam.get(member.team_id) ?? []), member])
+  }
+
+  const pairedPlayers = new Set(members.map((member) => member.player_id))
+
+  return {
+    rulesFromSettings: true,
+    divisions: divisions.map((division) => {
+      const rules = divisionRules(division)
+      const divisionRegistrations = registrations.filter((r) => r.division_id === division.id)
+      const registrationByPlayer = new Map(divisionRegistrations.map((r) => [r.player_id, r]))
+
+      const divisionTeams = teams
+        .filter((team) => team.division_id === division.id)
+        .map<DrawTeamEntry>((team) => {
+          const teamMembers = membersByTeam.get(team.id) ?? []
+          const playerNames = teamMembers.map(
+            (member) => nameById.get(member.player_id) ?? 'Unknown player'
+          )
+          const teamRegistrations = teamMembers
+            .map((member) => registrationByPlayer.get(member.player_id))
+            .filter((row): row is RegistrationRow => row != null)
+
+          const approved =
+            teamMembers.length === 2 &&
+            teamRegistrations.length === teamMembers.length &&
+            teamRegistrations.every((row) => row.status === 'approved')
+
+          const paid =
+            teamRegistrations.length > 0 &&
+            teamRegistrations.every(
+              (row) => paymentByRegistration.get(row.id)?.status === 'paid'
+            )
+
+          return {
+            id: team.id,
+            name: team.name ?? (playerNames.join(' & ') || 'Unnamed pair'),
+            players: playerNames,
+            seed: team.seed,
+            approved,
+            paid,
+          }
+        })
+
+      const divisionMatches = matches.filter((match) => match.division_id === division.id)
+      const elims = divisionMatches.filter((match) => match.stage === 'elims')
+      const knockout = divisionMatches.filter((match) => match.stage !== 'elims')
+
+      const knockoutResults: DrawDivisionData['knockoutResults'] = {}
+      for (const match of knockout) {
+        const played = toPlayed(match)
+        if (match.bracket_key && played) knockoutResults[match.bracket_key] = played
+      }
+
+      return {
+        id: division.id,
+        name: division.name,
+        gender: division.gender,
+        elimsRules: rules.elims,
+        finalsRules: rules.finals,
+        qualifyingPlaces: rules.qualifyingPlaces,
+        teams: divisionTeams,
+        pendingRegistrations: divisionRegistrations.filter((r) => r.status === 'pending').length,
+        unpairedPlayers: divisionRegistrations.filter(
+          (r) => r.status === 'approved' && !pairedPlayers.has(r.player_id)
+        ).length,
+        publishedElims: elims.map((match) => ({
+          id: match.id,
+          stage: match.stage,
+          hasResult: isDecided(match.status),
+        })),
+        publishedKnockout: knockout.map((match) => ({
+          id: match.id,
+          stage: match.stage,
+          hasResult: isDecided(match.status),
+        })),
+        playedElims: elims
+          .map(toPlayed)
+          .filter((played): played is PlayedMatch => played != null),
+        knockoutResults,
+        manualTiebreaks: manualTiebreaksFor(audit, division.id),
+      }
+    }),
+  }
+}

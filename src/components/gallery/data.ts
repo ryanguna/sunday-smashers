@@ -44,7 +44,8 @@ export function buildMatchIndex(
 
 export interface GalleryPageData {
   photos: GalleryPhoto[]
-  tournamentId: string
+  /** Null against a real project with no tournament row yet — uploads are off. */
+  tournamentId: string | null
   isDemo: boolean
 }
 

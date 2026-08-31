@@ -6,22 +6,18 @@ import { useEffect, useId, useRef, useState } from 'react'
 import { Button } from '@/components/ui'
 import { ShuttlecockIcon } from '@/components/icons'
 import { cn } from '@/lib/cn'
-
-const NAV_LINKS = [
-  { href: '/', label: 'Home' },
-  { href: '/rules', label: 'Rules' },
-  { href: '/schedule', label: 'Schedule' },
-  { href: '/standings', label: 'Standings' },
-  { href: '/live', label: 'Live' },
-  { href: '/players', label: 'Players' },
-  { href: '/awards', label: 'Awards' },
-  { href: '/gallery', label: 'Gallery' },
-]
+import { SiteHeaderAuth } from '@/components/SiteHeaderAuth'
+import { NAV_LINKS } from '@/components/site-nav'
 
 /**
  * Site-wide header: logo/wordmark, primary nav, a prominent Register CTA,
- * and a fully keyboard-accessible mobile hamburger menu (Escape to close,
- * focus-trapped while open, focus returns to the trigger on close).
+ * the signed-in player's account controls (see `SiteHeaderAuth`), and a fully
+ * keyboard-accessible mobile hamburger menu (Escape to close, focus-trapped
+ * while open, focus returns to the trigger on close).
+ *
+ * The full nav collapses into the hamburger below `xl` rather than `lg`: the
+ * primary list plus the account controls no longer fit on a 1024px row, and a
+ * squashed desktop header is worse than one more tap.
  *
  * Nav links point at routes other agents are still building — that's
  * expected and fine; a missing route just 404s to the festive not-found
@@ -88,7 +84,7 @@ export function SiteHeader() {
         </Link>
 
         {/* Desktop nav */}
-        <nav aria-label="Primary" className="hidden items-center gap-1 lg:flex">
+        <nav aria-label="Primary" className="hidden items-center gap-0.5 xl:flex">
           {NAV_LINKS.map((link) => {
             const active = pathname === link.href
             return (
@@ -97,7 +93,7 @@ export function SiteHeader() {
                 href={link.href}
                 aria-current={active ? 'page' : undefined}
                 className={cn(
-                  'rounded-[var(--radius-pill)] px-3.5 py-2 text-sm font-semibold font-[family-name:var(--font-heading)] transition-colors',
+                  'rounded-[var(--radius-pill)] px-2.5 py-2 text-sm font-semibold font-[family-name:var(--font-heading)] transition-colors',
                   active
                     ? 'bg-[var(--color-brand-pink-light)] text-[var(--color-brand-pink-dark)]'
                     : 'text-[var(--color-ink-soft)] hover:bg-[var(--color-brand-lilac-light)]/50 hover:text-[var(--color-plum)]'
@@ -109,8 +105,13 @@ export function SiteHeader() {
           })}
         </nav>
 
-        <div className="flex items-center gap-2">
-          <Button href="/register" size="sm" className="hidden sm:inline-flex">
+        <div className="flex items-center gap-1">
+          {/* Account controls: desktop only — the mobile panel renders its own. */}
+          <div className="hidden items-center gap-0.5 xl:flex">
+            <SiteHeaderAuth variant="desktop" />
+          </div>
+
+          <Button href="/register" size="sm" className="ml-1 hidden sm:inline-flex">
             Register
           </Button>
 
@@ -122,7 +123,7 @@ export function SiteHeader() {
             aria-controls={menuId}
             aria-label={open ? 'Close menu' : 'Open menu'}
             onClick={() => setOpen((v) => !v)}
-            className="inline-flex h-10 w-10 items-center justify-center rounded-[var(--radius-md)] text-[var(--color-plum)] hover:bg-[var(--color-brand-lilac-light)]/50 lg:hidden"
+            className="ml-1 inline-flex h-10 w-10 items-center justify-center rounded-[var(--radius-md)] text-[var(--color-plum)] hover:bg-[var(--color-brand-lilac-light)]/50 xl:hidden"
           >
             <svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true">
               {open ? (
@@ -148,7 +149,7 @@ export function SiteHeader() {
       {/* Mobile menu panel */}
       {open && (
         <div
-          className="fixed inset-0 top-[61px] z-30 bg-[var(--color-plum)]/30 backdrop-blur-sm lg:hidden"
+          className="fixed inset-0 top-[61px] z-30 overflow-y-auto bg-[var(--color-plum)]/30 backdrop-blur-sm xl:hidden"
           role="presentation"
           onClick={() => setOpen(false)}
         >
@@ -158,7 +159,7 @@ export function SiteHeader() {
             role="dialog"
             aria-modal="true"
             aria-label="Mobile navigation"
-            className="animate-pop-in mx-4 mt-2 rounded-[var(--radius-lg)] bg-white p-3 shadow-[var(--shadow-lift)]"
+            className="animate-pop-in mx-4 mt-2 mb-6 rounded-[var(--radius-lg)] bg-white p-3 shadow-[var(--shadow-lift)]"
             onClick={(e) => e.stopPropagation()}
           >
             <nav aria-label="Mobile primary" className="flex flex-col gap-1">
@@ -183,6 +184,17 @@ export function SiteHeader() {
               <Button href="/register" className="mt-2 justify-center">
                 Register
               </Button>
+
+              <div
+                role="separator"
+                aria-hidden="true"
+                className="my-2 h-px bg-[var(--color-brand-lilac-light)]"
+              />
+
+              {/* Account controls — the reason a player can reach their own
+                  dashboard from a phone at all. Rendered last so the focus
+                  move-in on open still lands on "Home". */}
+              <SiteHeaderAuth variant="mobile" />
             </nav>
           </div>
         </div>

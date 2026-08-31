@@ -1,5 +1,10 @@
 import type { Metadata } from 'next'
-import { AdminDemoBanner, AdminPageHeader } from '@/components/admin/AdminUI'
+import {
+  AdminDataErrorBanner,
+  AdminDemoBanner,
+  AdminEmptyState,
+  AdminPageHeader,
+} from '@/components/admin/AdminUI'
 import { RegistrationsClient } from '@/components/admin/RegistrationsClient'
 import { getAdminConsoleData } from '@/components/admin/data'
 import { REGISTRATION_STATUSES, type RegistrationFilters } from '@/lib/admin'
@@ -24,7 +29,7 @@ export default async function AdminRegistrationsPage({
   searchParams: Promise<Record<string, string | string[] | undefined>>
 }) {
   const params = await searchParams
-  const { divisions, registrations, isDemo } = await getAdminConsoleData()
+  const { divisions, registrations, isDemo, error } = await getAdminConsoleData()
 
   const first = (key: string) => {
     const value = params[key]
@@ -46,11 +51,21 @@ export default async function AdminRegistrationsPage({
         description="Search, review and export every entry. Tick players to approve, waitlist or reject in bulk."
       />
       {isDemo && <AdminDemoBanner />}
-      <RegistrationsClient
-        registrations={registrations}
-        divisions={divisions}
-        initialFilters={initialFilters}
-      />
+      {error && <AdminDataErrorBanner message={error} />}
+      {registrations.length === 0 ? (
+        <AdminEmptyState
+          title="The nice list is empty — for now"
+          description="Nobody has signed up yet. Share the registration link with the club and entries will land here the moment they arrive, ready for you to approve."
+          href="/register"
+          linkLabel="See the registration page"
+        />
+      ) : (
+        <RegistrationsClient
+          registrations={registrations}
+          divisions={divisions}
+          initialFilters={initialFilters}
+        />
+      )}
     </>
   )
 }

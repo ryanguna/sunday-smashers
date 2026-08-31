@@ -1,15 +1,7 @@
 import Link from 'next/link'
 import { ShuttlecockIcon, HollyIcon } from '@/components/icons'
 import { TOURNAMENT_DATE_LABEL } from '@/lib/tournament'
-
-const FOOTER_LINKS = [
-  { href: '/rules', label: 'Rules' },
-  { href: '/schedule', label: 'Schedule' },
-  { href: '/standings', label: 'Standings' },
-  { href: '/players', label: 'Players' },
-  { href: '/awards', label: 'Awards' },
-  { href: '/gallery', label: 'Gallery' },
-]
+import { FOOTER_LINKS } from '@/components/site-nav'
 
 export function SiteFooter() {
   return (
@@ -32,7 +24,10 @@ export function SiteFooter() {
           </p>
         </div>
 
-        <nav aria-label="Footer" className="grid grid-cols-2 gap-x-8 gap-y-2 sm:flex sm:gap-6">
+        <nav
+          aria-label="Footer"
+          className="grid grid-cols-2 gap-x-8 gap-y-2.5 sm:grid-cols-3 lg:grid-cols-4"
+        >
           {FOOTER_LINKS.map((link) => (
             <Link
               key={link.href}

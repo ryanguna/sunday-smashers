@@ -10,7 +10,14 @@ import {
   SparkleIcon,
   TrophyIcon,
 } from '@/components/icons'
-import { AdminDemoBanner, AdminPageHeader, AlertTile, StatCard } from '@/components/admin/AdminUI'
+import {
+  AdminDataErrorBanner,
+  AdminDemoBanner,
+  AdminEmptyState,
+  AdminPageHeader,
+  AlertTile,
+  StatCard,
+} from '@/components/admin/AdminUI'
 import { getAdminConsoleData } from '@/components/admin/data'
 import {
   buildAlerts,
@@ -50,7 +57,7 @@ const CAPACITY_COPY: Record<CapacityState, { label: string; className: string }>
 }
 
 export default async function AdminDashboardPage() {
-  const { divisions, registrations, pendingInvites, isDemo } = await getAdminConsoleData()
+  const { divisions, registrations, pendingInvites, isDemo, error } = await getAdminConsoleData()
 
   const statusCounts = countByStatus(registrations)
   const summaries = summariseByDivision(registrations, divisions)
@@ -59,6 +66,28 @@ export default async function AdminDashboardPage() {
   const alerts = buildAlerts(registrations, divisions, pendingInvites.length)
   const shirts = shirtSizeTally(registrations)
   const collectionPercent = Math.round(totals.collectionRate * 100)
+
+  // Day zero on a real, connected project: no entries at all. Zeroes in every
+  // tile tell a volunteer nothing, so say what happens next instead.
+  if (registrations.length === 0) {
+    return (
+      <>
+        <AdminPageHeader
+          eyebrow="Ho ho ho"
+          title="Tournament HQ"
+          description={`Everything at a glance for ${TOURNAMENT_DATE_LABEL}.`}
+        />
+        {isDemo && <AdminDemoBanner />}
+        {error && <AdminDataErrorBanner message={error} />}
+        <AdminEmptyState
+          title="Quiet as fresh snow"
+          description="No entries yet. Check the tournament details and divisions are set up in Settings, then share the registration link — every sign-up lands here for you to approve."
+          href="/admin/settings"
+          linkLabel="Open Settings"
+        />
+      </>
+    )
+  }
 
   return (
     <>
@@ -79,6 +108,7 @@ export default async function AdminDashboardPage() {
       />
 
       {isDemo && <AdminDemoBanner />}
+      {error && <AdminDataErrorBanner message={error} />}
 
       <section aria-labelledby="dash-stats" className="mb-6">
         <h2 id="dash-stats" className="sr-only">

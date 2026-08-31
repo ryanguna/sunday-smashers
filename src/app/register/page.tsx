@@ -1,6 +1,7 @@
 import type { Metadata } from 'next'
 import { isSupabaseConfigured } from '@/lib/supabase/config'
 import { getRegistrationWindow } from '@/lib/registration'
+import { loadPublicTournamentConfig } from '@/lib/tournament-config'
 import { PRE_REGISTRATION_OPENS_AT, REGISTRATION_CLOSES_AT } from '@/lib/tournament'
 import { Countdown } from '@/components/ui'
 import { RegistrationShell } from '@/components/registration/RegistrationShell'
@@ -47,7 +48,13 @@ export default async function RegisterPage({
 }) {
   const params = await searchParams
   const preview = readPreview(params.preview)
-  const info = getRegistrationWindow(previewNow(preview))
+  // Dates and the open/closed switch come from the tournament row, so the
+  // committee can open the sheet for a test run without a redeploy (audit B4).
+  const config = await loadPublicTournamentConfig()
+  const info = getRegistrationWindow(previewNow(preview), {
+    dates: config.dates,
+    isRegistrationOpen: config.isRegistrationOpen,
+  })
   const waitingRoom = info.window === 'not-open-yet'
 
   return (

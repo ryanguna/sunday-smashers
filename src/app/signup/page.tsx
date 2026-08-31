@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, type FormEvent } from 'react'
+import { useEffect, useRef, useState, type FormEvent } from 'react'
 import Link from 'next/link'
 import { Button } from '@/components/ui'
 import { GiftIcon } from '@/components/icons'
@@ -9,6 +9,8 @@ import { TextField } from '@/components/auth/FormField'
 import { AlertBanner, DemoModeNotice } from '@/components/auth/DemoModeNotice'
 import { createClient } from '@/lib/supabase/client'
 import { isSupabaseConfigured } from '@/lib/supabase/config'
+import { ResendConfirmation, SpamFolderNote } from '../auth/ResendConfirmation'
+import { isAlreadyRegisteredError } from '../auth/resend-cooldown'
 
 interface FormErrors {
   fullName?: string
@@ -35,10 +37,20 @@ export default function SignupPage() {
   const [serverError, setServerError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
   const [submitted, setSubmitted] = useState(false)
+  const [existingAccount, setExistingAccount] = useState(false)
+  const doneRef = useRef<HTMLDivElement>(null)
+
+  // Send focus to the confirmation once it appears, so a screen reader reads
+  // "check your email" instead of leaving the user on a vanished form.
+  useEffect(() => {
+    if (submitted) doneRef.current?.focus()
+  }, [submitted])
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
+    if (loading) return
     setServerError(null)
+    setExistingAccount(false)
     const validation = validate(fullName, email, password, confirmPassword)
     setErrors(validation)
     if (Object.keys(validation).length > 0) return
@@ -55,11 +67,11 @@ export default function SignupPage() {
     })
     setLoading(false)
     if (error) {
-      setServerError(
-        error.message.toLowerCase().includes('already registered')
-          ? 'That email is already registered — try signing in instead.'
-          : error.message,
-      )
+      if (isAlreadyRegisteredError(error.message)) {
+        setExistingAccount(true)
+        return
+      }
+      setServerError(error.message)
       return
     }
     setSubmitted(true)
@@ -83,13 +95,47 @@ export default function SignupPage() {
       {!isSupabaseConfigured() ? (
         <DemoModeNotice />
       ) : submitted ? (
-        <AlertBanner variant="success">
-          Almost there! We&apos;ve sent a confirmation link to <strong>{email}</strong> — click it to
-          verify your account, then finish your player profile.
-        </AlertBanner>
+        <div ref={doneRef} tabIndex={-1} className="outline-none">
+          <AlertBanner variant="success">
+            Almost there! We&apos;ve sent a confirmation link to <strong>{email}</strong> — click it
+            to verify your account, then finish your player profile.
+          </AlertBanner>
+          <SpamFolderNote />
+          <ResendConfirmation email={email} startOnCooldown className="mt-4" />
+          <button
+            type="button"
+            onClick={() => setSubmitted(false)}
+            className="mt-4 w-full text-sm font-semibold text-[var(--color-brand-pink-dark)] underline hover:no-underline"
+          >
+            Wrong email? Start again
+          </button>
+        </div>
       ) : (
         <form onSubmit={handleSubmit} noValidate>
           {serverError && <AlertBanner>{serverError}</AlertBanner>}
+          {existingAccount && (
+            <div
+              role="alert"
+              className="mb-4 rounded-[var(--radius-md)] bg-[var(--color-info-bg)] p-3.5 text-sm text-[var(--color-info)]"
+            >
+              <p className="font-[family-name:var(--font-heading)] font-bold">
+                You&apos;re already on the list
+              </p>
+              <p className="mt-1.5 font-medium">
+                <strong>{email}</strong> already has an account.{' '}
+                <Link href="/login" className="font-semibold underline">
+                  Sign in
+                </Link>{' '}
+                or{' '}
+                <Link href="/forgot-password" className="font-semibold underline">
+                  reset your password
+                </Link>
+                . Never confirmed your email? We can send that link again.
+              </p>
+              <ResendConfirmation email={email} className="mt-3" />
+              <SpamFolderNote />
+            </div>
+          )}
           <TextField
             label="Full name"
             name="fullName"
@@ -134,7 +180,7 @@ export default function SignupPage() {
             error={errors.confirmPassword}
             placeholder="••••••••"
           />
-          <Button type="submit" className="mt-2 w-full" loading={loading}>
+          <Button type="submit" className="mt-2 w-full" loading={loading} disabled={loading}>
             Create account
           </Button>
         </form>

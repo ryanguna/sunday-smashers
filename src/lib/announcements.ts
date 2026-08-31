@@ -383,7 +383,7 @@ export function getDemoAnnouncements(now: Date | number = Date.now()): Announcem
 }
 
 // ---------------------------------------------------------------------------
-// Data access (never throws — always falls back to demo fixtures)
+// Data access (never throws; demo fixtures in demo mode only)
 // ---------------------------------------------------------------------------
 
 /**
@@ -405,10 +405,12 @@ async function fetchRows(
     let query = client.from('announcements').select('*')
     if (publishedOnly) query = query.eq('is_published', true)
     const { data, error } = await query.order('created_at', { ascending: false })
-    if (error || !data) return null
-    return (data as AnnouncementRow[]).map(toAnnouncement)
+    // A real project with no notices yet — or a failed read — is an empty
+    // board, never the demo seeds. See `@/lib/demo-mode` for the one rule.
+    if (error) return []
+    return ((data ?? []) as AnnouncementRow[]).map(toAnnouncement)
   } catch {
-    return null
+    return []
   }
 }
 
@@ -449,11 +451,13 @@ export async function getAllAnnouncements(
 
 /**
  * The tournament new notices are posted against. Returns
- * `DEMO_TOURNAMENT_ID` in demo mode (nothing is persisted there anyway).
+ * `DEMO_TOURNAMENT_ID` in demo mode (nothing is persisted there anyway), and
+ * `null` against a real project with no tournament row yet — the composer
+ * refuses to post rather than inventing a tournament id.
  */
 export async function getAnnouncementTournamentId(
   client?: AnnouncementsClient | null,
-): Promise<string> {
+): Promise<string | null> {
   if (!client || !isSupabaseConfigured()) return DEMO_TOURNAMENT_ID
   try {
     const { data } = await client
@@ -463,8 +467,8 @@ export async function getAnnouncementTournamentId(
       .limit(1)
       .maybeSingle()
     const row = data as { id: string } | null
-    return row?.id ?? DEMO_TOURNAMENT_ID
+    return row?.id ?? null
   } catch {
-    return DEMO_TOURNAMENT_ID
+    return null
   }
 }

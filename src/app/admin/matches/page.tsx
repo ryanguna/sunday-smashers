@@ -2,7 +2,12 @@ import type { Metadata } from 'next'
 
 import { requireAdmin } from '@/lib/auth'
 import { isSupabaseConfigured } from '@/lib/supabase/config'
-import { AdminDemoBanner, AdminPageHeader } from '@/components/admin/AdminUI'
+import {
+  AdminDataErrorBanner,
+  AdminDemoBanner,
+  AdminEmptyState,
+  AdminPageHeader,
+} from '@/components/admin/AdminUI'
 import { MatchesConsole } from '@/components/admin/MatchesConsole'
 import { Button } from '@/components/ui'
 import { RacketIcon } from '@/components/icons'
@@ -27,7 +32,7 @@ export default async function AdminMatchesPage() {
     await requireAdmin('/admin/matches')
   }
 
-  const { rows, divisions, matches, courts, slots, teams, placements, overrides, isDemo } =
+  const { rows, divisions, matches, courts, slots, teams, placements, overrides, isDemo, error } =
     await getMatchAdminData()
 
   return (
@@ -44,12 +49,22 @@ export default async function AdminMatchesPage() {
         }
       />
       {isDemo && <AdminDemoBanner />}
-      <MatchesConsole
-        rows={rows}
-        divisions={divisions}
-        isDemo={isDemo}
-        context={{ matches, courts, slots, teams, placements, overrides }}
-      />
+      {error && <AdminDataErrorBanner message={error} />}
+      {rows.length === 0 ? (
+        <AdminEmptyState
+          title="No fixtures on the books yet"
+          description="Every match here comes from a published draw. Once the draw is out and scheduled, you can correct scores, record a no-show or move a game from this page."
+          href="/admin/draw"
+          linkLabel="Publish a draw"
+        />
+      ) : (
+        <MatchesConsole
+          rows={rows}
+          divisions={divisions}
+          isDemo={isDemo}
+          context={{ matches, courts, slots, teams, placements, overrides }}
+        />
+      )}
     </>
   )
 }

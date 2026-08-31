@@ -2,7 +2,12 @@ import type { Metadata } from 'next'
 
 import { requireAdmin } from '@/lib/auth'
 import { isSupabaseConfigured } from '@/lib/supabase/config'
-import { AdminDemoBanner, AdminPageHeader } from '@/components/admin/AdminUI'
+import {
+  AdminDataErrorBanner,
+  AdminDemoBanner,
+  AdminEmptyState,
+  AdminPageHeader,
+} from '@/components/admin/AdminUI'
 import { Button } from '@/components/ui'
 import { TrophyIcon } from '@/components/icons'
 import { DrawWorkbench } from '@/components/draw/DrawWorkbench'
@@ -27,7 +32,7 @@ export default async function AdminDrawPage() {
     await requireAdmin('/admin/draw')
   }
 
-  const { divisions, isDemo } = await getDrawWorkbenchData()
+  const { divisions, isDemo, error } = await getDrawWorkbenchData()
 
   return (
     <>
@@ -43,7 +48,17 @@ export default async function AdminDrawPage() {
         }
       />
       {isDemo && <AdminDemoBanner />}
-      <DrawWorkbench divisions={divisions} isDemo={isDemo} />
+      {error && <AdminDataErrorBanner message={error} />}
+      {divisions.length === 0 ? (
+        <AdminEmptyState
+          title="No divisions to draw yet"
+          description="Set up the tournament and its divisions first — men's and women's doubles, court count and the rules. The draw workbench fills itself in from there."
+          href="/admin/settings/divisions"
+          linkLabel="Set up divisions"
+        />
+      ) : (
+        <DrawWorkbench divisions={divisions} isDemo={isDemo} />
+      )}
     </>
   )
 }

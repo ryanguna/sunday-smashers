@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react'
 import { cn } from '@/lib/cn'
-import { Card } from '@/components/ui'
+import { Button, Card, EmptyState } from '@/components/ui'
 import { GiftIcon, HollyIcon, SparkleIcon } from '@/components/icons'
 import type { AlertTone } from '@/lib/admin'
 
@@ -134,5 +134,61 @@ export function AdminDemoBanner() {
         Approvals, rejections and payment edits are previewed but never saved.
       </p>
     </div>
+  )
+}
+
+/**
+ * Shown when a live query failed. The console deliberately does *not* fall
+ * back to sample data (see `@/lib/demo-mode`), so this strip is how a
+ * volunteer learns the page is thin because the database was unreachable —
+ * not because the entries vanished.
+ */
+export function AdminDataErrorBanner({ message }: { message: string }) {
+  return (
+    <div
+      role="alert"
+      className="mb-5 flex items-start gap-3 rounded-[var(--radius-md)] bg-[var(--color-warn-bg)] p-3.5 text-sm text-[var(--color-warn)]"
+    >
+      <SparkleIcon size={20} className="mt-0.5 shrink-0" aria-hidden="true" />
+      <p>
+        <span className="font-[family-name:var(--font-heading)] font-bold">
+          Couldn&apos;t load everything.
+        </span>{' '}
+        {message}
+      </p>
+    </div>
+  )
+}
+
+/**
+ * The day-zero empty state: a real, connected project that simply has nothing
+ * in it yet. Always tells the volunteer the single next thing to do.
+ */
+export function AdminEmptyState({
+  title,
+  description,
+  href,
+  linkLabel,
+  icon,
+}: {
+  title: string
+  description: string
+  href?: string
+  linkLabel?: string
+  icon?: ReactNode
+}) {
+  return (
+    <EmptyState
+      icon={icon}
+      title={title}
+      description={description}
+      action={
+        href && linkLabel ? (
+          <Button href={href} variant="secondary" size="sm">
+            {linkLabel}
+          </Button>
+        ) : undefined
+      }
+    />
   )
 }

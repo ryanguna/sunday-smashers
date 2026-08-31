@@ -57,12 +57,17 @@ export interface AdminTeam {
   members: TeamPlayer[]
 }
 
-export interface TeamsAdminData {
+export interface TeamsAdminRows {
   divisions: AdminDivision[]
   teams: AdminTeam[]
   freeAgents: TeamPlayer[]
+}
+
+export interface TeamsAdminData extends TeamsAdminRows {
   /** True when the rows above are the bundled demo set, not live data. */
   isDemo: boolean
+  /** Set when a live query failed; the rows above are empty in that case. */
+  error: string | null
 }
 
 // ---------------------------------------------------------------------------

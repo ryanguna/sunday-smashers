@@ -407,3 +407,75 @@ describe('confirmationCopy', () => {
     expect(pending.nextSteps.some((step) => step.includes('committee'))).toBe(true)
   })
 })
+
+describe('the organiser switch overrides the calendar (audit B4)', () => {
+  const beforeOpen = new Date('2026-08-31T00:00:00+10:00')
+  const duringOpen = new Date('2026-10-01T00:00:00+11:00')
+  const afterClose = new Date('2026-12-10T00:00:00+11:00')
+  const onTheDay = new Date('2026-12-13T12:00:00+11:00')
+
+  it('leaves the calendar in charge when the organisers have no opinion', () => {
+    expect(getRegistrationWindow(beforeOpen).window).toBe('not-open-yet')
+    expect(getRegistrationWindow(beforeOpen, { isRegistrationOpen: null }).window).toBe(
+      'not-open-yet',
+    )
+  })
+
+  it('opens the sheet early when the organisers say so — the whole point for a test run', () => {
+    const info = getRegistrationWindow(beforeOpen, { isRegistrationOpen: true })
+    expect(info.window).toBe('open')
+    expect(info.acceptsSubmissions).toBe(true)
+  })
+
+  it('closes the sheet mid-window when the organisers say so', () => {
+    expect(getRegistrationWindow(duringOpen).window).toBe('open')
+    const info = getRegistrationWindow(duringOpen, { isRegistrationOpen: false })
+    expect(info.window).toBe('closed')
+    // Still accepts waitlist entries — closing is not the same as vanishing.
+    expect(info.acceptsSubmissions).toBe(true)
+  })
+
+  it('re-opens a date-closed window when the organisers flip it back on', () => {
+    expect(getRegistrationWindow(afterClose).window).toBe('closed')
+    expect(getRegistrationWindow(afterClose, { isRegistrationOpen: true }).window).toBe('open')
+  })
+
+  it('cannot resurrect registration once the tournament has begun', () => {
+    const info = getRegistrationWindow(onTheDay, { isRegistrationOpen: true })
+    expect(info.window).toBe('closed')
+    expect(info.acceptsSubmissions).toBe(false)
+  })
+
+  it('honours dates supplied by the tournament row instead of the constants', () => {
+    const dates = {
+      preRegistrationOpensAt: '2026-01-01T00:00:00+11:00',
+      registrationClosesAt: '2026-02-01T00:00:00+11:00',
+      tournamentDate: '2026-03-01T00:00:00+11:00',
+    }
+    // A moment that is "before pre-registration" under the defaults but wide
+    // open under the organisers' own dates.
+    const info = getRegistrationWindow(new Date('2026-01-15T00:00:00+11:00'), { dates })
+    expect(info.window).toBe('open')
+  })
+
+  it('still accepts a bare TournamentDates for older call sites', () => {
+    const dates = {
+      preRegistrationOpensAt: '2026-01-01T00:00:00+11:00',
+      registrationClosesAt: '2026-02-01T00:00:00+11:00',
+      tournamentDate: '2026-03-01T00:00:00+11:00',
+    }
+    expect(getRegistrationWindow(new Date('2026-01-15T00:00:00+11:00'), dates).window).toBe('open')
+  })
+
+  it('quotes the configured opening date, never a hardcoded one', () => {
+    const info = getRegistrationWindow(new Date('2025-12-01T00:00:00+11:00'), {
+      dates: {
+        preRegistrationOpensAt: '2026-01-09T00:00:00+11:00',
+        registrationClosesAt: '2026-02-01T00:00:00+11:00',
+        tournamentDate: '2026-03-01T00:00:00+11:00',
+      },
+    })
+    expect(info.message).toContain('9 January 2026')
+    expect(info.message).not.toContain('6 September')
+  })
+})

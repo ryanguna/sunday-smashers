@@ -1,7 +1,7 @@
 import type { Metadata } from 'next'
 
 import { requireAdmin } from '@/lib/auth'
-import { AdminDemoBanner, AdminPageHeader } from '@/components/admin/AdminUI'
+import { AdminDataErrorBanner, AdminDemoBanner, AdminPageHeader } from '@/components/admin/AdminUI'
 import { ChecklistBoard } from '@/components/checklist'
 import { TOURNAMENT_DATE_LABEL } from '@/lib/tournament'
 import { getChecklistPageData } from './data'
@@ -25,12 +25,13 @@ export const dynamic = 'force-dynamic'
 export default async function AdminChecklistPage() {
   await requireAdmin('/admin/checklist')
 
-  const { items, derived, nowIso, tournamentId, needsSeeding, isDemo } =
+  const { items, derived, nowIso, tournamentId, needsSeeding, isDemo, error } =
     await getChecklistPageData()
 
   return (
     <div>
       {isDemo && <AdminDemoBanner />}
+      {error && <AdminDataErrorBanner message={error} />}
       <AdminPageHeader
         eyebrow="Before the whistle"
         title="Loot bags & prizes checklist"

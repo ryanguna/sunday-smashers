@@ -1,6 +1,7 @@
 import { cache } from 'react'
 
 import { isSupabaseConfigured } from '@/lib/supabase/config'
+import { loadLiveOrDemo, rowsOrThrow } from '@/lib/demo-mode'
 import { createClient } from '@/lib/supabase/server'
 import type {
   CourtRow,
@@ -42,7 +43,7 @@ import {
 export const SCHEDULE_AUDIT_ACTION = 'schedule.published'
 export const DUTY_AUDIT_ACTION = 'duty_roster.published'
 
-export interface ScheduleWorkbenchData {
+interface ScheduleWorkbenchRows {
   matches: SchedulableMatch[]
   courts: ScheduleCourt[]
   slots: ScheduleSlot[]
@@ -51,7 +52,12 @@ export interface ScheduleWorkbenchData {
   savedPlacements: PlacementMap
   /** Duty seats an admin has hand-assigned (no `source_match_id`). */
   manualDuties: DutyOverride[]
+}
+
+export interface ScheduleWorkbenchData extends ScheduleWorkbenchRows {
   isDemo: boolean
+  /** Set when a live query failed; the lists above are empty in that case. */
+  error: string | null
 }
 
 // ---------------------------------------------------------------------------
@@ -68,7 +74,7 @@ function slugify(value: string): string {
 const demoCourtId = (name: string) => `demo-court-${slugify(name)}`
 const demoSlotId = (index: number) => `demo-slot-${index}`
 
-function demoData(): ScheduleWorkbenchData {
+function demoRows(): ScheduleWorkbenchRows {
   const bundles: DemoDivisionBundle[] = getAllDemoBundles()
 
   const courtNames = new Set<string>()
@@ -128,7 +134,17 @@ function demoData(): ScheduleWorkbenchData {
     teams,
     savedPlacements: placementsFromMatches(matches),
     manualDuties: [],
-    isDemo: true,
+  }
+}
+
+function emptyRows(): ScheduleWorkbenchRows {
+  return {
+    matches: [],
+    courts: [],
+    slots: [],
+    teams: [],
+    savedPlacements: {},
+    manualDuties: [],
   }
 }
 
@@ -199,115 +215,123 @@ function toManualOverrides(rows: readonly DutyAssignmentRow[]): DutyOverride[] {
     })
 }
 
-async function loadLive(): Promise<ScheduleWorkbenchData | null> {
-  try {
-    const supabase = await createClient()
+async function loadLive(): Promise<ScheduleWorkbenchRows> {
+  const supabase = await createClient()
 
-    const { data: tournamentRows } = await supabase
+  const tournamentRows = rowsOrThrow(
+    await supabase
       .from('tournaments')
       .select('*')
       .order('tournament_date', { ascending: true })
-      .limit(1)
-    const tournament = (tournamentRows as TournamentRow[] | null)?.[0]
-    if (!tournament) return null
+      .limit(1),
+  ) as TournamentRow[]
+  const tournament = tournamentRows[0]
+  // No tournament row yet is a genuine day-zero state, not an error.
+  if (!tournament) return emptyRows()
 
-    const [
-      { data: courtRows },
-      { data: slotRows },
-      { data: divisionRows },
-      { data: teamRows },
-      { data: memberRows },
-      { data: profileRows },
-      { data: matchRows },
-      { data: dutyRows },
-    ] = await Promise.all([
-      supabase.from('courts').select('*').eq('tournament_id', tournament.id).order('sort_order'),
-      supabase.from('time_slots').select('*').eq('tournament_id', tournament.id).order('starts_at'),
-      supabase.from('divisions').select('*').eq('tournament_id', tournament.id),
-      supabase.from('teams').select('*'),
-      supabase.from('team_members').select('*'),
-      supabase.from('profiles').select('id, full_name'),
-      supabase.from('matches').select('*'),
-      supabase.from('duty_assignments').select('*'),
-    ])
+  const [
+    courtResult,
+    slotResult,
+    divisionResult,
+    teamResult,
+    memberResult,
+    profileResult,
+    matchResult,
+    dutyResult,
+  ] = await Promise.all([
+    supabase.from('courts').select('*').eq('tournament_id', tournament.id).order('sort_order'),
+    supabase.from('time_slots').select('*').eq('tournament_id', tournament.id).order('starts_at'),
+    supabase.from('divisions').select('*').eq('tournament_id', tournament.id),
+    supabase.from('teams').select('*'),
+    supabase.from('team_members').select('*'),
+    supabase.from('profiles').select('id, full_name'),
+    supabase.from('matches').select('*'),
+    supabase.from('duty_assignments').select('*'),
+  ])
 
-    const divisions = (divisionRows ?? []) as DivisionRow[]
-    const divisionIds = new Set(divisions.map((d) => d.id))
-    const divisionName = new Map(divisions.map((d) => [d.id, d.name]))
+  const divisions = rowsOrThrow(divisionResult) as DivisionRow[]
+  const divisionIds = new Set(divisions.map((d) => d.id))
+  const divisionName = new Map(divisions.map((d) => [d.id, d.name]))
 
-    const matches = ((matchRows ?? []) as MatchRow[])
-      .filter((row) => divisionIds.has(row.division_id))
-      .map((row) => toSchedulableMatch(row, divisionName.get(row.division_id) ?? 'Division'))
+  const matches = (rowsOrThrow(matchResult) as MatchRow[])
+    .filter((row) => divisionIds.has(row.division_id))
+    .map((row) => toSchedulableMatch(row, divisionName.get(row.division_id) ?? 'Division'))
 
-    if (matches.length === 0) return null
+  const nameById = new Map(
+    (rowsOrThrow(profileResult) as Pick<ProfileRow, 'id' | 'full_name'>[]).map((p) => [
+      p.id,
+      p.full_name,
+    ]),
+  )
+  const membersByTeam = new Map<string, TeamMemberRow[]>()
+  for (const member of rowsOrThrow(memberResult) as TeamMemberRow[]) {
+    membersByTeam.set(member.team_id, [...(membersByTeam.get(member.team_id) ?? []), member])
+  }
 
-    const nameById = new Map(
-      ((profileRows ?? []) as Pick<ProfileRow, 'id' | 'full_name'>[]).map((p) => [
-        p.id,
-        p.full_name,
-      ]),
-    )
-    const membersByTeam = new Map<string, TeamMemberRow[]>()
-    for (const member of (memberRows ?? []) as TeamMemberRow[]) {
-      membersByTeam.set(member.team_id, [...(membersByTeam.get(member.team_id) ?? []), member])
-    }
+  const teams: ScheduleTeam[] = (rowsOrThrow(teamResult) as TeamRow[])
+    .filter((team) => divisionIds.has(team.division_id))
+    .map((team) => {
+      const members = membersByTeam.get(team.id) ?? []
+      const players = members.map((member) => ({
+        id: member.player_id,
+        name: nameById.get(member.player_id) ?? 'Unknown player',
+      }))
+      return {
+        id: team.id,
+        divisionId: team.division_id,
+        name: team.name ?? (players.map((p) => p.name).join(' & ') || 'Unnamed pair'),
+        players,
+      }
+    })
 
-    const teams: ScheduleTeam[] = ((teamRows ?? []) as TeamRow[])
-      .filter((team) => divisionIds.has(team.division_id))
-      .map((team) => {
-        const members = membersByTeam.get(team.id) ?? []
-        const players = members.map((member) => ({
-          id: member.player_id,
-          name: nameById.get(member.player_id) ?? 'Unknown player',
-        }))
-        return {
-          id: team.id,
-          divisionId: team.division_id,
-          name: team.name ?? (players.map((p) => p.name).join(' & ') || 'Unnamed pair'),
-          players,
-        }
-      })
+  const courts: ScheduleCourt[] = (rowsOrThrow(courtResult) as CourtRow[]).map((row, index) => ({
+    id: row.id,
+    name: row.name,
+    sortOrder: row.sort_order ?? index,
+  }))
 
-    const courts: ScheduleCourt[] = ((courtRows ?? []) as CourtRow[]).map((row, index) => ({
-      id: row.id,
-      name: row.name,
-      sortOrder: row.sort_order ?? index,
-    }))
+  const slots: ScheduleSlot[] = (rowsOrThrow(slotResult) as TimeSlotRow[]).map((row, index) => ({
+    id: row.id,
+    index,
+    label: slotLabelFor(row, index),
+  }))
 
-    const slots: ScheduleSlot[] = ((slotRows ?? []) as TimeSlotRow[]).map((row, index) => ({
-      id: row.id,
-      index,
-      label: slotLabelFor(row, index),
-    }))
-
-    return {
-      matches,
-      courts,
-      slots,
-      teams,
-      savedPlacements: placementsFromMatches(matches),
-      manualDuties: toManualOverrides((dutyRows ?? []) as DutyAssignmentRow[]),
-      isDemo: false,
-    }
-  } catch {
-    return null
+  return {
+    matches,
+    courts,
+    slots,
+    teams,
+    savedPlacements: placementsFromMatches(matches),
+    manualDuties: toManualOverrides(rowsOrThrow(dutyResult) as DutyAssignmentRow[]),
   }
 }
 
 /**
- * Loads the schedule workbench. Any failure (no tournament, no published
- * draw, an RLS surprise) falls back to the demo tournament rather than
- * leaving an admin staring at an empty grid on tournament morning.
+ * Loads the schedule workbench. No tournament, no courts or no published draw
+ * are all genuine day-zero states and come back empty — the builder says what
+ * to do next rather than showing a pretend tournament. See `@/lib/demo-mode`.
  */
 export const getScheduleWorkbenchData = cache(
   async function getScheduleWorkbenchData(): Promise<ScheduleWorkbenchData> {
-    if (!isSupabaseConfigured()) return demoData()
-    return (await loadLive()) ?? demoData()
+    const { data, isDemo, error } = await loadLiveOrDemo<ScheduleWorkbenchRows>({
+      demo: demoRows,
+      empty: emptyRows,
+      live: loadLive,
+    })
+    return { ...data, isDemo, error }
   },
 )
 
-/** Uncached read used by the write actions for their own server-side re-check. */
+/**
+ * Uncached read used by the write actions for their own server-side re-check.
+ * `null` means "cannot be verified against the database right now", which the
+ * actions turn into a refusal — never a demo write.
+ */
 export async function loadScheduleContext(): Promise<ScheduleWorkbenchData | null> {
   if (!isSupabaseConfigured()) return null
-  return loadLive()
+  try {
+    return { ...(await loadLive()), isDemo: false, error: null }
+  } catch {
+    return null
+  }
 }

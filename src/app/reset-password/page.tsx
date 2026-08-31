@@ -1,7 +1,6 @@
 'use client'
 
-import { useEffect, useState, type FormEvent } from 'react'
-import { useRouter } from 'next/navigation'
+import { useEffect, useRef, useState, type FormEvent } from 'react'
 import { Button } from '@/components/ui'
 import { BaubleIcon } from '@/components/icons'
 import { AuthShell } from '@/components/auth/AuthShell'
@@ -11,7 +10,6 @@ import { createClient } from '@/lib/supabase/client'
 import { isSupabaseConfigured } from '@/lib/supabase/config'
 
 export default function ResetPasswordPage() {
-  const router = useRouter()
   const [checkingSession, setCheckingSession] = useState(isSupabaseConfigured())
   const [hasSession, setHasSession] = useState(false)
   const [password, setPassword] = useState('')
@@ -19,6 +17,13 @@ export default function ResetPasswordPage() {
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
   const [done, setDone] = useState(false)
+  const doneRef = useRef<HTMLDivElement>(null)
+
+  // No timed redirect: the player decides when to move on, so a screen reader
+  // has time to finish reading the confirmation.
+  useEffect(() => {
+    if (done) doneRef.current?.focus()
+  }, [done])
 
   useEffect(() => {
     if (!isSupabaseConfigured()) {
@@ -33,6 +38,7 @@ export default function ResetPasswordPage() {
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
+    if (loading) return
     setError(null)
     if (password.length < 8) {
       setError('Use at least 8 characters.')
@@ -51,7 +57,6 @@ export default function ResetPasswordPage() {
       return
     }
     setDone(true)
-    setTimeout(() => router.push('/dashboard'), 1800)
   }
 
   return (
@@ -66,7 +71,14 @@ export default function ResetPasswordPage() {
       ) : checkingSession ? (
         <p className="text-center text-sm text-[var(--color-ink-soft)]">Checking your reset link…</p>
       ) : done ? (
-        <AlertBanner variant="success">Password updated! Taking you to your dashboard…</AlertBanner>
+        <div ref={doneRef} tabIndex={-1} className="outline-none">
+          <AlertBanner variant="success">
+            Password updated! You&apos;re all set — sign in with your new password any time.
+          </AlertBanner>
+          <Button href="/dashboard" className="w-full">
+            Continue to my dashboard
+          </Button>
+        </div>
       ) : !hasSession ? (
         <AlertBanner>
           This reset link has expired or was already used. Head back to{' '}
@@ -99,7 +111,7 @@ export default function ResetPasswordPage() {
             onChange={(event) => setConfirmPassword(event.target.value)}
             placeholder="••••••••"
           />
-          <Button type="submit" className="w-full" loading={loading}>
+          <Button type="submit" className="w-full" loading={loading} disabled={loading}>
             Update password
           </Button>
         </form>

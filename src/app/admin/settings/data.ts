@@ -1,6 +1,6 @@
 import { cache } from 'react'
 
-import { isSupabaseConfigured } from '@/lib/supabase/config'
+import { loadLiveOrDemo, rowsOrThrow } from '@/lib/demo-mode'
 import { getAllDemoBundles, type DemoMatchStatus } from '@/lib/demo-data'
 import { createClient } from '@/lib/supabase/server'
 import type {
@@ -44,7 +44,7 @@ import {
 export const SETTINGS_EXTRAS_SLUG = 'settings-extras'
 export const PRIZES_SLUG = 'prize-config'
 
-export interface SettingsPageData {
+interface SettingsPageRows {
   settings: TournamentSettings
   users: ManagedUser[]
   drawState: DrawState
@@ -52,7 +52,12 @@ export interface SettingsPageData {
   entryCounts: Record<string, number>
   tournamentId: string | null
   currentUserId: string | null
+}
+
+export interface SettingsPageData extends SettingsPageRows {
   isDemo: boolean
+  /** Set when a live query failed; the defaults above are shown in that case. */
+  error: string | null
 }
 
 const DEMO_USERS: ManagedUser[] = [
@@ -105,7 +110,7 @@ const DEMO_USERS: ManagedUser[] = [
  * shared demo dataset (`src/lib/demo-data.ts`) so the previews here agree with
  * the public schedule, standings and bracket pages.
  */
-function demoData(): SettingsPageData {
+function demoRows(): SettingsPageRows {
   const settings = defaultTournamentSettings()
   const bundles = getAllDemoBundles()
 
@@ -130,7 +135,21 @@ function demoData(): SettingsPageData {
     entryCounts,
     tournamentId: null,
     currentUserId: 'demo-user-1',
-    isDemo: true,
+  }
+}
+
+/**
+ * The shape shown against a real project when a query fails: the built-in
+ * defaults with nothing pretending to be saved, no users, and no draw.
+ */
+function emptyRows(): SettingsPageRows {
+  return {
+    settings: defaultTournamentSettings(),
+    users: [],
+    drawState: EMPTY_DRAW_STATE,
+    entryCounts: {},
+    tournamentId: null,
+    currentUserId: null,
   }
 }
 
@@ -191,121 +210,128 @@ async function loadDrawState(supabase: SupabaseLike, divisionIds: string[]): Pro
 
 /**
  * Loads everything `/admin/settings` needs. Wrapped in `cache()` so sibling
- * segments share a single set of round trips.
+ * segments share a single set of round trips. A configured project with no
+ * tournament row yet gets the built-in defaults to edit — never the demo
+ * committee — see `@/lib/demo-mode`.
  */
 export const loadSettingsPageData = cache(async function loadSettingsPageData(): Promise<SettingsPageData> {
-  if (!isSupabaseConfigured()) return demoData()
+  const { data, isDemo, error } = await loadLiveOrDemo<SettingsPageRows>({
+    demo: demoRows,
+    empty: emptyRows,
+    live: loadLive,
+  })
+  return { ...data, isDemo, error }
+})
 
-  try {
-    const supabase = await createClient()
-    const {
-      data: { user },
-    } = await supabase.auth.getUser()
+async function loadLive(): Promise<SettingsPageRows> {
+  const supabase = await createClient()
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
 
-    const { data: tournamentRows } = await supabase
+  const tournamentRows = rowsOrThrow(
+    await supabase
       .from('tournaments')
       .select('*')
       .order('tournament_date', { ascending: true })
-      .limit(1)
+      .limit(1),
+  ) as TournamentRow[]
 
-    const tournament = (tournamentRows as TournamentRow[] | null)?.[0] ?? null
-    if (!tournament) return { ...demoData(), currentUserId: user?.id ?? null }
+  const tournament = tournamentRows[0] ?? null
+  // Day zero: no tournament row yet. Offer the built-in defaults to edit
+  // rather than a demo committee the volunteer cannot save over.
+  if (!tournament) return { ...emptyRows(), currentUserId: user?.id ?? null }
 
-    const [divisionsRes, courtsRes, slotsRes, extrasRes, prizesRes, profilesRes, rolesRes] = await Promise.all([
-      supabase.from('divisions').select('*').eq('tournament_id', tournament.id),
-      supabase.from('courts').select('*').eq('tournament_id', tournament.id).order('sort_order'),
-      supabase.from('time_slots').select('*').eq('tournament_id', tournament.id).order('starts_at'),
-      supabase.from('site_content').select('*').eq('slug', SETTINGS_EXTRAS_SLUG).maybeSingle(),
-      supabase.from('site_content').select('*').eq('slug', PRIZES_SLUG).maybeSingle(),
-      supabase.from('profiles').select('*').order('full_name'),
-      supabase.from('user_roles').select('*'),
-    ])
+  const [divisionsRes, courtsRes, slotsRes, extrasRes, prizesRes, profilesRes, rolesRes] = await Promise.all([
+    supabase.from('divisions').select('*').eq('tournament_id', tournament.id),
+    supabase.from('courts').select('*').eq('tournament_id', tournament.id).order('sort_order'),
+    supabase.from('time_slots').select('*').eq('tournament_id', tournament.id).order('starts_at'),
+    supabase.from('site_content').select('*').eq('slug', SETTINGS_EXTRAS_SLUG).maybeSingle(),
+    supabase.from('site_content').select('*').eq('slug', PRIZES_SLUG).maybeSingle(),
+    supabase.from('profiles').select('*').order('full_name'),
+    supabase.from('user_roles').select('*'),
+  ])
 
-    const fallback = defaultTournamentSettings()
-    const extras = parseJson<ExtrasBlob>((extrasRes.data as SiteContentRow | null)?.body_markdown) ?? {}
-    const prizes =
-      parseJson<TournamentSettings['prizes']>((prizesRes.data as SiteContentRow | null)?.body_markdown) ??
-      fallback.prizes
+  const fallback = defaultTournamentSettings()
+  const extras = parseJson<ExtrasBlob>((extrasRes.data as SiteContentRow | null)?.body_markdown) ?? {}
+  const prizes =
+    parseJson<TournamentSettings['prizes']>((prizesRes.data as SiteContentRow | null)?.body_markdown) ??
+    fallback.prizes
 
-    const divisionRows = (divisionsRes.data as DivisionRow[] | null) ?? []
-    const divisions = divisionRows.length
-      ? divisionRows.map((row) => divisionSettingsFromRow(row, extras.divisions?.[row.id] ?? null))
-      : fallback.divisions
+  const divisionRows = (divisionsRes.data as DivisionRow[] | null) ?? []
+  const divisions = divisionRows.length
+    ? divisionRows.map((row) => divisionSettingsFromRow(row, extras.divisions?.[row.id] ?? null))
+    : fallback.divisions
 
-    const courtRows = (courtsRes.data as CourtRow[] | null) ?? []
-    const slotRows = (slotsRes.data as TimeSlotRow[] | null) ?? []
+  const courtRows = (courtsRes.data as CourtRow[] | null) ?? []
+  const slotRows = (slotsRes.data as TimeSlotRow[] | null) ?? []
 
-    const profiles = (profilesRes.data as ProfileRow[] | null) ?? []
-    const roleRows = (rolesRes.data as UserRoleRow[] | null) ?? []
-    const rolesByUser = new Map<string, AssignableRole[]>()
-    for (const row of roleRows) {
-      if (!isAssignableRole(row.role)) continue
-      const list = rolesByUser.get(row.user_id) ?? []
-      list.push(row.role)
-      rolesByUser.set(row.user_id, list)
-    }
-
-    const divisionIds = divisionRows.map((row) => row.id)
-    const drawState = divisionIds.length ? await loadDrawState(supabase, divisionIds) : EMPTY_DRAW_STATE
-
-    const entryCounts: Record<string, number> = {}
-    await Promise.all(
-      divisionRows.map(async (row) => {
-        const { count } = await supabase
-          .from('registrations')
-          .select('id', { count: 'exact', head: true })
-          .eq('division_id', row.id)
-          .eq('status', 'approved')
-        // Two approved players make one pair.
-        entryCounts[row.id] = Math.floor((count ?? 0) / 2)
-      }),
-    )
-
-    return {
-      settings: {
-        details: {
-          name: tournament.name,
-          tournamentDate: tournament.tournament_date,
-          venueName: tournament.venue_name ?? '',
-          venueAddress: tournament.venue_address ?? '',
-          description: tournament.description ?? '',
-          registrationOpensAt: tournament.registration_opens_at,
-          registrationClosesAt: tournament.registration_closes_at ?? fallback.details.registrationClosesAt,
-          registrationCloseConfirmed: extras.details?.registrationCloseConfirmed ?? false,
-          contactName: extras.details?.contactName ?? '',
-          contactEmail: extras.details?.contactEmail ?? '',
-          contactPhone: extras.details?.contactPhone ?? '',
-        },
-        divisions,
-        courts: courtRows.length
-          ? courtRows.map((row) => ({ id: row.id, name: row.name, sortOrder: row.sort_order }))
-          : fallback.courts,
-        timeSlots: slotRows.length
-          ? slotRows.map((row) => ({
-              id: row.id,
-              startsAt: row.starts_at,
-              endsAt: row.ends_at,
-              label: row.label ?? '',
-            }))
-          : fallback.timeSlots,
-        prizes,
-      },
-      users: profiles.map((profile) => ({
-        id: profile.id,
-        fullName: profile.full_name,
-        nickname: profile.nickname,
-        // Email lives in `auth.users`, which the anon key cannot read.
-        email: null,
-        roles: rolesByUser.get(profile.id) ?? [],
-      })),
-      drawState,
-      entryCounts,
-      tournamentId: tournament.id,
-      currentUserId: user?.id ?? null,
-      isDemo: false,
-    }
-  } catch {
-    // Never let a settings page 500 — fall back to the demo bundle.
-    return demoData()
+  const profiles = (profilesRes.data as ProfileRow[] | null) ?? []
+  const roleRows = (rolesRes.data as UserRoleRow[] | null) ?? []
+  const rolesByUser = new Map<string, AssignableRole[]>()
+  for (const row of roleRows) {
+    if (!isAssignableRole(row.role)) continue
+    const list = rolesByUser.get(row.user_id) ?? []
+    list.push(row.role)
+    rolesByUser.set(row.user_id, list)
   }
-})
+
+  const divisionIds = divisionRows.map((row) => row.id)
+  const drawState = divisionIds.length ? await loadDrawState(supabase, divisionIds) : EMPTY_DRAW_STATE
+
+  const entryCounts: Record<string, number> = {}
+  await Promise.all(
+    divisionRows.map(async (row) => {
+      const { count } = await supabase
+        .from('registrations')
+        .select('id', { count: 'exact', head: true })
+        .eq('division_id', row.id)
+        .eq('status', 'approved')
+      // Two approved players make one pair.
+      entryCounts[row.id] = Math.floor((count ?? 0) / 2)
+    }),
+  )
+
+  return {
+    settings: {
+      details: {
+        name: tournament.name,
+        tournamentDate: tournament.tournament_date,
+        venueName: tournament.venue_name ?? '',
+        venueAddress: tournament.venue_address ?? '',
+        description: tournament.description ?? '',
+        registrationOpensAt: tournament.registration_opens_at,
+        registrationClosesAt: tournament.registration_closes_at ?? fallback.details.registrationClosesAt,
+        registrationCloseConfirmed: extras.details?.registrationCloseConfirmed ?? false,
+        contactName: extras.details?.contactName ?? '',
+        contactEmail: extras.details?.contactEmail ?? '',
+        contactPhone: extras.details?.contactPhone ?? '',
+      },
+      divisions,
+      courts: courtRows.length
+        ? courtRows.map((row) => ({ id: row.id, name: row.name, sortOrder: row.sort_order }))
+        : fallback.courts,
+      timeSlots: slotRows.length
+        ? slotRows.map((row) => ({
+            id: row.id,
+            startsAt: row.starts_at,
+            endsAt: row.ends_at,
+            label: row.label ?? '',
+          }))
+        : fallback.timeSlots,
+      prizes,
+    },
+    users: profiles.map((profile) => ({
+      id: profile.id,
+      fullName: profile.full_name,
+      nickname: profile.nickname,
+      // Email lives in `auth.users`, which the anon key cannot read.
+      email: null,
+      roles: rolesByUser.get(profile.id) ?? [],
+    })),
+    drawState,
+    entryCounts,
+    tournamentId: tournament.id,
+    currentUserId: user?.id ?? null,
+  }
+}

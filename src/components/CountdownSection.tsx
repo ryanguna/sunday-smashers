@@ -2,7 +2,11 @@
 
 import { useEffect, useState } from 'react'
 import { Countdown, Badge } from '@/components/ui'
-import { getTournamentPhase, type TournamentPhaseInfo } from '@/lib/tournament'
+import {
+  getTournamentPhase,
+  type TournamentDates,
+  type TournamentPhaseInfo,
+} from '@/lib/tournament'
 
 /**
  * Renders the hero's countdown card. The active phase (pre-registration,
@@ -12,13 +16,13 @@ import { getTournamentPhase, type TournamentPhaseInfo } from '@/lib/tournament'
  * client render, then swap in the real phase after mount. This guarantees
  * the server-rendered markup and the client's first render are identical.
  */
-export function CountdownSection() {
+export function CountdownSection({ dates }: { dates?: TournamentDates }) {
   const [info, setInfo] = useState<TournamentPhaseInfo | null>(null)
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
-    setInfo(getTournamentPhase(new Date()))
-  }, [])
+    setInfo(getTournamentPhase(new Date(), dates))
+  }, [dates])
 
   if (!info) {
     return (

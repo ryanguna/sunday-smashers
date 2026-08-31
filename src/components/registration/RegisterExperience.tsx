@@ -7,7 +7,7 @@ import { DemoModeNotice } from '@/components/auth'
 import { GiftIcon } from '@/components/icons'
 import { getRegistrationWindow, type RegistrationWindowInfo } from '@/lib/registration'
 import { loadRegistrationContext, type RegistrationContext } from './data'
-import { RegistrationForm } from './RegistrationForm'
+import { RegistrationWizard } from './RegistrationWizard'
 import { NoDivisionsPanel, NotOpenYetPanel, SignInPromptPanel, TournamentOverPanel } from './RegistrationStates'
 
 /** Demo-only preview modes so every state of `/register` is reviewable. */
@@ -103,7 +103,7 @@ export function RegisterExperience({ info, preview = null }: RegisterExperienceP
         </a>
       )}
 
-      <RegistrationForm
+      <RegistrationWizard
         context={formContext}
         window={info.window}
         onSubmitted={(result) => {

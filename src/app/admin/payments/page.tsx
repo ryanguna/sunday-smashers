@@ -1,5 +1,10 @@
 import type { Metadata } from 'next'
-import { AdminDemoBanner, AdminPageHeader } from '@/components/admin/AdminUI'
+import {
+  AdminDataErrorBanner,
+  AdminDemoBanner,
+  AdminEmptyState,
+  AdminPageHeader,
+} from '@/components/admin/AdminUI'
 import { PaymentsClient } from '@/components/admin/PaymentsClient'
 import { getAdminConsoleData } from '@/components/admin/data'
 
@@ -9,7 +14,7 @@ export const metadata: Metadata = {
 }
 
 export default async function AdminPaymentsPage() {
-  const { divisions, registrations, isDemo } = await getAdminConsoleData()
+  const { divisions, registrations, isDemo, error } = await getAdminConsoleData()
 
   return (
     <>
@@ -19,7 +24,17 @@ export default async function AdminPaymentsPage() {
         description="Record entry fees, split partial payments and reconcile the day's takings."
       />
       {isDemo && <AdminDemoBanner />}
-      <PaymentsClient registrations={registrations} divisions={divisions} />
+      {error && <AdminDataErrorBanner message={error} />}
+      {registrations.length === 0 ? (
+        <AdminEmptyState
+          title="Nothing in the tin yet"
+          description="Entry fees show up here once players have registered. Approve an entry over on Registrations and its payment appears alongside it."
+          href="/admin/registrations"
+          linkLabel="Go to Registrations"
+        />
+      ) : (
+        <PaymentsClient registrations={registrations} divisions={divisions} />
+      )}
     </>
   )
 }

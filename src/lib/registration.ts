@@ -16,7 +16,11 @@
  *   - the same player may never hold two registrations in one division.
  */
 
-import { getTournamentPhase, type TournamentPhase } from '@/lib/tournament'
+import {
+  getTournamentPhase,
+  type TournamentDates,
+  type TournamentPhase,
+} from '@/lib/tournament'
 import type { DivisionGender, PartnerInviteStatus, RegistrationStatus } from '@/lib/supabase/types'
 
 // ---------------------------------------------------------------------------
@@ -58,13 +62,98 @@ export interface RegistrationWindowInfo {
   acceptsSubmissions: boolean
 }
 
+export interface RegistrationWindowOptions {
+  /** Dates from the tournament row; defaults to the seeded constants. */
+  dates?: TournamentDates
+  /**
+   * The organiser's explicit switch (`tournaments.is_registration_open`).
+   *
+   * `null`/`undefined` means "no tournament row yet, or the organisers have
+   * expressed no opinion" — the calendar alone decides, exactly as before.
+   *
+   * When set, it OVERRIDES the calendar. This is the whole point: the
+   * committee needs to open the sheet early for a test run, or slam it shut
+   * the moment the draw is built, without waiting for a date to roll around
+   * or shipping a code change. The calendar is the default; the switch is the
+   * organiser saying otherwise.
+   *
+   * Note it can only ever flip between "open" and "closed" — it cannot
+   * resurrect registration once the tournament itself has started, because at
+   * that point there is nothing left to register for.
+   */
+  isRegistrationOpen?: boolean | null
+}
+
 /**
  * Maps the site-wide tournament phase onto the three registration states the
  * `/register` page cares about. Pure — pass an explicit `now` in tests.
  */
-export function getRegistrationWindow(now: Date): RegistrationWindowInfo {
-  const phaseInfo = getTournamentPhase(now)
+export function getRegistrationWindow(
+  now: Date,
+  options: RegistrationWindowOptions | TournamentDates = {},
+): RegistrationWindowInfo {
+  // Accept a bare `TournamentDates` too, so existing callers keep working.
+  const opts: RegistrationWindowOptions =
+    'preRegistrationOpensAt' in options ? { dates: options } : options
+  const phaseInfo = getTournamentPhase(now, opts.dates)
+  const base = registrationWindowForPhase(phaseInfo)
+  return applyOrganiserSwitch(base, phaseInfo, opts.isRegistrationOpen)
+}
 
+/**
+ * Lets the organiser's switch override the calendar, in the one place the
+ * window is decided so the page, the form guard and the server action can
+ * never disagree about whether the sheet is open.
+ */
+function applyOrganiserSwitch(
+  info: RegistrationWindowInfo,
+  phaseInfo: ReturnType<typeof getTournamentPhase>,
+  isRegistrationOpen: boolean | null | undefined,
+): RegistrationWindowInfo {
+  if (isRegistrationOpen == null) return info
+  if (phaseInfo.phase === 'tournament-day-or-later') return info
+
+  if (isRegistrationOpen && info.window !== 'open') {
+    return {
+      ...info,
+      window: 'open',
+      heading: 'Registration is OPEN — grab your spot!',
+      message:
+        'The organisers have opened the sheet early. Fill in the form below, bring a partner (or let us find you one), and we’ll see you on court in December.',
+      acceptsSubmissions: true,
+    }
+  }
+
+  if (!isRegistrationOpen && info.window === 'open') {
+    return {
+      ...info,
+      window: 'closed',
+      heading: 'Registration is paused',
+      message:
+        'The organisers have closed the sheet for now — the draw may be being built. Pop your name on the waitlist and we’ll call you in the moment a spot opens up 🎅',
+      acceptsSubmissions: true,
+    }
+  }
+
+  return info
+}
+
+/** "6 September 2026", in Sydney time, from an ISO instant. */
+function formatOpeningDate(iso: string | null): string {
+  if (!iso) return 'soon'
+  const parsed = new Date(iso)
+  if (Number.isNaN(parsed.getTime())) return 'soon'
+  return parsed.toLocaleDateString('en-AU', {
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric',
+    timeZone: 'Australia/Sydney',
+  })
+}
+
+function registrationWindowForPhase(
+  phaseInfo: ReturnType<typeof getTournamentPhase>,
+): RegistrationWindowInfo {
   switch (phaseInfo.phase) {
     case 'before-pre-registration':
       return {
@@ -73,8 +162,10 @@ export function getRegistrationWindow(now: Date): RegistrationWindowInfo {
         countdownTarget: phaseInfo.countdownTarget,
         countdownLabel: phaseInfo.countdownLabel,
         heading: 'The sign-up sheet is still in Santa’s sack',
-        message:
-          'Pre-registration opens on 6 September 2026. Set a reminder, stretch that wrist, and start sweet-talking a partner 🎄🏸',
+        // Derived, never written out: the opening date is configurable, so
+        // quoting a fixed one here would start lying the moment an organiser
+        // changed it in the admin console.
+        message: `Pre-registration opens on ${formatOpeningDate(phaseInfo.countdownTarget)}. Set a reminder, stretch that wrist, and start sweet-talking a partner 🎄🏸`,
         acceptsSubmissions: false,
       }
     case 'registration-open':

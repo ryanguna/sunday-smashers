@@ -2,7 +2,12 @@ import type { Metadata } from 'next'
 
 import { requireAdmin } from '@/lib/auth'
 import { isSupabaseConfigured } from '@/lib/supabase/config'
-import { AdminDemoBanner, AdminPageHeader } from '@/components/admin/AdminUI'
+import {
+  AdminDataErrorBanner,
+  AdminDemoBanner,
+  AdminEmptyState,
+  AdminPageHeader,
+} from '@/components/admin/AdminUI'
 import { Button } from '@/components/ui'
 import { RacketIcon } from '@/components/icons'
 import { DutyRosterConsole } from '@/components/schedule/DutyRosterConsole'
@@ -23,7 +28,7 @@ export default async function AdminDutyRosterPage() {
     await requireAdmin('/admin/duty-roster')
   }
 
-  const { matches, courts, slots, teams, savedPlacements, manualDuties, isDemo } =
+  const { matches, courts, slots, teams, savedPlacements, manualDuties, isDemo, error } =
     await getScheduleWorkbenchData()
 
   return (
@@ -40,6 +45,15 @@ export default async function AdminDutyRosterPage() {
         }
       />
       {isDemo && <AdminDemoBanner />}
+      {error && <AdminDataErrorBanner message={error} />}
+      {matches.length === 0 ? (
+        <AdminEmptyState
+          title="No matches to staff yet"
+          description="Duty seats are worked out from the running order, so publish the draw and put the fixtures on courts first. The roster then fills itself in."
+          href="/admin/schedule"
+          linkLabel="Build the schedule"
+        />
+      ) : (
       <DutyRosterConsole
         matches={matches}
         courts={courts}
@@ -49,6 +63,7 @@ export default async function AdminDutyRosterPage() {
         manualDuties={manualDuties}
         isDemo={isDemo}
       />
+      )}
     </>
   )
 }

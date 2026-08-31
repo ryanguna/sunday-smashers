@@ -1,6 +1,6 @@
 import { cache } from 'react'
 
-import { isSupabaseConfigured } from '@/lib/supabase/config'
+import { loadLiveOrDemo, rowsOrThrow } from '@/lib/demo-mode'
 import { createClient } from '@/lib/supabase/server'
 import type { AwardRow, ProfileRow, SiteContentRow } from '@/lib/supabase/types'
 import { getBrackets, getStandings, type PublicTeam } from '@/lib/public-data'
@@ -40,10 +40,15 @@ export interface AdminDivisionAwards {
   hasChampion: boolean
 }
 
-export interface AdminAwardsData {
+interface AdminAwardsRows {
   divisions: AdminDivisionAwards[]
   definitions: AwardDefinition[]
+}
+
+export interface AdminAwardsData extends AdminAwardsRows {
   isDemo: boolean
+  /** Set when a live query failed; only the derived suggestions are shown. */
+  error: string | null
 }
 
 function teamRecipientOf(team: PublicTeam | null, fallbackId: string | null) {
@@ -123,77 +128,90 @@ function parseDefinitions(raw: string | null | undefined): AwardDefinition[] {
   }
 }
 
+/**
+ * Saved awards merged onto the derived suggestions. Demo mode shows the
+ * suggestions alone; against a real project a failed query surfaces as
+ * `error` rather than pretending nothing has been confirmed yet. See
+ * `@/lib/demo-mode`.
+ */
 export const getAdminAwardsData = cache(async function getAdminAwardsData(): Promise<AdminAwardsData> {
   const { divisions, teamsById } = await buildSuggestions()
+  const suggestionsOnly = (): AdminAwardsRows => ({
+    divisions,
+    definitions: [...DEFAULT_AWARD_DEFINITIONS],
+  })
 
-  if (!isSupabaseConfigured()) {
-    return { divisions, definitions: [...DEFAULT_AWARD_DEFINITIONS], isDemo: true }
-  }
-
-  try {
-    const supabase = await createClient()
-    const [awardsRes, configRes] = await Promise.all([
-      supabase
-        .from('awards')
-        .select('*')
-        .in(
-          'division_id',
-          divisions.map((division) => division.slug),
-        ),
-      supabase.from('site_content').select('*').eq('slug', AWARD_CONFIG_SLUG).maybeSingle(),
-    ])
-
-    const definitions = parseDefinitions((configRes.data as SiteContentRow | null)?.body_markdown)
-    const rows = (awardsRes.data as AwardRow[] | null) ?? []
-
-    const playerIds = [...new Set(rows.map((row) => row.player_id).filter((id): id is string => !!id))]
-    const { data: profileRows } =
-      playerIds.length > 0
-        ? await supabase.from('profiles').select('id, full_name, nickname').in('id', playerIds)
-        : { data: [] as Pick<ProfileRow, 'id' | 'full_name' | 'nickname'>[] }
-    const nameById = new Map(
-      (profileRows ?? []).map((profile) => [profile.id, profile.nickname || profile.full_name]),
-    )
-
-    const savedByDivision = new Map<string, AwardRecord[]>()
-    for (const row of rows) {
-      const division = divisions.find((entry) => entry.slug === row.division_id)
-      const team = row.team_id ? (teamsById.get(row.team_id) ?? null) : null
-      const record: AwardRecord = {
-        id: row.id,
-        divisionSlug: row.division_id,
-        divisionName: division?.name ?? 'Division',
-        key: row.award_key,
-        dbType: row.award_type,
-        recipient: {
-          ...teamRecipientOf(team, row.team_id),
-          playerId: row.player_id,
-          playerName: row.player_id ? (nameById.get(row.player_id) ?? 'Player') : null,
-        },
-        citation: citationFromRow(row.citation),
-        isPublished: row.is_published,
-        derived: false,
-        createdAt: row.created_at,
-      }
-      const list = savedByDivision.get(row.division_id) ?? []
-      list.push(record)
-      savedByDivision.set(row.division_id, list)
-    }
-
-    return {
-      divisions: divisions.map((division) => ({
-        ...division,
-        records: mergeSuggestions(
-          savedByDivision.get(division.slug) ?? [],
-          division.records,
-          definitions,
-        ),
-      })),
-      definitions,
-      isDemo: false,
-    }
-  } catch {
-    // Never leave an admin staring at a blank console mid-ceremony.
-    return { divisions, definitions: [...DEFAULT_AWARD_DEFINITIONS], isDemo: true }
-  }
+  const { data, isDemo, error } = await loadLiveOrDemo<AdminAwardsRows>({
+    demo: suggestionsOnly,
+    empty: suggestionsOnly,
+    live: () => loadLive(divisions, teamsById),
+  })
+  return { ...data, isDemo, error }
 })
+
+async function loadLive(
+  divisions: AdminDivisionAwards[],
+  teamsById: Map<string, PublicTeam>,
+): Promise<AdminAwardsRows> {
+  const supabase = await createClient()
+  const [awardsRes, configRes] = await Promise.all([
+    supabase
+      .from('awards')
+      .select('*')
+      .in(
+        'division_id',
+        divisions.map((division) => division.slug),
+      ),
+    supabase.from('site_content').select('*').eq('slug', AWARD_CONFIG_SLUG).maybeSingle(),
+  ])
+
+  if (configRes.error) throw new Error(configRes.error.message)
+  const definitions = parseDefinitions((configRes.data as SiteContentRow | null)?.body_markdown)
+  const rows = rowsOrThrow(awardsRes) as AwardRow[]
+
+  const playerIds = [...new Set(rows.map((row) => row.player_id).filter((id): id is string => !!id))]
+  const profileRows =
+    playerIds.length > 0
+      ? rowsOrThrow(await supabase.from('profiles').select('id, full_name, nickname').in('id', playerIds))
+      : ([] as Pick<ProfileRow, 'id' | 'full_name' | 'nickname'>[])
+  const nameById = new Map(
+    (profileRows ?? []).map((profile) => [profile.id, profile.nickname || profile.full_name]),
+  )
+
+  const savedByDivision = new Map<string, AwardRecord[]>()
+  for (const row of rows) {
+    const division = divisions.find((entry) => entry.slug === row.division_id)
+    const team = row.team_id ? (teamsById.get(row.team_id) ?? null) : null
+    const record: AwardRecord = {
+      id: row.id,
+      divisionSlug: row.division_id,
+      divisionName: division?.name ?? 'Division',
+      key: row.award_key,
+      dbType: row.award_type,
+      recipient: {
+        ...teamRecipientOf(team, row.team_id),
+        playerId: row.player_id,
+        playerName: row.player_id ? (nameById.get(row.player_id) ?? 'Player') : null,
+      },
+      citation: citationFromRow(row.citation),
+      isPublished: row.is_published,
+      derived: false,
+      createdAt: row.created_at,
+    }
+    const list = savedByDivision.get(row.division_id) ?? []
+    list.push(record)
+    savedByDivision.set(row.division_id, list)
+  }
+
+  return {
+    divisions: divisions.map((division) => ({
+      ...division,
+      records: mergeSuggestions(
+        savedByDivision.get(division.slug) ?? [],
+        division.records,
+        definitions,
+      ),
+    })),
+    definitions,
+  }
+}

@@ -124,9 +124,29 @@ export type TournamentRow = {
   is_published: boolean
   is_registration_open: boolean
   description: string | null
+  /** Entry fee per player, in cents (migration 0010). Single source of truth. */
+  entry_fee_cents: number | null
+  /** How to actually pay: bank/PayID details, reference format, deadline. */
+  payment_instructions: string | null
+  contact_name: string | null
+  contact_phone: string | null
+  contact_email: string | null
+  /** When players should arrive — distinct from the first serve. */
+  doors_open_at: string | null
   created_at: string
   updated_at: string
 }
+
+/**
+ * The published-only projection of `tournaments` that anon may read
+ * (migration 0010). Drives the public countdown, the registration gate and
+ * the "the details" block. Omits nothing sensitive — the contact columns are
+ * the *organisers'*, published on purpose.
+ */
+export type TournamentPublicRow = Omit<
+  TournamentRow,
+  'created_at' | 'updated_at' | 'is_published'
+>
 
 export type DivisionRow = {
   id: string
@@ -179,6 +199,8 @@ export type TeamMemberRow = {
 }
 
 export type PartnerInviteRow = {
+  /** Denormalised at insert (migration 0010) — profiles is owner-only, so the invitee cannot read it otherwise. */
+  inviter_name: string | null
   id: string
   division_id: string
   inviter_id: string
@@ -527,9 +549,33 @@ export type Database = {
         Row: PlayerDirectoryRow
         Relationships: []
       }
+      /**
+       * Published-only tournament settings (migration 0010). The public site
+       * derives its countdown, registration gate, entry fee and "the details"
+       * block from this instead of from hardcoded constants in source.
+       */
+      tournament_public: {
+        Row: TournamentPublicRow
+        Relationships: []
+      }
     }
     Functions: {
       is_admin: {
+        Args: Record<string, never>
+        Returns: boolean
+      }
+      /**
+       * First-run bootstrap (migration 0010). Promotes the caller to admin,
+       * but ONLY while the system has no admin at all; inert thereafter.
+       * Exists because every signup gets 'player' and the only role-granting
+       * UI is itself behind the admin guard.
+       */
+      claim_first_admin: {
+        Args: Record<string, never>
+        Returns: string
+      }
+      /** True once at least one admin exists — decides whether /setup offers the claim. */
+      admin_exists: {
         Args: Record<string, never>
         Returns: boolean
       }

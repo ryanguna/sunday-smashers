@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, type FormEvent } from 'react'
+import { useEffect, useRef, useState, type FormEvent } from 'react'
 import Link from 'next/link'
 import { Button } from '@/components/ui'
 import { SparkleIcon } from '@/components/icons'
@@ -15,9 +15,15 @@ export default function ForgotPasswordPage() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [sent, setSent] = useState(false)
+  const sentRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    if (sent) sentRef.current?.focus()
+  }, [sent])
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
+    if (loading) return
     setError(null)
     setLoading(true)
     const supabase = createClient()
@@ -47,10 +53,20 @@ export default function ForgotPasswordPage() {
       {!isSupabaseConfigured() ? (
         <DemoModeNotice />
       ) : sent ? (
-        <AlertBanner variant="success">
-          If an account exists for <strong>{email}</strong>, a reset link is on its way — check your
-          inbox (and spam folder, just in case).
-        </AlertBanner>
+        <div ref={sentRef} tabIndex={-1} className="outline-none">
+          <AlertBanner variant="success">
+            If an account exists for <strong>{email}</strong>, a reset link is on its way — check
+            your inbox (and spam folder, just in case).
+          </AlertBanner>
+          <Button
+            type="button"
+            variant="ghost"
+            className="w-full"
+            onClick={() => setSent(false)}
+          >
+            Wrong email? Try another
+          </Button>
+        </div>
       ) : (
         <form onSubmit={handleSubmit} noValidate>
           {error && <AlertBanner>{error}</AlertBanner>}
@@ -64,7 +80,7 @@ export default function ForgotPasswordPage() {
             onChange={(event) => setEmail(event.target.value)}
             placeholder="you@example.com"
           />
-          <Button type="submit" className="w-full" loading={loading}>
+          <Button type="submit" className="w-full" loading={loading} disabled={loading}>
             Send reset link
           </Button>
         </form>

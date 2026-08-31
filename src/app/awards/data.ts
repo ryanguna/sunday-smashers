@@ -1,6 +1,6 @@
 import { cache } from 'react'
 
-import { isSupabaseConfigured } from '@/lib/supabase/config'
+import { loadLiveOrDemo } from '@/lib/demo-mode'
 import { createClient } from '@/lib/supabase/client'
 import type { AwardRow, ProfileRow } from '@/lib/supabase/types'
 import { getBrackets, getStandings, type PublicTeam } from '@/lib/public-data'
@@ -26,9 +26,12 @@ import {
  * this feature really must not have.
  */
 
-export interface PublicAwardsData {
+interface PublicAwardsRows {
   views: AwardsDivisionView[]
   publishedCount: number
+}
+
+export interface PublicAwardsData extends PublicAwardsRows {
   /** True when the winners shown are the bundled demo dataset. */
   isDemo: boolean
 }
@@ -48,7 +51,7 @@ function teamRecipient(team: PublicTeam | null, fallbackId: string | null) {
  * `placings` (so it agrees with `/bracket`), plus a couple of hand-written
  * discretionary gongs so the page shows what a full ceremony looks like.
  */
-async function demoAwards(): Promise<PublicAwardsData> {
+async function demoAwards(): Promise<PublicAwardsRows> {
   const [brackets, standings] = await Promise.all([getBrackets(), getStandings()])
   const divisions = standings.map((entry) => ({
     slug: entry.division.slug,
@@ -149,81 +152,85 @@ async function demoAwards(): Promise<PublicAwardsData> {
   return {
     views: buildDivisionViews(visible, divisions, DEFAULT_AWARD_DEFINITIONS),
     publishedCount: visible.length,
-    isDemo: true,
   }
 }
 
 export const getPublicAwards = cache(async function getPublicAwards(): Promise<PublicAwardsData> {
-  if (!isSupabaseConfigured()) return demoAwards()
-
-  try {
-    const standings = await getStandings()
-    const divisions = standings.map((entry) => ({
-      slug: entry.division.slug,
-      name: entry.division.name,
-    }))
-    if (divisions.length === 0) return demoAwards()
-
-    const teamsById = new Map<string, PublicTeam>()
-    for (const entry of standings) {
-      for (const row of entry.rows) teamsById.set(row.team.id, row.team)
-    }
-
-    const supabase = createClient()
-    const { data, error } = await supabase
-      .from('awards')
-      .select('*')
-      .eq('is_published', true)
-      .in(
-        'division_id',
-        divisions.map((division) => division.slug),
-      )
-    if (error) return demoAwards()
-
-    const rows = (data as AwardRow[] | null) ?? []
-    if (rows.length === 0) {
-      return { views: buildDivisionViews([], divisions), publishedCount: 0, isDemo: false }
-    }
-
-    const playerIds = [...new Set(rows.map((row) => row.player_id).filter((id): id is string => !!id))]
-    const { data: profileRows } =
-      playerIds.length > 0
-        ? await supabase.from('profiles').select('id, full_name, nickname').in('id', playerIds)
-        : { data: [] as Pick<ProfileRow, 'id' | 'full_name' | 'nickname'>[] }
-
-    const nameById = new Map(
-      (profileRows ?? []).map((profile) => [profile.id, profile.nickname || profile.full_name]),
-    )
-    const divisionNameById = new Map(divisions.map((division) => [division.slug, division.name]))
-
-    const records: AwardRecord[] = rows.map((row) => {
-      const team = row.team_id ? (teamsById.get(row.team_id) ?? null) : null
-      return {
-        id: row.id,
-        divisionSlug: row.division_id,
-        divisionName: divisionNameById.get(row.division_id) ?? 'Division',
-        key: row.award_key,
-        dbType: row.award_type,
-        recipient: {
-          ...teamRecipient(team, row.team_id),
-          playerId: row.player_id,
-          playerName: row.player_id ? (nameById.get(row.player_id) ?? 'Player') : null,
-        },
-        citation: citationFromRow(row.citation),
-        isPublished: row.is_published,
-        derived: false,
-        createdAt: row.created_at,
-      }
-    })
-
-    const visible = publishedAwards(records)
-    return {
-      views: buildDivisionViews(visible, divisions),
-      publishedCount: visible.length,
-      isDemo: false,
-    }
-  } catch {
-    // A public celebration page must never 500 on a database hiccup.
-    return demoAwards()
-  }
+  const { data, isDemo } = await loadLiveOrDemo<PublicAwardsRows>({
+    demo: demoAwards,
+    // An empty podium is the honest answer when the query fails; the page
+    // already knows how to say "not yet crowned".
+    empty: () => ({ views: [], publishedCount: 0 }),
+    live: loadLiveAwards,
+  })
+  return { ...data, isDemo }
 })
+
+async function loadLiveAwards(): Promise<PublicAwardsRows> {
+  const standings = await getStandings()
+  const divisions = standings.map((entry) => ({
+    slug: entry.division.slug,
+    name: entry.division.name,
+  }))
+  // Nothing published yet is the honest answer for most of the year; the
+  // page already has a "not yet crowned" state for exactly this.
+  if (divisions.length === 0) return { views: [], publishedCount: 0 }
+
+  const teamsById = new Map<string, PublicTeam>()
+  for (const entry of standings) {
+    for (const row of entry.rows) teamsById.set(row.team.id, row.team)
+  }
+
+  const supabase = createClient()
+  const { data, error } = await supabase
+    .from('awards')
+    .select('*')
+    .eq('is_published', true)
+    .in(
+      'division_id',
+      divisions.map((division) => division.slug),
+    )
+  if (error) throw new Error(error.message)
+
+  const rows = (data as AwardRow[] | null) ?? []
+  if (rows.length === 0) {
+    return { views: buildDivisionViews([], divisions), publishedCount: 0 }
+  }
+
+  const playerIds = [...new Set(rows.map((row) => row.player_id).filter((id): id is string => !!id))]
+  const { data: profileRows } =
+    playerIds.length > 0
+      ? await supabase.from('profiles').select('id, full_name, nickname').in('id', playerIds)
+      : { data: [] as Pick<ProfileRow, 'id' | 'full_name' | 'nickname'>[] }
+
+  const nameById = new Map(
+    (profileRows ?? []).map((profile) => [profile.id, profile.nickname || profile.full_name]),
+  )
+  const divisionNameById = new Map(divisions.map((division) => [division.slug, division.name]))
+
+  const records: AwardRecord[] = rows.map((row) => {
+    const team = row.team_id ? (teamsById.get(row.team_id) ?? null) : null
+    return {
+      id: row.id,
+      divisionSlug: row.division_id,
+      divisionName: divisionNameById.get(row.division_id) ?? 'Division',
+      key: row.award_key,
+      dbType: row.award_type,
+      recipient: {
+        ...teamRecipient(team, row.team_id),
+        playerId: row.player_id,
+        playerName: row.player_id ? (nameById.get(row.player_id) ?? 'Player') : null,
+      },
+      citation: citationFromRow(row.citation),
+      isPublished: row.is_published,
+      derived: false,
+      createdAt: row.created_at,
+    }
+  })
+
+  const visible = publishedAwards(records)
+  return {
+    views: buildDivisionViews(visible, divisions),
+    publishedCount: visible.length,
+  }
+}

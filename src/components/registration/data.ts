@@ -416,6 +416,11 @@ export async function loadInvites(): Promise<InvitesResult> {
   const { data } = await supabase
     .from('partner_invites')
     .select('*')
+    // `invitee_id` is guaranteed to be populated for anyone who has an
+    // account: migration 0010 resolves it at insert time, and claims any
+    // invite addressed to a new user's email the moment they sign up. Before
+    // that, an invite sent to someone who had not yet registered was keyed
+    // only by email and was therefore invisible to them forever.
     .or(`invitee_id.eq.${user.id},inviter_id.eq.${user.id}`)
     .order('created_at', { ascending: false })
 
@@ -437,7 +442,11 @@ export async function loadInvites(): Promise<InvitesResult> {
       id: row.id,
       divisionId: row.division_id,
       divisionName: divisionNames.get(row.division_id) ?? 'Your division',
-      inviterName: row.inviter_id === user.id ? 'You' : 'A fellow smasher',
+      // Denormalised at insert (migration 0010). `profiles` is owner-only
+      // under RLS, so without this the invitee is asked to partner up with
+      // "a fellow smasher" — which nobody accepts.
+      inviterName:
+        row.inviter_id === user.id ? 'You' : (row.inviter_name?.trim() || 'A fellow smasher'),
       status: row.status,
       createdAt: row.created_at,
       outgoing: row.inviter_id === user.id,

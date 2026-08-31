@@ -9,7 +9,7 @@
  *     moderation status transitions, filter predicates, alt-text derivation
  *     — all unit tested in `./gallery.test.ts`,
  *   - festive demo fixtures + async fetchers that fall back to them whenever
- *     `isSupabaseConfigured()` is false or a query fails.
+ *     `isSupabaseConfigured()` is false. A real but empty album stays empty.
  *
  * Like `@/lib/announcements`, the async fetchers take an *injected* Supabase
  * client so this module never imports `@/lib/supabase/server` (which pulls in
@@ -833,6 +833,11 @@ export function getDemoModerationQueue(now: Date | number = Date.parse('2026-12-
 // Data access (injected client, demo fallback)
 // ---------------------------------------------------------------------------
 
+/**
+ * Returns `null` **only** in demo mode (no client / no env vars). A real but
+ * empty album returns `[]`, and a failed query returns `[]` too — never the
+ * demo set. See `@/lib/demo-mode` for the one rule.
+ */
 async function fetchPhotoRows(
   client: GallerySupabaseClient | null | undefined,
   approvedOnly: boolean
@@ -844,17 +849,16 @@ async function fetchPhotoRows(
     // by the public gallery.
     if (approvedOnly) query = query.eq('is_approved', true)
     const { data, error } = await query
-    if (error || !data) return null
-    return data
+    if (error) return []
+    return data ?? []
   } catch {
-    return null
+    return []
   }
 }
 
 /**
- * Approved photos for the public gallery. Falls back to the festive demo set
- * whenever Supabase isn't configured or the query fails — the gallery must
- * never render a broken grid.
+ * Approved photos for the public gallery. The festive demo set appears only
+ * in demo mode; an empty album on a real project stays empty.
  */
 export async function getPublicGalleryPhotos(
   client?: GallerySupabaseClient | null,
@@ -918,7 +922,7 @@ export async function getFeaturedGalleryPhotos(
       .eq('is_approved', true)
       .order('created_at', { ascending: false })
       .limit(cap)
-    if (error) return featuredPhotos(getDemoGalleryPhotos(), cap)
+    if (error) return []
 
     const starred = (data ?? []).map((row) => toGalleryPhoto(row, options))
     if (starred.length >= cap) return sortGalleryPhotos(starred).slice(0, cap)
@@ -930,14 +934,21 @@ export async function getFeaturedGalleryPhotos(
       ...topUp.filter((photo) => !seen.has(photo.id)),
     ].slice(0, cap)
   } catch {
-    return featuredPhotos(getDemoGalleryPhotos(), cap)
+    return []
   }
 }
 
-/** The tournament new uploads are attached to. */
+/**
+ * The tournament new uploads are attached to.
+ *
+ * `DEMO_TOURNAMENT_ID` is returned in demo mode only. Against a real project
+ * with no tournament row yet — or when the lookup fails — this returns
+ * `null`, and the uploader refuses to post rather than inserting a photo
+ * against a made-up tournament id.
+ */
 export async function getGalleryTournamentId(
   client?: GallerySupabaseClient | null
-): Promise<string> {
+): Promise<string | null> {
   if (!client || !isSupabaseConfigured()) return DEMO_TOURNAMENT_ID
   try {
     const { data } = await client
@@ -947,8 +958,8 @@ export async function getGalleryTournamentId(
       .limit(1)
       .maybeSingle()
     const row = data as { id: string } | null
-    return row?.id ?? DEMO_TOURNAMENT_ID
+    return row?.id ?? null
   } catch {
-    return DEMO_TOURNAMENT_ID
+    return null
   }
 }

@@ -12,6 +12,7 @@ import type {
   SchedulableMatch,
 } from '@/lib/schedule-admin'
 import { sortMatchRows, type AdminMatchRow, type AdminMatchTeam } from '@/lib/match-admin'
+import { loadLiveOrDemo, rowsOrThrow } from '@/lib/demo-mode'
 import { getScheduleWorkbenchData } from '../schedule/data'
 
 /**
@@ -43,6 +44,8 @@ export interface MatchAdminData {
   overrides: DutyOverride[]
   divisions: { id: string; name: string }[]
   isDemo: boolean
+  /** Set when a live query failed; the table is empty in that case. */
+  error: string | null
 }
 
 /** The per-match result detail the schedule workbench has no reason to carry. */
@@ -166,64 +169,64 @@ type MatchDetailColumns = Pick<
 
 type SheetColumns = Pick<ScoresheetRow, 'match_id' | 'status' | 'updated_at'>
 
-async function liveDetails(): Promise<Map<string, ResultDetail> | null> {
-  try {
-    const supabase = await createClient()
-    const [{ data: matchRows }, { data: sheetRows }] = await Promise.all([
-      supabase
-        .from('matches')
-        .select(
-          'id, score_a, score_b, winner_team_id, forfeited_by_team_id, forfeit_reason, points_to_win, deuce_enabled, cap',
-        ),
-      supabase.from('scoresheets').select('match_id, status, updated_at'),
-    ])
+async function liveDetails(): Promise<Map<string, ResultDetail>> {
+  const supabase = await createClient()
+  const [matchResult, sheetResult] = await Promise.all([
+    supabase
+      .from('matches')
+      .select(
+        'id, score_a, score_b, winner_team_id, forfeited_by_team_id, forfeit_reason, points_to_win, deuce_enabled, cap',
+      ),
+    supabase.from('scoresheets').select('match_id, status, updated_at'),
+  ])
 
-    if (!matchRows) return null
+  const matchRows = rowsOrThrow(matchResult)
 
-    // A match can carry more than one scoresheet over its life (a disputed
-    // sheet replaced by a corrected one). The most recently touched row is
-    // the one whose state matters.
-    const sheetByMatch = new Map<string, SheetColumns>()
-    for (const sheet of (sheetRows ?? []) as SheetColumns[]) {
-      const existing = sheetByMatch.get(sheet.match_id)
-      if (!existing || existing.updated_at < sheet.updated_at) {
-        sheetByMatch.set(sheet.match_id, sheet)
-      }
+  // A match can carry more than one scoresheet over its life (a disputed
+  // sheet replaced by a corrected one). The most recently touched row is
+  // the one whose state matters.
+  const sheetByMatch = new Map<string, SheetColumns>()
+  for (const sheet of rowsOrThrow(sheetResult) as SheetColumns[]) {
+    const existing = sheetByMatch.get(sheet.match_id)
+    if (!existing || existing.updated_at < sheet.updated_at) {
+      sheetByMatch.set(sheet.match_id, sheet)
     }
-
-    const details = new Map<string, ResultDetail>()
-    for (const row of matchRows as MatchDetailColumns[]) {
-      details.set(row.id, {
-        scoreA: row.score_a,
-        scoreB: row.score_b,
-        winnerTeamId: row.winner_team_id,
-        forfeitedByTeamId: row.forfeited_by_team_id,
-        forfeitReason: row.forfeit_reason,
-        pointsToWin: row.points_to_win,
-        deuce: row.deuce_enabled,
-        cap: row.cap,
-        scoresheetStatus: sheetByMatch.get(row.id)?.status ?? null,
-      })
-    }
-    return details
-  } catch {
-    return null
   }
+
+  const details = new Map<string, ResultDetail>()
+  for (const row of matchRows as MatchDetailColumns[]) {
+    details.set(row.id, {
+      scoreA: row.score_a,
+      scoreB: row.score_b,
+      winnerTeamId: row.winner_team_id,
+      forfeitedByTeamId: row.forfeited_by_team_id,
+      forfeitReason: row.forfeit_reason,
+      pointsToWin: row.points_to_win,
+      deuce: row.deuce_enabled,
+      cap: row.cap,
+      scoresheetStatus: sheetByMatch.get(row.id)?.status ?? null,
+    })
+  }
+  return details
 }
 
 // ---------------------------------------------------------------------------
 
 /**
- * Loads the match management console.
- *
- * Any failure loading the result detail degrades to the demo detail rather
- * than an error page — an admin who cannot see the table cannot fix the thing
- * they came here to fix, and the workbench itself has the same fallback.
+ * Loads the match management console. The demo result detail is used only in
+ * demo mode — against a real project a failed detail query surfaces as
+ * `error` instead of quietly filling the table with invented scores. See
+ * `@/lib/demo-mode`.
  */
 export const getMatchAdminData = cache(async function getMatchAdminData(): Promise<MatchAdminData> {
   const workbench = await getScheduleWorkbenchData()
 
-  const details = workbench.isDemo ? demoDetails() : ((await liveDetails()) ?? demoDetails())
+  const detailLoad = await loadLiveOrDemo<Map<string, ResultDetail>>({
+    demo: demoDetails,
+    empty: () => new Map<string, ResultDetail>(),
+    live: liveDetails,
+  })
+  const details = detailLoad.data
 
   const divisions = [
     ...new Map(workbench.matches.map((m) => [m.divisionId, m.divisionName])).entries(),
@@ -241,5 +244,6 @@ export const getMatchAdminData = cache(async function getMatchAdminData(): Promi
     overrides: workbench.manualDuties,
     divisions,
     isDemo: workbench.isDemo,
+    error: workbench.error ?? detailLoad.error,
   }
 })

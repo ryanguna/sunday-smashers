@@ -68,7 +68,8 @@ const EMPTY_EDITOR: EditorState = {
 
 export interface AnnouncementsAdminProps {
   initialAnnouncements: Announcement[]
-  tournamentId: string
+  /** Null against a real project that has no tournament row yet. */
+  tournamentId: string | null
 }
 
 /** Wraps the composer in its own ToastProvider — the root layout has none. */
@@ -121,7 +122,7 @@ function AnnouncementsComposer({ initialAnnouncements, tournamentId }: Announcem
     if (demoMode) {
       upsertLocal({
         id: editor.id ?? `demo-new-${Date.now()}`,
-        tournamentId,
+        tournamentId: tournamentId ?? 'demo-tournament',
         title: editor.title.trim(),
         body: editor.body.trim(),
         isPinned: editor.isPinned,
@@ -148,11 +149,19 @@ function AnnouncementsComposer({ initialAnnouncements, tournamentId }: Announcem
         is_published: editor.isPublished,
       }
 
+      // A new notice has to hang off a real tournament row. Rather than post
+      // it against an invented id, say so and stop.
+      if (!editor.id && !tournamentId) {
+        throw new Error(
+          'There is no tournament set up yet, so there is nothing to pin this notice to. Create it in Settings first.',
+        )
+      }
+
       const { data, error } = editor.id
         ? await supabase.from('announcements').update(payload).eq('id', editor.id).select().single()
         : await supabase
             .from('announcements')
-            .insert({ ...payload, tournament_id: tournamentId })
+            .insert({ ...payload, tournament_id: tournamentId as string })
             .select()
             .single()
 

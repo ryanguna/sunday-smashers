@@ -25,6 +25,55 @@ export const TOURNAMENT_DATE = '2026-12-13T09:00:00+11:00'
 /** Human-friendly, already-formatted version of the tournament date. */
 export const TOURNAMENT_DATE_LABEL = 'Sunday, 13 December 2026'
 
+/**
+ * The three dates the whole site's phase logic turns on.
+ *
+ * These used to be readable ONLY as the module constants below, which meant
+ * the public countdown and the registration gate were pinned in source: an
+ * organiser could change the date in the admin console and the public site
+ * would keep quoting the old one until someone shipped a code change. The
+ * constants are now just the *defaults* — the real values come from the
+ * `tournaments` row via `tournamentDatesFrom()`.
+ */
+export interface TournamentDates {
+  preRegistrationOpensAt: string
+  registrationClosesAt: string
+  tournamentDate: string
+}
+
+/** The seeded values, used until a tournament row says otherwise. */
+export const DEFAULT_TOURNAMENT_DATES: TournamentDates = {
+  preRegistrationOpensAt: PRE_REGISTRATION_OPENS_AT,
+  registrationClosesAt: REGISTRATION_CLOSES_AT,
+  tournamentDate: TOURNAMENT_DATE,
+}
+
+/**
+ * Builds the phase dates from a tournament row (or anything shaped like one).
+ * Any missing field falls back to its default, so a partially filled row can
+ * never produce an `Invalid Date` and knock the countdown out.
+ */
+export function tournamentDatesFrom(
+  row: {
+    registration_opens_at?: string | null
+    registration_closes_at?: string | null
+    tournament_date?: string | null
+  } | null
+  | undefined,
+): TournamentDates {
+  const usable = (value: string | null | undefined, fallback: string): string =>
+    value && !Number.isNaN(Date.parse(value)) ? value : fallback
+
+  return {
+    preRegistrationOpensAt: usable(
+      row?.registration_opens_at,
+      PRE_REGISTRATION_OPENS_AT,
+    ),
+    registrationClosesAt: usable(row?.registration_closes_at, REGISTRATION_CLOSES_AT),
+    tournamentDate: usable(row?.tournament_date, TOURNAMENT_DATE),
+  }
+}
+
 export type TournamentPhase =
   | 'before-pre-registration'
   | 'registration-open'
@@ -46,16 +95,19 @@ export interface TournamentPhaseInfo {
  * hero + countdown always agree and stay hydration-safe (the caller decides
  * whether `now` is a fixed SSR-safe placeholder or a live `Date.now()`).
  */
-export function getTournamentPhase(now: Date): TournamentPhaseInfo {
+export function getTournamentPhase(
+  now: Date,
+  dates: TournamentDates = DEFAULT_TOURNAMENT_DATES,
+): TournamentPhaseInfo {
   const nowMs = now.getTime()
-  const preRegMs = new Date(PRE_REGISTRATION_OPENS_AT).getTime()
-  const regCloseMs = new Date(REGISTRATION_CLOSES_AT).getTime()
-  const tournamentMs = new Date(TOURNAMENT_DATE).getTime()
+  const preRegMs = new Date(dates.preRegistrationOpensAt).getTime()
+  const regCloseMs = new Date(dates.registrationClosesAt).getTime()
+  const tournamentMs = new Date(dates.tournamentDate).getTime()
 
   if (nowMs < preRegMs) {
     return {
       phase: 'before-pre-registration',
-      countdownTarget: PRE_REGISTRATION_OPENS_AT,
+      countdownTarget: dates.preRegistrationOpensAt,
       countdownLabel: 'Pre-registration opens in',
       heading: 'Pre-registration opens soon!',
     }
@@ -64,7 +116,7 @@ export function getTournamentPhase(now: Date): TournamentPhaseInfo {
   if (nowMs < regCloseMs) {
     return {
       phase: 'registration-open',
-      countdownTarget: REGISTRATION_CLOSES_AT,
+      countdownTarget: dates.registrationClosesAt,
       countdownLabel: 'Registration closes in',
       heading: 'Registration is OPEN!',
     }
@@ -73,7 +125,7 @@ export function getTournamentPhase(now: Date): TournamentPhaseInfo {
   if (nowMs < tournamentMs) {
     return {
       phase: 'registration-closed',
-      countdownTarget: TOURNAMENT_DATE,
+      countdownTarget: dates.tournamentDate,
       countdownLabel: 'The Christmas battle begins in',
       heading: 'Registration is closed — see you on court!',
     }

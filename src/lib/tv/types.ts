@@ -120,4 +120,10 @@ export type TvConnectionStatus =
   /** Realtime unavailable — falling back to periodic polling. */
   | 'polling'
 
-export const TOURNAMENT_DATE = '2026-12-13T09:00:00+11:00'
+/**
+ * Re-exported, never redeclared. This file previously carried its own copy of
+ * the date, which is exactly the drift this project keeps being bitten by:
+ * changing the tournament date in `@/lib/tournament` would silently leave the
+ * courtside TV countdown pointing at the old one.
+ */
+export { TOURNAMENT_DATE } from '@/lib/tournament'
