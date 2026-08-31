@@ -33,6 +33,7 @@ const AUDITED_ROUTES = [
   '/register',
   '/pay',
   '/login',
+  '/setup',
   '/dashboard',
   '/admin',
   '/admin/checklist',
@@ -96,6 +97,27 @@ test.describe('WCAG 2 AA', () => {
         .join('\n')
 
       expect(serious, `${route}:\n${detail}`).toHaveLength(0)
+    })
+  }
+})
+
+test.describe('landmarks', () => {
+  // `/setup` shipped with its content in a bare <div>, so the page had no main
+  // landmark at all and the "Skip to main content" link dropped users at the
+  // top of the layout wrapper instead of the page's own content.
+  //
+  // The axe pass above did not catch it: the landmark rules ("region",
+  // "landmark-one-main") are tagged best-practice, not wcag2a/wcag2aa, so they
+  // are filtered out by the runOnly above. Assert the structure directly
+  // rather than widening the axe tags, which would pull in a large amount of
+  // unrelated best-practice noise at the same time.
+  test.skip(({ isMobile }) => isMobile, 'structure is identical across viewports')
+
+  for (const route of AUDITED_ROUTES) {
+    test(`${route} has exactly one <main>`, async ({ page }) => {
+      await page.goto(route, { waitUntil: 'domcontentloaded' })
+      await page.waitForTimeout(300)
+      await expect(page.locator('main')).toHaveCount(1)
     })
   }
 })

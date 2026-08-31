@@ -31,7 +31,7 @@ export default async function SetupPage() {
   const status = await readSetupStatus()
 
   return (
-    <div className="mx-auto max-w-5xl px-4 py-10 sm:py-16">
+    <main className="mx-auto max-w-5xl px-4 py-10 sm:py-16">
       <SectionHeading
         level={1}
         eyebrow="Committee"
@@ -40,6 +40,6 @@ export default async function SetupPage() {
       />
       <div className="mt-8" />
       <SetupClient status={status} />
-    </div>
+    </main>
   )
 }

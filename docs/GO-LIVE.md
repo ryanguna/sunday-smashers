@@ -388,11 +388,25 @@ The exact SMTP reply is in **Supabase › Logs › Auth**; search the `error_id`
 from the failed response. Mailgun's own *Sending › Logs* will show the
 rejection from its side.
 
-**To unblock setup while email is broken**, turn off *Authentication ›
-Sign In / Up › Confirm email*. Accounts then work immediately with no email at
-all, which is enough to claim the organiser seat and test. **Turn it back on
-before registration opens** — with it off, anyone can sign up using someone
-else's address, and no player can reset a forgotten password.
+**To unblock setup while email is broken**, either:
+
+- Turn off *Authentication › Sign In / Up › Confirm email*. Accounts then work
+  immediately with no email at all. **Turn it back on before registration
+  opens** — with it off, anyone can sign up using someone else's address.
+- Or create the committee account straight in the database, already confirmed,
+  and leave the project's settings alone:
+
+  ```bash
+  SUPABASE_DB_URL='…' npm run bootstrap:organiser -- you@example.com
+  ```
+
+  It prints a generated password, or takes one as a second argument. It does
+  **not** grant admin — you still sign in and claim the seat through `/setup`,
+  so the bootstrap keeps its single audited path.
+
+  Re-running it on an existing address confirms that account and resets its
+  password, which is also the way to rescue a player stranded on an
+  unconfirmed address.
 
 **"An admin already exists" on `/setup`.**
 Someone has already claimed the seat. They can add you from *Settings › Roles*.

@@ -26,7 +26,7 @@ export default async function PayPage() {
   const hasContact = Boolean(config.contactName || config.contactPhone || config.contactEmail)
 
   return (
-    <div className="mx-auto max-w-3xl px-4 py-10 sm:py-16">
+    <main className="mx-auto max-w-3xl px-4 py-10 sm:py-16">
       <SectionHeading
         level={1}
         eyebrow="Entry fee"
@@ -94,6 +94,6 @@ export default async function PayPage() {
           can take a day or two.
         </p>
       </div>
-    </div>
+    </main>
   )
 }
