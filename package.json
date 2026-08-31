@@ -10,7 +10,8 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:e2e": "playwright test",
-    "verify:live-db": "node scripts/verify-live-db.mjs"
+    "verify:live-db": "node scripts/verify-live-db.mjs",
+    "rehearse:first-run": "node scripts/rehearse-first-run.mjs"
   },
   "dependencies": {
     "@supabase/ssr": "^0.12.4",

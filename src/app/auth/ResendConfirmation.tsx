@@ -6,6 +6,7 @@ import { createClient } from '@/lib/supabase/client'
 import { isSupabaseConfigured } from '@/lib/supabase/config'
 import {
   RESEND_COOLDOWN_SECONDS,
+  isEmailNotAuthorizedError,
   isRateLimitedError,
   resendButtonLabel,
   secondsUntilResendAllowed,
@@ -57,7 +58,9 @@ export function ResendConfirmation({ email, startOnCooldown = false, className }
         tone: 'danger',
         message: isRateLimitedError(error.message)
           ? 'We’ve sent a few already — give it a minute, then try again.'
-          : `We couldn’t send that just now: ${error.message}`,
+          : isEmailNotAuthorizedError(error.message)
+            ? 'The tournament’s email delivery isn’t working right now, so that link can’t be sent. Please let an organiser know.'
+            : `We couldn’t send that just now: ${error.message}`,
       })
       // Still start the cooldown so rapid retries don't make things worse.
       lastSentAtRef.current = Date.now()

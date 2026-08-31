@@ -82,4 +82,24 @@ describe('error message classifiers', () => {
     expect(isEmailNotAuthorizedError(null)).toBe(false)
     expect(isEmailNotAuthorizedError(undefined)).toBe(false)
   })
+
+  it('spots SMTP handing back a failure, whatever the flow', () => {
+    // Verbatim from the live project when Mailgun rejected the credentials:
+    // an HTTP 500 that used to reach the player as raw text.
+    expect(isEmailNotAuthorizedError('Error sending confirmation email')).toBe(true)
+    expect(isEmailNotAuthorizedError('Error sending recovery email')).toBe(true)
+    expect(isEmailNotAuthorizedError('Error sending magic link email')).toBe(true)
+    expect(isEmailNotAuthorizedError('Error sending invite email')).toBe(true)
+    expect(isEmailNotAuthorizedError('Error sending email')).toBe(true)
+  })
+
+  it('leaves the temporary problems to their own handlers', () => {
+    // Rate limiting clears on its own, so it must keep its "try again shortly"
+    // copy rather than telling the player to go and find an organiser.
+    expect(isEmailNotAuthorizedError('Email rate limit exceeded')).toBe(false)
+    expect(isEmailNotAuthorizedError('For security purposes, you can only request this after 60 seconds')).toBe(false)
+    // Unrelated failures must still fall through to the generic error path.
+    expect(isEmailNotAuthorizedError('Invalid login credentials')).toBe(false)
+    expect(isEmailNotAuthorizedError('User already registered')).toBe(false)
+  })
 })

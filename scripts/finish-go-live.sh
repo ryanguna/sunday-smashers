@@ -46,6 +46,12 @@ esac
 # 401 that surfaces as "the site is still in demo mode" — indistinguishable
 # from having set nothing at all. This exact mistake has already happened once
 # here. One HTTP call rules it out.
+#
+# The probe is /auth/v1/settings, not /rest/v1/. The bare PostgREST root
+# answers 401 even for a perfectly good key, so using it would reject the real
+# key and send someone hunting for a problem that does not exist — verified
+# against this project. /auth/v1/settings returns 200 for a valid key and 401
+# for one belonging to another project.
 TMP_ENV="$(mktemp)"
 trap 'rm -f "$TMP_ENV"' EXIT
 PROJECT_URL=""
@@ -57,15 +63,15 @@ fi
 
 if [ -n "$PROJECT_URL" ]; then
   echo "Checking the key against $PROJECT_URL ..."
-  STATUS="$(curl -s -o /dev/null -w '%{http_code}' "$PROJECT_URL/rest/v1/" -H "apikey: $KEY")"
-  if [ "$STATUS" = "401" ] || [ "$STATUS" = "403" ]; then
+  STATUS="$(curl -s -o /dev/null -w '%{http_code}' "$PROJECT_URL/auth/v1/settings" -H "apikey: $KEY")"
+  if [ "$STATUS" != "200" ]; then
     echo >&2
-    echo "Refusing: $PROJECT_URL rejected that key (HTTP $STATUS)." >&2
+    echo "Refusing: $PROJECT_URL did not accept that key (HTTP $STATUS)." >&2
     echo "It is most likely from a different Supabase project. Copy it from" >&2
     echo "the dashboard for this project: Project Settings > API Keys." >&2
     exit 1
   fi
-  echo "Key accepted by the project (HTTP $STATUS)."
+  echo "Key accepted by the project."
 else
   echo "Warning: could not read NEXT_PUBLIC_SUPABASE_URL from Vercel, so the" >&2
   echo "key could not be checked. Continuing." >&2

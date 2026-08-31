@@ -139,9 +139,10 @@ export default function SignupPage() {
               </p>
               <p className="mt-1.5 font-medium">
                 This one is on us, not you — the tournament&apos;s email delivery
-                hasn&apos;t been switched on, so the confirmation link can&apos;t be
-                sent to <strong>{email}</strong>. Please let an organiser know, and
-                try again once they&apos;ve sorted it.
+                isn&apos;t working right now, so the confirmation link can&apos;t
+                reach <strong>{email}</strong>. Your details haven&apos;t been
+                saved. Please let an organiser know, and try again once
+                they&apos;ve sorted it.
               </p>
             </div>
           )}

@@ -9,6 +9,7 @@ import { TextField } from '@/components/auth/FormField'
 import { AlertBanner, DemoModeNotice } from '@/components/auth/DemoModeNotice'
 import { createClient } from '@/lib/supabase/client'
 import { isSupabaseConfigured } from '@/lib/supabase/config'
+import { isEmailNotAuthorizedError } from '../auth/resend-cooldown'
 
 export default function ForgotPasswordPage() {
   const [email, setEmail] = useState('')
@@ -32,7 +33,11 @@ export default function ForgotPasswordPage() {
     })
     setLoading(false)
     if (resetError) {
-      setError(resetError.message)
+      setError(
+        isEmailNotAuthorizedError(resetError.message)
+          ? 'We can’t email that link right now — the tournament’s email delivery isn’t working. Please let an organiser know, and try again once they’ve sorted it.'
+          : resetError.message,
+      )
       return
     }
     setSent(true)

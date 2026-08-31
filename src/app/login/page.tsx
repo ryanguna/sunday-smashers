@@ -78,7 +78,7 @@ function LoginForm() {
     if (otpError) {
       setError(
         isEmailNotAuthorizedError(otpError.message)
-          ? 'We can’t send email to that address yet — the tournament’s email delivery hasn’t been switched on. Please let an organiser know.'
+          ? 'We can’t email that link right now — the tournament’s email delivery isn’t working. Please let an organiser know, and try again once they’ve sorted it.'
           : otpError.message,
       )
       return

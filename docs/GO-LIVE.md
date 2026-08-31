@@ -22,18 +22,22 @@ repeats them:
 | Migrations | `0001`–`0010` applied; tracked in `supabase_migrations.schema_migrations` |
 | Security | 51/51 RLS attacks replayed **against this database** and rolled back |
 | Storage | all three buckets and ten policies created by migration 0001 |
-| Vercel | `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SITE_URL` set |
-| Site | https://sunday-smashers.vercel.app |
+| Vercel | `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SITE_URL` and `NEXT_PUBLIC_SUPABASE_ANON_KEY` all set |
+| Site | https://sunday-smashers.vercel.app — **connected to the real database, no longer in demo mode** |
 
-**What is left:** the Supabase API key. It is the one value that cannot be read
-out of the database or derived from anything else, so a human has to paste it
-in once:
+The bootstrap sequence in step 4 has also been rehearsed against this exact
+database and rolled back, so it is known to work rather than merely intended
+to (`npm run rehearse:first-run` — 8/8).
+
+**What is left: steps 3, 4 and 5.** The site is live but has no organiser
+account and no tournament yet, so it currently shows empty states to everyone.
+
+If the key ever has to be replaced (a rotation, a new project), that is one
+command — it verifies the key belongs to this project before deploying it:
 
 ```bash
 ./scripts/finish-go-live.sh <publishable-or-anon-key>
 ```
-
-That sets the variable and redeploys. Then do steps 3 and 4.
 
 *Preview* deliberately has **no** Supabase variables, so pull-request previews
 stay in demo mode and cannot write to the real tournament. Do not "fix" this.
@@ -101,6 +105,16 @@ Use the **session** pooler (port 5432), not the transaction pooler (6543) —
 the checks need `set local role` to survive across statements. The connection
 string is in the Supabase dashboard under *Connect*.
 
+There is a second suite for the bootstrap path in step 4, which is worth
+running because it is the one sequence that cannot be retried in place:
+`claim_first_admin` goes inert the moment it succeeds, so the committee gets a
+single attempt on the real project. It rehearses two signups, the claim, the
+door closing behind it, and an admin creating the tournament — then rolls back:
+
+```bash
+SUPABASE_DB_URL='…' npm run rehearse:first-run   # expect "8/8 checks passed"
+```
+
 ---
 
 ## 2. Point the site at the database
@@ -113,9 +127,14 @@ to *Production* and *Development* (not *Preview* — see above):
 | `NEXT_PUBLIC_SUPABASE_URL` | `https://<project-ref>.supabase.co` |
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | the publishable (`sb_publishable_…`) or legacy anon key |
 
+Both are already set on the live project — this section is for rebuilding it
+from scratch, or pointing the site at a different Supabase project.
+
 Never add the **secret / service-role** key. A `NEXT_PUBLIC_*` variable is
 shipped to every browser that loads the site, and that key bypasses row-level
-security completely. `scripts/finish-go-live.sh` refuses one on sight.
+security completely. `scripts/finish-go-live.sh` refuses one on sight, and also
+checks the key is accepted by *this* project — a key from another project fails
+with a 401 that looks exactly like having set nothing at all.
 
 Then **redeploy** — environment variables are read at build time, so an
 existing deployment will not pick them up.
@@ -302,6 +321,45 @@ Check spam first, and use the *Resend* button on the signup screen. If it is
 happening to *everyone*, it is almost certainly step 3: with no custom SMTP,
 Supabase only emails members of your own organisation and refuses everyone
 else. The signup screen says so when it can detect it.
+
+**Signing up returns HTTP 500, `"Error sending confirmation email"`.**
+Custom SMTP *is* configured, but the provider rejected the message. Supabase
+surfaces this as a bare 500; the signup screen now translates it into "email
+delivery isn't working — tell an organiser", but the fix is in the dashboard.
+
+Narrow it down before changing anything, because the two causes need
+different fixes:
+
+- **Does it fail for every recipient?** Try a Gmail address and your own.
+  *All* addresses failing rules out Mailgun's sandbox restriction (a sandbox
+  domain only delivers to *authorized recipients*, so a sandbox problem fails
+  for strangers and succeeds for you).
+- **How long does the request take?** Time it:
+  `curl -o /dev/null -w '%{time_total}\n' -X POST "$URL/auth/v1/signup" …`
+  Roughly **2 seconds** means Supabase connected and the provider said no —
+  host and port are fine, so suspect credentials or the sender address.
+  **10 seconds or more** is a connection timeout: wrong host or a blocked
+  port.
+
+For Mailgun specifically, in *Authentication › Emails › SMTP Settings*:
+
+| | |
+| --- | --- |
+| Host | `smtp.mailgun.org` — but `smtp.eu.mailgun.org` if the domain was created in the **EU** region. Getting this wrong is a timeout, not a rejection. |
+| Port | `587` |
+| Username | the full SMTP login, e.g. `postmaster@mg.yourdomain.com` — *not* your Mailgun account email |
+| Password | the domain's **SMTP password** from *Sending › Domain settings › SMTP credentials* — *not* the Mailgun API key. This is the single most common cause. |
+| Sender email | must be **at the Mailgun domain** (`no-reply@mg.yourdomain.com`). A sender at some other domain is rejected even when the credentials are perfect. |
+
+The exact SMTP reply is in **Supabase › Logs › Auth**; search the `error_id`
+from the failed response. Mailgun's own *Sending › Logs* will show the
+rejection from its side.
+
+**To unblock setup while email is broken**, turn off *Authentication ›
+Sign In / Up › Confirm email*. Accounts then work immediately with no email at
+all, which is enough to claim the organiser seat and test. **Turn it back on
+before registration opens** — with it off, anyone can sign up using someone
+else's address, and no player can reset a forgotten password.
 
 **"An admin already exists" on `/setup`.**
 Someone has already claimed the seat. They can add you from *Settings › Roles*.
