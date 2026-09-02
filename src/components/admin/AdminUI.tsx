@@ -164,6 +164,34 @@ export function AdminDataErrorBanner({ message }: { message: string }) {
 }
 
 /**
+ * Shown across the settings console when the project is connected but nobody
+ * has created the tournament yet.
+ *
+ * Without it the forms look completely ordinary — every field editable, a Save
+ * button that responds — and only the toast afterwards hints that nothing was
+ * stored. Saying so up front costs one line and removes the whole guessing
+ * game.
+ */
+export function NoTournamentBanner() {
+  return (
+    <div
+      role="status"
+      className="mb-5 flex items-start gap-3 rounded-[var(--radius-md)] bg-[var(--color-info-bg)] p-3.5 text-sm text-[var(--color-info)]"
+    >
+      <SparkleIcon size={20} className="mt-0.5 shrink-0" aria-hidden="true" />
+      <p>
+        <span className="font-[family-name:var(--font-heading)] font-bold">
+          No tournament yet.
+        </span>{' '}
+        The database is connected, but nothing has been created. Fill in{' '}
+        <strong>Tournament details</strong> and save — that creates it. Divisions, courts and
+        the go-live switches need it to exist first.
+      </p>
+    </div>
+  )
+}
+
+/**
  * The day-zero empty state: a real, connected project that simply has nothing
  * in it yet. Always tells the volunteer the single next thing to do.
  */

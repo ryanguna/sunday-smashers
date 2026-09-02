@@ -1,6 +1,6 @@
 import { requireAdmin } from '@/lib/auth'
 import { DemoModeNotice } from '@/components/auth'
-import { AdminDataErrorBanner } from '@/components/admin/AdminUI'
+import { AdminDataErrorBanner, NoTournamentBanner } from '@/components/admin/AdminUI'
 import { CourtsAndSlotsEditor } from '@/components/settings'
 import { loadSettingsPageData } from '../data'
 import { saveCourtsAndSlotsAction } from '../actions'
@@ -18,11 +18,12 @@ export default async function SettingsCourtsPage() {
   // visible at the page itself. In demo mode `requireAdmin` resolves to the
   // stand-in organiser, so the console stays reviewable in CI.
   await requireAdmin('/admin/settings/courts')
-  const { settings, isDemo, error } = await loadSettingsPageData()
+  const { settings, isDemo, error, tournamentId } = await loadSettingsPageData()
 
   return (
     <div className="space-y-5">
       {isDemo && <DemoModeNotice what="Saving courts and time slots" />}
+      {!isDemo && !tournamentId && <NoTournamentBanner />}
       {error && <AdminDataErrorBanner message={error} />}
       <CourtsAndSlotsEditor
         initialCourts={settings.courts}

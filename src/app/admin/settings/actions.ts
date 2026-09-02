@@ -42,6 +42,8 @@ import { TOURNAMENT_CONFIG_TAG } from '@/lib/tournament-config'
 import { SITE_CONTENT_TAG } from '@/lib/site-content'
 import { loadSettingsPageData, PRIZES_SLUG, SETTINGS_EXTRAS_SLUG } from './data'
 import { PUBLIC_PRIZES_SLUG } from '@/lib/public-prizes'
+import { slugify } from '@/lib/setup'
+import { blockerIsSuccess, settingsSaveBlocker } from '@/lib/settings-save-guard'
 import { withDemoHint } from '@/lib/demo-mode'
 
 /**
@@ -77,6 +79,22 @@ export interface ActionResult {
   message: string
   issues?: SettingsIssue[]
   changes?: SettingsChange[]
+}
+
+/**
+ * Returned when the project is live but nobody has created the tournament.
+ *
+ * Kept distinct from demo mode on purpose. These two states used to share a
+ * branch, so a committee on a healthy database was told "Demo mode — there is
+ * no database to save to" and, worse, handed `ok: true` — the console looked
+ * like it had saved. The database was never the problem; the missing row was.
+ *
+ * `ok: false`, because nothing was written.
+ */
+const NO_TOURNAMENT_YET: ActionResult = {
+  ok: blockerIsSuccess('no-tournament'),
+  message:
+    'There is no tournament to attach this to yet. Fill in Tournament details first — saving that form creates it — then come back.',
 }
 
 function invalid(issues: SettingsIssue[]): ActionResult {
@@ -143,6 +161,81 @@ async function mergeExtras(
 // Tournament details
 // ---------------------------------------------------------------------------
 
+/**
+ * Inserts the tournament the console has been editing against defaults.
+ *
+ * Slug is derived from the name rather than asked for: this path is a rescue
+ * for a committee that never ran the first-run wizard, and demanding a "web
+ * address" mid-save would be a worse surprise than picking a sensible one.
+ * A collision is reported plainly so they can rename.
+ */
+async function createTournamentFromDetails(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  userId: string,
+  details: TournamentDetails,
+  changes: SettingsChange[],
+  issues: SettingsIssue[],
+): Promise<ActionResult> {
+  const name = details.name.trim()
+  const { data, error } = await supabase
+    .from('tournaments')
+    .insert({
+      name,
+      slug: slugify(name) || 'sunday-smashers',
+      tournament_date: details.tournamentDate,
+      registration_opens_at: details.registrationOpensAt,
+      registration_closes_at: details.registrationClosesAt,
+      venue_name: details.venueName.trim() || null,
+      venue_address: details.venueAddress.trim() || null,
+      description: details.description.trim() || null,
+      contact_name: details.contactName.trim() || null,
+      contact_email: details.contactEmail.trim() || null,
+      contact_phone: details.contactPhone.trim() || null,
+      entry_fee_cents: details.entryFeeCents,
+      payment_instructions: details.paymentInstructions.trim() || null,
+      status: 'draft',
+      is_published: false,
+      is_registration_open: false,
+    })
+    .select('id')
+    .single()
+
+  if (error) {
+    if (error.code === '23505') {
+      return {
+        ok: false,
+        message: `Another tournament already uses the web address "${slugify(name)}" — try a different name.`,
+      }
+    }
+    return { ok: false, message: `Could not create the tournament: ${error.message}` }
+  }
+
+  await mergeExtras(supabase, SETTINGS_EXTRAS_SLUG, 'Tournament settings extras', (blob) => ({
+    ...blob,
+    details: { registrationCloseConfirmed: details.registrationCloseConfirmed },
+  }))
+
+  await writeAudit(
+    supabase,
+    userId,
+    buildAuditEntry('settings.details.update', 'tournament', data.id, changes),
+  )
+
+  updateTag(TOURNAMENT_CONFIG_TAG)
+  revalidateTag(TOURNAMENT_CONFIG_TAG, 'max')
+  revalidatePath(SETTINGS_PATH)
+  revalidatePath('/')
+  revalidatePath('/pay')
+
+  return {
+    ok: true,
+    message:
+      'Tournament created and saved. It stays hidden until you publish it with the Go-live switches above.',
+    changes,
+    issues,
+  }
+}
+
 export async function saveTournamentDetailsAction(details: TournamentDetails): Promise<ActionResult> {
   await ensureAdmin()
 
@@ -153,7 +246,7 @@ export async function saveTournamentDetailsAction(details: TournamentDetails): P
   const changes = diffDetails(current.settings.details, details)
   if (changes.length === 0) return noChanges()
 
-  if (!isSupabaseConfigured() || !current.tournamentId) {
+  if (settingsSaveBlocker(isSupabaseConfigured(), current.tournamentId) === 'demo') {
     return {
       ok: true,
       demo: true,
@@ -165,6 +258,21 @@ export async function saveTournamentDetailsAction(details: TournamentDetails): P
 
   const supabase = await createClient()
   const user = await requireAdmin(SETTINGS_PATH)
+
+  // No tournament row yet — create one instead of refusing.
+  //
+  // This branch used to be folded in with the demo-mode check above, so a
+  // committee on a live, correctly configured project was told "Demo mode —
+  // there is no database to save them to" and handed `ok: true`. Both halves
+  // were wrong: the database was fine, and nothing had been saved. The only
+  // way out was the first-run wizard, which nothing on this page mentioned.
+  //
+  // Creating it here matches what the wizard does, including its deliberately
+  // conservative flags: draft, unpublished, registration closed. Going live
+  // stays a separate, conscious act in the Go-live card above.
+  if (!current.tournamentId) {
+    return await createTournamentFromDetails(supabase, user.id, details, changes, issues)
+  }
 
   const { error } = await supabase
     .from('tournaments')
@@ -238,7 +346,7 @@ async function saveDivisions(
   const changes = diffDivisions(current.settings.divisions, divisions)
   if (changes.length === 0) return noChanges()
 
-  if (!isSupabaseConfigured() || !current.tournamentId) {
+  if (settingsSaveBlocker(isSupabaseConfigured(), current.tournamentId) === 'demo') {
     return {
       ok: true,
       demo: true,
@@ -247,6 +355,7 @@ async function saveDivisions(
       issues,
     }
   }
+  if (!current.tournamentId) return NO_TOURNAMENT_YET
 
   const supabase = await createClient()
   const user = await requireAdmin(SETTINGS_PATH)
@@ -315,7 +424,7 @@ export async function saveCourtsAndSlotsAction(input: {
   ]
   if (changes.length === 0) return noChanges()
 
-  if (!isSupabaseConfigured() || !current.tournamentId) {
+  if (settingsSaveBlocker(isSupabaseConfigured(), current.tournamentId) === 'demo') {
     return {
       ok: true,
       demo: true,
@@ -324,6 +433,7 @@ export async function saveCourtsAndSlotsAction(input: {
       issues,
     }
   }
+  if (!current.tournamentId) return NO_TOURNAMENT_YET
 
   const supabase = await createClient()
   const user = await requireAdmin(SETTINGS_PATH)
@@ -538,7 +648,7 @@ export async function saveLiveStatusAction(status: LiveStatus): Promise<ActionRe
   const changes = diffLiveStatus(current.liveStatus, status)
   if (changes.length === 0) return noChanges()
 
-  if (!isSupabaseConfigured() || !current.tournamentId) {
+  if (settingsSaveBlocker(isSupabaseConfigured(), current.tournamentId) === 'demo') {
     return {
       ok: true,
       demo: true,
@@ -546,6 +656,7 @@ export async function saveLiveStatusAction(status: LiveStatus): Promise<ActionRe
       changes,
     }
   }
+  if (!current.tournamentId) return NO_TOURNAMENT_YET
 
   const supabase = await createClient()
   const { error } = await supabase
