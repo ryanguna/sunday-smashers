@@ -143,7 +143,6 @@ async function loadLive(): Promise<AdminConsoleRows> {
       phone: profile?.phone ?? null,
       emergencyContactName: profile?.emergency_contact_name ?? null,
       emergencyContactPhone: profile?.emergency_contact_phone ?? null,
-      shirtSize: profile?.shirt_size ?? null,
       skillLevel: profile?.skill_level ?? null,
       divisionId: row.division_id,
       divisionName: divisionById.get(row.division_id)?.name ?? 'Unknown division',

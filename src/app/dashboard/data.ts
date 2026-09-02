@@ -41,7 +41,6 @@ const DEMO_PROFILE: ProfileRow = {
   nickname: 'ivysmash',
   gender: 'female',
   phone: '0412 345 678',
-  shirt_size: 'M',
   skill_level: 'intermediate',
   emergency_contact_name: 'Rudolph Reindeer',
   emergency_contact_phone: '0400 000 000',

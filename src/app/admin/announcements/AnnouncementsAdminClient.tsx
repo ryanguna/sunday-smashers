@@ -35,6 +35,7 @@ import {
   type AnnouncementStatusFilter,
 } from '@/lib/announcements'
 import { ACCENT_STYLES } from '@/components/announcements'
+import { refreshPublicAnnouncementsAction } from './actions'
 
 const STATUS_TABS: { id: AnnouncementStatusFilter; label: string }[] = [
   { id: 'all', label: 'All' },
@@ -166,6 +167,7 @@ function AnnouncementsComposer({ initialAnnouncements, tournamentId }: Announcem
             .single()
 
       if (error) throw new Error(error.message)
+      await refreshPublicAnnouncementsAction()
       upsertLocal(toAnnouncement(data as AnnouncementRow))
       setEditor(null)
       toast({
@@ -198,6 +200,7 @@ function AnnouncementsComposer({ initialAnnouncements, tournamentId }: Announcem
           })
           .eq('id', announcement.id)
         if (error) throw new Error(error.message)
+        await refreshPublicAnnouncementsAction()
       } catch (caught) {
         setBusyId(null)
         setServerError(caught instanceof Error ? caught.message : 'Update failed. Try again.')
@@ -221,6 +224,7 @@ function AnnouncementsComposer({ initialAnnouncements, tournamentId }: Announcem
         const supabase = createClient()
         const { error } = await supabase.from('announcements').delete().eq('id', target.id)
         if (error) throw new Error(error.message)
+        await refreshPublicAnnouncementsAction()
       } catch (caught) {
         setBusyId(null)
         setServerError(caught instanceof Error ? caught.message : 'Delete failed. Try again.')

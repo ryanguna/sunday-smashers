@@ -336,7 +336,7 @@ export function RegistrationsClient({
               </TableHeaderCell>
               <TableHeaderCell>Player</TableHeaderCell>
               <TableHeaderCell>Partner / team</TableHeaderCell>
-              <TableHeaderCell>Shirt / skill</TableHeaderCell>
+              <TableHeaderCell>Skill level</TableHeaderCell>
               <TableHeaderCell>Status</TableHeaderCell>
               <TableHeaderCell>Payment</TableHeaderCell>
               <TableHeaderCell className="text-right">Review</TableHeaderCell>
@@ -404,12 +404,9 @@ export function RegistrationsClient({
                       </span>
                     )}
                   </TableCell>
-                  <TableCell label="Shirt / skill">
+                  <TableCell label="Skill level">
                     <span className="text-left">
-                      <span className="block font-bold text-[var(--color-plum)]">
-                        {row.shirtSize ?? '—'}
-                      </span>
-                      <span className="block text-xs capitalize text-[var(--color-ink-muted)]">
+                      <span className="block font-bold capitalize text-[var(--color-plum)]">
                         {row.skillLevel ?? '—'}
                       </span>
                     </span>

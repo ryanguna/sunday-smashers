@@ -16,7 +16,6 @@ interface FormState {
   nickname: string
   gender: string
   phone: string
-  shirtSize: string
   skillLevel: string
   emergencyContactName: string
   emergencyContactPhone: string
@@ -27,7 +26,6 @@ const EMPTY_FORM: FormState = {
   nickname: '',
   gender: '',
   phone: '',
-  shirtSize: '',
   skillLevel: '',
   emergencyContactName: '',
   emergencyContactPhone: '',
@@ -40,7 +38,6 @@ function validate(form: FormState): FormErrors {
   if (form.fullName.trim().length < 2) errors.fullName = 'Please enter your full name.'
   if (!form.gender) errors.gender = 'Please select an option.'
   if (form.phone.trim().length < 6) errors.phone = 'Enter a contactable phone number.'
-  if (!form.shirtSize) errors.shirtSize = 'Pick a shirt size for your loot bag.'
   if (!form.skillLevel) errors.skillLevel = 'Pick your skill level.'
   if (form.emergencyContactName.trim().length < 2) errors.emergencyContactName = 'Enter an emergency contact name.'
   if (form.emergencyContactPhone.trim().length < 6) errors.emergencyContactPhone = 'Enter an emergency contact phone.'
@@ -74,7 +71,6 @@ export default function OnboardingPage() {
           nickname: profile.nickname ?? '',
           gender: profile.gender ?? '',
           phone: profile.phone ?? '',
-          shirtSize: profile.shirt_size ?? '',
           skillLevel: profile.skill_level ?? '',
           emergencyContactName: profile.emergency_contact_name ?? '',
           emergencyContactPhone: profile.emergency_contact_phone ?? '',
@@ -127,7 +123,6 @@ export default function OnboardingPage() {
       | 'nickname'
       | 'gender'
       | 'phone'
-      | 'shirt_size'
       | 'skill_level'
       | 'emergency_contact_name'
       | 'emergency_contact_phone'
@@ -137,7 +132,6 @@ export default function OnboardingPage() {
       nickname: form.nickname.trim() || null,
       gender: form.gender as ProfileRow['gender'],
       phone: form.phone.trim(),
-      shirt_size: form.shirtSize as ProfileRow['shirt_size'],
       skill_level: form.skillLevel as ProfileRow['skill_level'],
       emergency_contact_name: form.emergencyContactName.trim(),
       emergency_contact_phone: form.emergencyContactPhone.trim(),
@@ -177,7 +171,7 @@ export default function OnboardingPage() {
       subtitle={
         step === 0
           ? "Step 1 of 2 — the basics so we know who's smashing."
-          : 'Step 2 of 2 — loot bag & safety details.'
+          : 'Step 2 of 2 — your game & safety details.'
       }
     >
       {serverError && <AlertBanner>{serverError}</AlertBanner>}
@@ -230,22 +224,11 @@ export default function OnboardingPage() {
             placeholder="04XX XXX XXX"
           />
           <Button type="submit" className="mt-2 w-full">
-            Next: loot bag & safety
+            Next: your game & safety
           </Button>
         </form>
       ) : (
         <form onSubmit={handleSubmit} noValidate>
-          <SelectField
-            label="Shirt size (for your loot bag 🎁)"
-            required
-            value={form.shirtSize}
-            onChange={(event) => update('shirtSize', event.target.value)}
-            error={errors.shirtSize}
-            options={['XS', 'S', 'M', 'L', 'XL', 'XXL', '3XL'].map((size) => ({
-              value: size,
-              label: size,
-            }))}
-          />
           <SelectField
             label="Skill level"
             required

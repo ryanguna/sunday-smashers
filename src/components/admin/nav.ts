@@ -138,7 +138,7 @@ export const ADMIN_NAV: AdminNavItem[] = [
   {
     href: '/admin/checklist',
     label: 'Checklist',
-    description: 'Loot bags, shirts, medals, trophies and prize money.',
+    description: 'Loot bags, medals, trophies and prize money.',
     icon: GiftIcon,
     group: 'Content',
   },

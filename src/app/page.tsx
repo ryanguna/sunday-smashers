@@ -16,9 +16,8 @@ import { AnnouncementsStrip } from '@/components/announcements'
 import { FeaturedPhotoStrip } from '@/components/gallery'
 import { loadFeaturedPhotos } from '@/components/gallery/data'
 import { WinnersShowcase } from '@/components/awards'
-import { getAnnouncementsFeed } from '@/lib/announcements'
+import { loadPublicAnnouncementsFeed } from '@/lib/announcements-server'
 import { hasAnyWinners } from '@/lib/awards'
-import { announcementsClient } from './announcements/client'
 import { getPublicAwards } from './awards/data'
 import { PRE_REGISTRATION_OPENS_AT, TOURNAMENT_DATE_LABEL } from '@/lib/tournament'
 
@@ -90,7 +89,7 @@ export default async function HomePage() {
   // a division has actually been crowned — before match day the countdown
   // stays the hero rather than a row of "to be decided" placeholders.
   const [{ now, announcements }, { views: awardViews }, featuredPhotos, tournament] = await Promise.all([
-    getAnnouncementsFeed(await announcementsClient()),
+    loadPublicAnnouncementsFeed(),
     getPublicAwards(),
     loadFeaturedPhotos(),
     loadPublicTournamentConfig(),

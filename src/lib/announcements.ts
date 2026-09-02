@@ -290,7 +290,7 @@ const DEMO_SEEDS: DemoSeed[] = [
       'Doors open at **8:15am** and the call room opens at **8:30am** sharp.',
       '',
       '- Check in with the desk before you warm up',
-      '- Collect your loot bag and shirt at the same time',
+      '- Collect your loot bag at the same time',
       '- First shuttle in the air at **9:00am**',
       '',
       'Late arrivals forfeit their first game, so give yourself a buffer — Christmas traffic is real. 🎄',
@@ -325,9 +325,9 @@ const DEMO_SEEDS: DemoSeed[] = [
   },
   {
     id: 'demo-ann-lootbags',
-    title: '🎁 Loot bags, shirts and a very serious raffle',
+    title: '🎁 Loot bags and a very serious raffle',
     body: [
-      'Everyone who plays gets a loot bag — shirt, shuttle, snacks and a candy cane the organisers swear they did not sample.',
+      'Everyone who plays gets a loot bag — shuttle, snacks and a candy cane the organisers swear they did not sample.',
       '',
       'The raffle is drawn between the semis and the final. Tickets are at the desk; all proceeds go to the club shuttle fund.',
     ].join('\n'),

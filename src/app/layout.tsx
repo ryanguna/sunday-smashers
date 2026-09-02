@@ -4,6 +4,7 @@ import { Analytics } from '@vercel/analytics/next'
 import { SpeedInsights } from '@vercel/speed-insights/next'
 import { SiteHeader } from '@/components/SiteHeader'
 import { SiteFooter } from '@/components/SiteFooter'
+import { loadSitePageVisibility } from '@/lib/site-pages-server'
 import { SITE_URL } from '@/lib/site'
 import './globals.css'
 
@@ -64,7 +65,18 @@ export const metadata: Metadata = {
   },
 }
 
-export default function RootLayout({ children }: { children: React.ReactNode }) {
+/**
+ * The layout is `async` so it can read the committee's page-visibility
+ * switches once, on the server, and hand the same answer to the header and the
+ * footer. `loadSitePageVisibility` is cached and reads no cookies, so this does
+ * **not** make every route dynamic — see `src/lib/site-pages-server.ts`.
+ *
+ * Resolving it here rather than in the header means the nav is correct in the
+ * server-rendered HTML: a hidden link never flashes up and then disappears.
+ */
+export default async function RootLayout({ children }: { children: React.ReactNode }) {
+  const visibility = await loadSitePageVisibility()
+
   return (
     <html lang="en" className={`${baloo.variable} ${nunito.variable} ${pacifico.variable}`}>
       <body className="flex min-h-dvh flex-col">
@@ -74,11 +86,11 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         >
           Skip to main content
         </a>
-        <SiteHeader />
+        <SiteHeader visibility={visibility} />
         <div id="main-content" className="flex-1">
           {children}
         </div>
-        <SiteFooter />
+        <SiteFooter visibility={visibility} />
         <Analytics />
         <SpeedInsights />
       </body>

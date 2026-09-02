@@ -14,13 +14,10 @@ export interface ProfileCardProps {
   className?: string
 }
 
-const SHIRT_SIZES = ['XS', 'S', 'M', 'L', 'XL', 'XXL', '3XL'] as const
-
 interface FormValues {
   full_name: string
   nickname: string
   avatar_url: string
-  shirt_size: string
   phone: string
   emergency_contact_name: string
   emergency_contact_phone: string
@@ -31,7 +28,6 @@ function toForm(profile: ProfileRow | null): FormValues {
     full_name: profile?.full_name ?? '',
     nickname: profile?.nickname ?? '',
     avatar_url: profile?.avatar_url ?? '',
-    shirt_size: profile?.shirt_size ?? '',
     phone: profile?.phone ?? '',
     emergency_contact_name: profile?.emergency_contact_name ?? '',
     emergency_contact_phone: profile?.emergency_contact_phone ?? '',
@@ -107,7 +103,6 @@ export function ProfileCard({ profile, demo, className }: ProfileCardProps) {
             full_name: values.full_name.trim(),
             nickname: values.nickname.trim() || null,
             avatar_url: values.avatar_url.trim() || null,
-            shirt_size: (values.shirt_size || null) as ProfileRow['shirt_size'],
             phone: values.phone.trim() || null,
             emergency_contact_name: values.emergency_contact_name.trim() || null,
             emergency_contact_phone: values.emergency_contact_phone.trim() || null,
@@ -149,7 +144,6 @@ export function ProfileCard({ profile, demo, className }: ProfileCardProps) {
             </h2>
             <p className="text-sm text-[var(--color-ink-muted)]">
               {values.nickname ? `@${values.nickname}` : 'No nickname yet'}
-              {values.shirt_size ? ` · Shirt ${values.shirt_size}` : ''}
             </p>
           </div>
           <Button size="sm" variant="secondary" className="ml-auto" onClick={() => setOpen(true)}>
@@ -187,27 +181,11 @@ export function ProfileCard({ profile, demo, className }: ProfileCardProps) {
           </p>
         )}
 
-        <Modal open={open} onClose={() => setOpen(false)} title="Edit your details" description="Keep your name, shirt size and emergency contact up to date for tournament day.">
+        <Modal open={open} onClose={() => setOpen(false)} title="Edit your details" description="Keep your name, nickname and emergency contact up to date for tournament day.">
           <div className="grid gap-3 sm:grid-cols-2">
             <Field label="Full name" id="profile-full-name" value={values.full_name} onChange={set('full_name')} autoComplete="name" />
             <Field label="Nickname" id="profile-nickname" value={values.nickname} onChange={set('nickname')} hint="Shown on the scoreboard" />
             <Field label="Avatar URL" id="profile-avatar" value={values.avatar_url} onChange={set('avatar_url')} hint="A link to your photo" />
-            <label htmlFor="profile-shirt" className="block">
-              <span className="text-sm font-extrabold text-[var(--color-plum)]">Shirt size</span>
-              <select
-                id="profile-shirt"
-                value={values.shirt_size}
-                onChange={(event) => set('shirt_size')(event.target.value)}
-                className="mt-1 w-full rounded-[var(--radius-md)] border-2 border-[var(--color-brand-lilac-light)] bg-white px-3 py-2 text-[var(--color-ink)] focus:border-[var(--color-brand-lilac)] focus:outline-none"
-              >
-                <option value="">Pick a size</option>
-                {SHIRT_SIZES.map((size) => (
-                  <option key={size} value={size}>
-                    {size}
-                  </option>
-                ))}
-              </select>
-            </label>
             <Field label="Phone" id="profile-phone" value={values.phone} onChange={set('phone')} type="tel" hint="Private" autoComplete="tel" />
             <Field
               label="Emergency contact"

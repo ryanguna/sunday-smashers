@@ -3,7 +3,6 @@ import Link from 'next/link'
 import { Badge, Card } from '@/components/ui'
 import {
   GiftIcon,
-  MedalIcon,
   RacketIcon,
   ShuttlecockIcon,
   SnowflakeIcon,
@@ -28,7 +27,6 @@ import {
   freeAgents,
   REGISTRATION_STATUS_CHEER,
   REGISTRATION_STATUS_LABELS,
-  shirtSizeTally,
   summariseByDivision,
   type CapacityState,
 } from '@/lib/admin'
@@ -64,7 +62,6 @@ export default async function AdminDashboardPage() {
   const totals = computeReconciliation(registrations)
   const agents = freeAgents(registrations)
   const alerts = buildAlerts(registrations, divisions, pendingInvites.length)
-  const shirts = shirtSizeTally(registrations)
   const collectionPercent = Math.round(totals.collectionRate * 100)
 
   // Day zero on a real, connected project: no entries at all. Zeroes in every
@@ -214,46 +211,7 @@ export default async function AdminDashboardPage() {
             })}
           </div>
 
-          <div className="mt-6 grid grid-cols-1 gap-5 sm:grid-cols-2">
-            <section aria-labelledby="dash-shirts">
-              <h2
-                id="dash-shirts"
-                className="mb-2.5 flex items-center gap-2 text-lg font-extrabold text-[var(--color-plum)]"
-              >
-                <MedalIcon
-                  size={20}
-                  className="text-[var(--color-brand-pink-dark)]"
-                  aria-hidden="true"
-                />
-                Loot bag shirt sizes
-              </h2>
-              <Card variant="frosted" className="p-4">
-                <div className="flex flex-wrap gap-2">
-                  {shirts.map((entry) => (
-                    <span
-                      key={entry.size}
-                      className="rounded-[var(--radius-pill)] bg-white px-3 py-1.5 text-sm font-semibold text-[var(--color-plum)] shadow-[var(--shadow-soft)]"
-                    >
-                      {entry.size}
-                      <span className="ml-1.5 rounded-[var(--radius-pill)] bg-[var(--color-brand-mint-light)] px-2 py-0.5 text-xs font-extrabold text-[var(--color-brand-mint-dark)]">
-                        {entry.count}
-                      </span>
-                    </span>
-                  ))}
-                </div>
-                <p className="mt-3 text-xs text-[var(--color-ink-soft)]">
-                  Excludes rejected entries. Export the full list from{' '}
-                  <Link
-                    href="/admin/registrations"
-                    className="font-bold underline underline-offset-2"
-                  >
-                    Registrations
-                  </Link>
-                  .
-                </p>
-              </Card>
-            </section>
-
+          <div className="mt-6 grid grid-cols-1 gap-5">
             <section aria-labelledby="dash-pairing">
               <h2
                 id="dash-pairing"

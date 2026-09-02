@@ -24,7 +24,6 @@ const COMPLETE: RegistrationFormValues = {
   divisionId: 'div-mens',
   partnerMode: 'partner',
   partnerIdentifier: 'rudolph@example.com',
-  shirtSize: 'L',
   skillLevel: 'intermediate',
   phone: '0412 345 678',
   emergencyContactName: 'Mrs Claus',
@@ -79,14 +78,14 @@ describe('stepErrors', () => {
     const errors = stepErrors(stepById(steps, 'division'), EMPTY_REGISTRATION_FORM, CONTEXT)
     expect(errors.divisionId).toBeDefined()
     // The rest of the form is empty too, but that is not this step's business.
-    expect(errors.shirtSize).toBeUndefined()
+    expect(errors.skillLevel).toBeUndefined()
     expect(errors.phone).toBeUndefined()
   })
 
   it('uses the same message the whole-form validator produces', () => {
     const steps = buildWizardSteps(EMPTY_REGISTRATION_FORM)
-    const errors = stepErrors(stepById(steps, 'shirt'), EMPTY_REGISTRATION_FORM, CONTEXT)
-    expect(errors.shirtSize).toContain('loot bag')
+    const errors = stepErrors(stepById(steps, 'skill'), EMPTY_REGISTRATION_FORM, CONTEXT)
+    expect(errors.skillLevel).toContain('Santa is watching')
   })
 
   it('rejects partnering with yourself, on the step that asks', () => {
@@ -227,7 +226,7 @@ describe('isWizardComplete', () => {
   })
 
   it('is false while any question is unanswered', () => {
-    expect(isWizardComplete({ ...COMPLETE, shirtSize: '' }, CONTEXT)).toBe(false)
+    expect(isWizardComplete({ ...COMPLETE, skillLevel: '' }, CONTEXT)).toBe(false)
   })
 
   it('agrees with the step model about whether we are done', () => {
@@ -265,7 +264,7 @@ describe('isStepReachable', () => {
   })
 
   it('refuses to skip past a question that has never been displayed', () => {
-    // The regression this exists for: skill/shirt/phone/emergency all arrive
+    // The regression this exists for: skill/phone/emergency all arrive
     // pre-filled from the profile, so a completeness-based rule let someone on
     // question 1 jump to question 7 and reach a review with no division.
     expect(isStepReachable(6, 0, 0)).toBe(false)

@@ -1,95 +1,102 @@
-'use client'
-
-import { useEffect, useRef, useState, type FormEvent } from 'react'
+import type { Metadata } from 'next'
 import Link from 'next/link'
 import { Button } from '@/components/ui'
-import { SparkleIcon } from '@/components/icons'
+import { BaubleIcon } from '@/components/icons'
 import { AuthShell } from '@/components/auth/AuthShell'
-import { TextField } from '@/components/auth/FormField'
-import { AlertBanner, DemoModeNotice } from '@/components/auth/DemoModeNotice'
-import { createClient } from '@/lib/supabase/client'
-import { isSupabaseConfigured } from '@/lib/supabase/config'
-import { isEmailNotAuthorizedError } from '../auth/resend-cooldown'
+import { loadPublicTournamentConfig } from '@/lib/tournament-config'
 
-export default function ForgotPasswordPage() {
-  const [email, setEmail] = useState('')
-  const [loading, setLoading] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-  const [sent, setSent] = useState(false)
-  const sentRef = useRef<HTMLDivElement>(null)
+export const metadata: Metadata = {
+  title: 'Forgot password',
+  description: 'How to get back into your Sunday Smashers account.',
+}
 
-  useEffect(() => {
-    if (sent) sentRef.current?.focus()
-  }, [sent])
-
-  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault()
-    if (loading) return
-    setError(null)
-    setLoading(true)
-    const supabase = createClient()
-    const { error: resetError } = await supabase.auth.resetPasswordForEmail(email, {
-      redirectTo: `${window.location.origin}/auth/callback?next=${encodeURIComponent('/reset-password')}`,
-    })
-    setLoading(false)
-    if (resetError) {
-      setError(
-        isEmailNotAuthorizedError(resetError.message)
-          ? 'We can’t email that link right now — the tournament’s email delivery isn’t working. Please let an organiser know, and try again once they’ve sorted it.'
-          : resetError.message,
-      )
-      return
-    }
-    setSent(true)
-  }
+/**
+ * There is no "email me a reset link" any more, because there is no SMTP
+ * server to send it (see `docs/GO-LIVE.md`). Rather than 404 the route — the
+ * sign-in page links here, and "Forgot password?" is the first thing a stuck
+ * player looks for — this page tells them the truth and gives them a human to
+ * ask.
+ *
+ * The organiser's contact details come from the tournament row, so the
+ * committee can change who fields these requests without a redeploy. If they
+ * haven't filled any in yet we say so plainly instead of rendering an empty
+ * card that looks broken.
+ */
+export default async function ForgotPasswordPage() {
+  const config = await loadPublicTournamentConfig()
+  const contacts = [
+    config.contactName ? { label: 'Ask for', value: config.contactName, href: null } : null,
+    config.contactPhone
+      ? { label: 'Phone or text', value: config.contactPhone, href: `tel:${config.contactPhone.replace(/\s+/g, '')}` }
+      : null,
+  ].filter((entry): entry is { label: string; value: string; href: string | null } => entry !== null)
 
   return (
     <AuthShell
-      icon={<SparkleIcon size={26} />}
-      eyebrow="No stress"
-      title="Reset your password"
-      subtitle="We'll email you a link to set a new one."
+      icon={<BaubleIcon size={26} />}
+      eyebrow="Locked out?"
+      title="Let's get you back on court"
+      subtitle="Password resets are done by a human, not a robot."
       footer={
-        <Link href="/login" className="font-semibold text-[var(--color-brand-pink-dark)] hover:underline">
-          Back to sign in
-        </Link>
+        <>
+          Remembered it?{' '}
+          <Link
+            href="/login"
+            className="font-semibold text-[var(--color-brand-pink-dark)] hover:underline"
+          >
+            Back to sign in
+          </Link>
+        </>
       }
     >
-      {!isSupabaseConfigured() ? (
-        <DemoModeNotice />
-      ) : sent ? (
-        <div ref={sentRef} tabIndex={-1} className="outline-none">
-          <AlertBanner variant="success">
-            If an account exists for <strong>{email}</strong>, a reset link is on its way — check
-            your inbox (and spam folder, just in case).
-          </AlertBanner>
-          <Button
-            type="button"
-            variant="ghost"
-            className="w-full"
-            onClick={() => setSent(false)}
-          >
-            Wrong email? Try another
-          </Button>
-        </div>
+      <div className="rounded-[var(--radius-md)] bg-[var(--color-info-bg)] p-4 text-sm text-[var(--color-info)]">
+        <p className="font-[family-name:var(--font-heading)] font-bold">
+          We can&apos;t email you a reset link
+        </p>
+        <p className="mt-1.5 font-medium">
+          Sunday Smashers doesn&apos;t send email at all — no confirmation messages, no reset links,
+          nothing to get lost in a spam folder. Message an organiser instead and they&apos;ll set a
+          new password on your account straight away.
+        </p>
+      </div>
+
+      {contacts.length > 0 ? (
+        <dl className="mt-5 grid gap-3">
+          {contacts.map((contact) => (
+            <div
+              key={contact.label}
+              className="flex items-baseline justify-between gap-4 rounded-[var(--radius-md)] bg-white/70 px-4 py-3"
+            >
+              <dt className="text-sm font-semibold text-[var(--color-ink-muted)]">
+                {contact.label}
+              </dt>
+              <dd className="font-[family-name:var(--font-heading)] font-bold text-[var(--color-plum)]">
+                {contact.href ? (
+                  <a href={contact.href} className="underline hover:no-underline">
+                    {contact.value}
+                  </a>
+                ) : (
+                  contact.value
+                )}
+              </dd>
+            </div>
+          ))}
+        </dl>
       ) : (
-        <form onSubmit={handleSubmit} noValidate>
-          {error && <AlertBanner>{error}</AlertBanner>}
-          <TextField
-            label="Email"
-            type="email"
-            name="email"
-            autoComplete="email"
-            required
-            value={email}
-            onChange={(event) => setEmail(event.target.value)}
-            placeholder="you@example.com"
-          />
-          <Button type="submit" className="w-full" loading={loading} disabled={loading}>
-            Send reset link
-          </Button>
-        </form>
+        <p className="mt-5 text-sm text-[var(--color-ink-soft)]">
+          The committee hasn&apos;t published contact details yet. Grab whoever is running the draw
+          in the group chat — they can sort it out.
+        </p>
       )}
+
+      <p className="mt-5 text-sm text-[var(--color-ink-soft)]">
+        Once they&apos;ve set a new password for you, sign in with it and change it to something you
+        like from your dashboard.
+      </p>
+
+      <Button href="/login" className="mt-5 w-full">
+        Back to sign in
+      </Button>
     </AuthShell>
   )
 }

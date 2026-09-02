@@ -42,7 +42,6 @@ function toTeamPlayer(row: AdminRegistration): TeamPlayer {
     divisionName: row.divisionName,
     status: row.status,
     paymentStatus: row.payment.status,
-    shirtSize: row.shirtSize,
     skillLevel: row.skillLevel,
     teamId: row.teamId,
     createdAt: row.createdAt,

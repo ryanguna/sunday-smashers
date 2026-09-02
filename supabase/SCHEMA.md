@@ -13,7 +13,7 @@ organising committee can tune the format without a schema change.
 
 | Table | Purpose |
 |---|---|
-| `profiles` | 1:1 with `auth.users`. Name, nickname, gender, phone, shirt size, skill level, emergency contact, avatar. **Contains PII — never exposed to anon/public.** |
+| `profiles` | 1:1 with `auth.users`. Name, nickname, gender, phone, skill level, emergency contact, avatar. **Contains PII — never exposed to anon/public.** |
 | `user_roles` | Many-to-many `user_id` ↔ `role` (`public`, `player`, `duty_official`, `tabulator`, `admin`). A player can simultaneously be a duty official for one match and a plain player for the next. |
 | `tournaments` | One row per event (the Christmas Mini Tournament). Dates, venue, publish/registration-open flags. |
 | `divisions` | Per tournament. Name, gender, and every configurable format setting: `format_kind`, `points_to_win_elims/finals`, `deuce_enabled_elims/finals`, `cap_elims/finals`, `qualifying_places`, `tiebreak_order`. |
@@ -31,7 +31,7 @@ organising committee can tune the format without a schema change.
 | `announcements` | Admin posts, publishable. |
 | `awards` | Champion/runner-up/3rd/4th/sportsmanship/special mention. |
 | `photos` | Gallery uploads, moderated before public display. |
-| `checklist_items` | Loot bag/shirt/medal/trophy/prize money handout tracking per player. |
+| `checklist_items` | Loot bag/medal/trophy/prize money handout tracking per player. |
 | `audit_log` | Free-form admin/tabulator action trail. |
 | `site_content` | DB-driven rules/FAQ markdown pages (seeded with the draft rules text). |
 | `standings` (view) | Raw per-team aggregates for the elims stage — see "Standings split" below. |
@@ -297,8 +297,8 @@ the same award twice.
 
 **2. `public.committee_checklist`** — the committee readiness board (who is
 bringing what, by when) was persisted as a single JSON blob in `site_content`.
-`checklist_items` could not hold it: that table is per-player loot-bag/shirt/
-medal handout, a different thing. A single blob is also last-write-wins — two
+`checklist_items` could not hold it: that table is per-player loot-bag/medal
+handout, a different thing. A single blob is also last-write-wins — two
 committee members ticking jobs at the same time silently lose one another's
 edits, which is exactly the scenario the board exists for. A `sync_committee_
 checklist_done` trigger keeps `done_at`/`done_by` consistent with `is_done`
@@ -341,8 +341,8 @@ the same award twice.
 
 **2. `public.committee_checklist`** — the committee readiness board (who is
 bringing what, by when) was persisted as a single JSON blob in `site_content`.
-`checklist_items` could not hold it: that table is per-player loot-bag/shirt/
-medal handout, a different thing. A single blob is also last-write-wins — two
+`checklist_items` could not hold it: that table is per-player loot-bag/medal
+handout, a different thing. A single blob is also last-write-wins — two
 committee members ticking jobs at the same time silently lose one another's
 edits, which is exactly the scenario the board exists for. A
 `sync_committee_checklist_done` trigger keeps `done_at`/`done_by` consistent

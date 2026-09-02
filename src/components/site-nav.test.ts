@@ -3,6 +3,7 @@ import {
   accountDisplayName,
   accountLinks,
   accountNavState,
+  shouldShowRegisterCta,
   FOOTER_LINKS,
   NAV_LINKS,
 } from './site-nav'
@@ -101,5 +102,38 @@ describe('accountDisplayName', () => {
 
   it('falls back to generic copy when we know neither', () => {
     expect(accountDisplayName(null, undefined)).toBe('your account')
+  })
+})
+
+describe('shouldShowRegisterCta', () => {
+  it('hides the CTA once someone is signed in', () => {
+    // The specific complaint: "the register button is always there, it's even
+    // confusing". A signed-in player's entry lives on their dashboard.
+    expect(
+      shouldShowRegisterCta({ accountState: 'signed-in', registerPageVisible: true }),
+    ).toBe(false)
+  })
+
+  it('shows the CTA to a signed-out visitor', () => {
+    expect(
+      shouldShowRegisterCta({ accountState: 'signed-out', registerPageVisible: true }),
+    ).toBe(true)
+  })
+
+  it('shows the CTA while the session is still resolving', () => {
+    // Signed-out is the common case on a public teaser site, and withholding
+    // the button until JavaScript lands costs more than a brief flash.
+    expect(shouldShowRegisterCta({ accountState: 'pending', registerPageVisible: true })).toBe(
+      true,
+    )
+    expect(shouldShowRegisterCta({ accountState: 'demo', registerPageVisible: true })).toBe(true)
+  })
+
+  it('hides the CTA when the committee has switched /register off', () => {
+    // Pointing at a page that renders "not open yet" is worse than no CTA,
+    // whoever is looking.
+    for (const accountState of ['signed-out', 'signed-in', 'pending', 'demo'] as const) {
+      expect(shouldShowRegisterCta({ accountState, registerPageVisible: false })).toBe(false)
+    }
   })
 })

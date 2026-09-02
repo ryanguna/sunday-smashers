@@ -91,6 +91,36 @@ export function accountLinks(roles: readonly UserRole[]): NavLink[] {
   ]
 }
 
+/**
+ * Should the header show its standalone "Register" call to action?
+ *
+ * The old answer was "always", which produced two complaints at once. A player
+ * who had *just signed in* was still shown a big Register button, tapped it,
+ * and was asked to create an account — so the button read as broken. And once
+ * registration closes, or before the committee has opened it, the button
+ * advertised a page that could not accept them.
+ *
+ * The rule now:
+ *
+ *  - **Hidden** when the committee has switched `/register` off. A CTA for a
+ *    page that renders "not open yet" is worse than no CTA.
+ *  - **Hidden** when someone is signed in. Everything personal — including
+ *    their entry — lives behind the avatar menu and on their dashboard, so a
+ *    second, competing entry point is just noise. This is the specific fix for
+ *    "the register button is always there, it's even confusing".
+ *  - **Shown** otherwise, including while the session is still resolving.
+ *    Signed-out is by far the common case for a public teaser site, and the
+ *    button is the whole point of the page; withholding it until JavaScript
+ *    lands would cost far more than the brief flash a signed-in visitor sees.
+ */
+export function shouldShowRegisterCta(input: {
+  accountState: AccountNavState
+  registerPageVisible: boolean
+}): boolean {
+  if (!input.registerPageVisible) return false
+  return input.accountState !== 'signed-in'
+}
+
 /** "Signed in as …" copy: the player's name when we have it, otherwise their email. */
 export function accountDisplayName(
   fullName: string | null | undefined,

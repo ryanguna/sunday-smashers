@@ -5,16 +5,15 @@
  * in `src/app/admin/checklist/data.ts`, mutations in `actions.ts`.
  *
  * The point of this module is that **quantities are never typed in**. Loot
- * bag counts, shirt-size breakdowns and prize money all fall out of the real
- * approved registrations (`shirtSizeTally` from `@/lib/admin`) and the saved
- * prize configuration, so the number on the printed sheet can't drift from
- * the number of people who actually entered.
+ * bag counts, medal counts and prize money all fall out of the real approved
+ * registrations and the saved prize configuration, so the number on the
+ * printed sheet can't drift from the number of people who actually entered.
  *
  * SCHEMA: the board lives in `public.committee_checklist`, one row per job
  * (migration 0005). Row-per-item matters here: two committee members ticking
  * jobs at the same time must not overwrite each other, which is exactly what
  * a single JSON blob would have done. `public.checklist_items` is a
- * different thing entirely — per-player loot bag/shirt/medal handout.
+ * different thing entirely — per-player loot bag/medal handout.
  *
  * The table stores the committee's data (category, label, owner, notes, due
  * date, done, position). The *copy* — each standard job's one-line detail and
@@ -24,7 +23,6 @@
  */
 
 import { csvEscape, csvFilename, formatCents, type AdminRegistration } from './admin'
-import { shirtSizeTally } from './admin'
 import type { PrizeSettings } from './settings'
 import type { CommitteeChecklistRow } from './supabase/types'
 
@@ -49,7 +47,7 @@ export type ChecklistCategory = (typeof CHECKLIST_CATEGORIES)[number]
 
 export const CATEGORY_LABELS: Record<ChecklistCategory, string> = {
   prizes: 'Prizes & trophies',
-  loot_bags: 'Loot bags & shirts',
+  loot_bags: 'Loot bags',
   court_kit: 'Court kit',
   paperwork: 'Paperwork',
   venue: 'Venue & safety',
@@ -84,7 +82,6 @@ export function categoryLabel(category: string): string {
 export type DerivedQuantityKey =
   | 'lootBags'
   | 'players'
-  | 'shirts'
   | 'teams'
   | 'medals'
   | 'trophies'
@@ -130,8 +127,6 @@ export const DEFAULT_CHECKLIST_SEEDS: readonly ChecklistSeed[] = [
   { category: 'prizes', label: 'Presentation table dressed', detail: 'Tinsel, table cloth, trophy risers.' },
 
   { category: 'loot_bags', label: 'Loot bags packed', detail: 'One per player — count comes from approved registrations.', derivedQuantity: 'lootBags' },
-  { category: 'loot_bags', label: 'Event shirts ordered', detail: 'Ordered against the live shirt-size tally.', derivedQuantity: 'shirts' },
-  { category: 'loot_bags', label: 'Shirts sorted into size piles', detail: 'Lay them out by size before doors open.', derivedQuantity: 'shirts' },
   { category: 'loot_bags', label: 'Santa hats counted', detail: 'Mandatory festive headwear.', derivedQuantity: 'players' },
 
   { category: 'court_kit', label: 'Shuttlecock tubes', detail: 'Match shuttles plus spares for the finals.', derivedQuantity: 'shuttleTubes' },
@@ -299,11 +294,6 @@ export function duplicateChecklistRowIds(rows: readonly CommitteeChecklistRow[])
 // Derived quantities
 // ---------------------------------------------------------------------------
 
-export interface ShirtSizeLine {
-  size: string
-  count: number
-}
-
 export interface DerivedQuantities {
   /** Players who are actually playing (approved or waitlisted). */
   playerCount: number
@@ -311,7 +301,6 @@ export interface DerivedQuantities {
   approvedPlayers: number
   lootBags: number
   teamCount: number
-  shirtSizes: ShirtSizeLine[]
   medalsNeeded: number
   medalsConfigured: number
   trophiesNeeded: number
@@ -348,7 +337,6 @@ export function playingRegistrations(
 export function deriveQuantities(input: DeriveInput): DerivedQuantities {
   const playing = playingRegistrations(input.registrations)
   const approved = input.registrations.filter((row) => row.status === 'approved')
-  const shirtSizes = shirtSizeTally(input.registrations)
 
   const teamIds = new Set(
     approved.map((row) => row.teamId).filter((id): id is string => id != null),
@@ -380,7 +368,6 @@ export function deriveQuantities(input: DeriveInput): DerivedQuantities {
     approvedPlayers: approved.length,
     lootBags: playing.length,
     teamCount,
-    shirtSizes,
     medalsNeeded,
     medalsConfigured: input.prizes.medalCount,
     trophiesNeeded: input.divisionCount,
@@ -399,10 +386,6 @@ export function quantityText(key: DerivedQuantityKey, derived: DerivedQuantities
       return `${derived.lootBags} bags`
     case 'players':
       return `${derived.playerCount} players`
-    case 'shirts':
-      return derived.shirtSizes.length
-        ? derived.shirtSizes.map((line) => `${line.size}×${line.count}`).join(', ')
-        : 'No shirt sizes yet'
     case 'teams':
       return `${derived.teamCount} pairs`
     case 'medals':
@@ -431,8 +414,6 @@ export function quantityIsPending(item: ChecklistItem, derived: DerivedQuantitie
     case 'lootBags':
     case 'players':
       return derived.playerCount === 0
-    case 'shirts':
-      return derived.shirtSizes.length === 0
     case 'teams':
       return derived.teamCount === 0
     case 'prizeMoney':
@@ -574,15 +555,6 @@ export function checklistAlerts(
       tone: 'warn',
       title: 'Not enough trophies',
       detail: `One champion trophy per division means ${derived.trophiesNeeded}; ${derived.trophiesConfigured} are configured.`,
-    })
-  }
-
-  const unknownShirts = derived.shirtSizes.find((line) => line.size === 'Unknown')
-  if (unknownShirts && unknownShirts.count > 0) {
-    alerts.push({
-      tone: 'info',
-      title: `${unknownShirts.count} player${unknownShirts.count === 1 ? ' has' : 's have'} no shirt size`,
-      detail: 'Chase them before the shirt order goes in, or they get whatever is left.',
     })
   }
 

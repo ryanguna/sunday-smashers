@@ -106,7 +106,6 @@ export interface AdminRegistration {
   emergencyContactName: string | null
   /** Admin-only. */
   emergencyContactPhone: string | null
-  shirtSize: string | null
   skillLevel: string | null
   divisionId: string
   divisionName: string
@@ -313,7 +312,6 @@ export function matchesSearch(row: AdminRegistration, query: string): boolean {
     row.partnerName,
     row.divisionName,
     row.notes,
-    row.shirtSize,
     row.skillLevel,
   ].some((field) => norm(field).includes(q))
 }
@@ -516,33 +514,6 @@ export function buildAlerts(
 }
 
 // ---------------------------------------------------------------------------
-// Shirt sizes (loot bags)
-// ---------------------------------------------------------------------------
-
-export const SHIRT_SIZE_ORDER = ['XS', 'S', 'M', 'L', 'XL', 'XXL', '3XL'] as const
-
-/**
- * Shirt tally for the loot-bag order. Only counts players who are actually
- * playing (approved or waitlisted), never rejected ones.
- */
-export function shirtSizeTally(rows: readonly AdminRegistration[]): { size: string; count: number }[] {
-  const counts = new Map<string, number>()
-  for (const row of rows) {
-    if (row.status === 'rejected') continue
-    const size = row.shirtSize ?? 'Unknown'
-    counts.set(size, (counts.get(size) ?? 0) + 1)
-  }
-  const order = [...SHIRT_SIZE_ORDER, 'Unknown'] as readonly string[]
-  return [...counts.entries()]
-    .sort((a, b) => {
-      const ai = order.indexOf(a[0])
-      const bi = order.indexOf(b[0])
-      return (ai === -1 ? order.length : ai) - (bi === -1 ? order.length : bi)
-    })
-    .map(([size, count]) => ({ size, count }))
-}
-
-// ---------------------------------------------------------------------------
 // CSV export
 // ---------------------------------------------------------------------------
 
@@ -566,7 +537,6 @@ export const REGISTRATIONS_CSV_HEADERS = [
   'Status',
   'Team',
   'Partner',
-  'Shirt size',
   'Skill level',
   'Email',
   'Phone',
@@ -581,7 +551,7 @@ export const REGISTRATIONS_CSV_HEADERS = [
   'Registered at',
 ] as const
 
-/** Serialises registrations (including shirt sizes for the loot bags) to CSV. */
+/** Serialises registrations (including the admin-only contact columns) to CSV. */
 export function toRegistrationsCsv(rows: readonly AdminRegistration[]): string {
   const lines = [REGISTRATIONS_CSV_HEADERS.join(',')]
   for (const row of rows) {
@@ -593,7 +563,6 @@ export function toRegistrationsCsv(rows: readonly AdminRegistration[]): string {
         REGISTRATION_STATUS_LABELS[row.status],
         row.teamName,
         row.partnerName,
-        row.shirtSize,
         row.skillLevel,
         row.email,
         row.phone,

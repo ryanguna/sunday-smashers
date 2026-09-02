@@ -85,7 +85,6 @@ export type ProfileRow = {
   nickname: string | null
   gender: 'male' | 'female' | 'other' | 'prefer_not_to_say' | null
   phone: string | null
-  shirt_size: 'XS' | 'S' | 'M' | 'L' | 'XL' | 'XXL' | '3XL' | null
   skill_level: 'beginner' | 'intermediate' | 'advanced' | 'open' | null
   emergency_contact_name: string | null
   emergency_contact_phone: string | null
@@ -418,6 +417,18 @@ export type SiteContentRow = {
   updated_at: string
 }
 
+/**
+ * Migration 0011. `page_key` is a `SitePageKey` from src/lib/site-pages.ts,
+ * typed as plain `string` here because the catalogue is application code —
+ * the database deliberately accepts any key and simply ignores unknown ones.
+ */
+export type SitePageVisibilityRow = {
+  page_key: string
+  is_visible: boolean
+  updated_at: string
+  updated_by: string | null
+}
+
 /** Raw aggregates only — see the SQL view comment in schema.sql. */
 export type StandingsViewRow = {
   team_id: string
@@ -530,6 +541,11 @@ export type Database = {
         SiteContentRow,
         Insertable<SiteContentRow, 'slug' | 'title' | 'body_markdown'>,
         Partial<SiteContentRow>
+      >
+      site_page_visibility: TableDef<
+        SitePageVisibilityRow,
+        Insertable<SitePageVisibilityRow, 'page_key'>,
+        Partial<SitePageVisibilityRow>
       >
     }
     Views: {

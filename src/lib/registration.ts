@@ -27,9 +27,6 @@ import type { DivisionGender, PartnerInviteStatus, RegistrationStatus } from '@/
 // Options / constants
 // ---------------------------------------------------------------------------
 
-export const SHIRT_SIZES = ['XS', 'S', 'M', 'L', 'XL', 'XXL', '3XL'] as const
-export type ShirtSize = (typeof SHIRT_SIZES)[number]
-
 export const SKILL_LEVELS = [
   { value: 'beginner', label: 'Beginner — here for the loot bag 🎁' },
   { value: 'intermediate', label: 'Intermediate — a solid rally merchant' },
@@ -395,7 +392,6 @@ export interface RegistrationFormValues {
   divisionId: string
   partnerMode: PartnerMode
   partnerIdentifier: string
-  shirtSize: string
   skillLevel: string
   phone: string
   emergencyContactName: string
@@ -410,7 +406,6 @@ export const EMPTY_REGISTRATION_FORM: RegistrationFormValues = {
   divisionId: '',
   partnerMode: 'partner',
   partnerIdentifier: '',
-  shirtSize: '',
   skillLevel: '',
   phone: '',
   emergencyContactName: '',
@@ -470,12 +465,6 @@ export function validateRegistrationForm(
     ) {
       errors.partnerIdentifier = 'Doubles needs two humans — you can’t partner with yourself 🏸'
     }
-  }
-
-  if (!values.shirtSize) {
-    errors.shirtSize = 'Pick a shirt size so your loot bag actually fits 🎁'
-  } else if (!(SHIRT_SIZES as readonly string[]).includes(values.shirtSize)) {
-    errors.shirtSize = 'That’s not a size we stock — pick one from the list.'
   }
 
   if (!values.skillLevel) {

@@ -1,0 +1,31 @@
+-- ===========================================================================
+-- 0012 — drop profiles.shirt_size
+--
+-- The organisers have decided not to ask players for a t-shirt size at all.
+-- Loot bags survive — every player still gets one — but nothing in the bag is
+-- sized any more, so there is no order to place and nothing to sort into
+-- piles on the morning.
+--
+-- WHY DROP RATHER THAN LEAVE IT: a column nobody writes is not harmless here.
+-- It was one of the fields `isProfileComplete` gated onboarding on, and the
+-- committee checklist derived a live "shirt sizes to order" tally plus an
+-- alert nagging about players with no size recorded. Left in place, every one
+-- of those would report "Unknown" forever with no way for anyone to clear it.
+-- The whole feature has been removed from the application in the same change;
+-- this migration removes the storage behind it so the two cannot drift.
+--
+-- WHY THE DATA LOSS IS ACCEPTABLE: sizes were only ever collected to place a
+-- shirt order that is no longer happening. Nothing else — draw, standings,
+-- payments, awards — reads the column, so dropping it cannot orphan anything.
+--
+-- `if exists` keeps this idempotent, and safe to run against a database that
+-- was created from a `schema.sql` that already omits the column.
+--
+-- NOT TOUCHED: `public.checklist_item_type` still contains its `'shirt'`
+-- member. Postgres has no supported way to remove an enum member without
+-- rebuilding every dependent column, and the value is inert — `checklist_items`
+-- is not read or written anywhere in the application. Churning a live enum for
+-- tidiness is not a trade worth making.
+-- ===========================================================================
+
+alter table public.profiles drop column if exists shirt_size;

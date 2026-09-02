@@ -44,7 +44,6 @@ export const PRIVATE_ROUTE_PREFIXES = [
   '/tabulator',
   '/onboarding',
   '/auth',
-  '/reset-password',
   '/forgot-password',
 ] as const
 

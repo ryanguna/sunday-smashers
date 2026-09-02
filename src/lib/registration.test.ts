@@ -29,7 +29,6 @@ const VALID_FORM: RegistrationFormValues = {
   divisionId: 'div-mens',
   partnerMode: 'partner',
   partnerIdentifier: 'rudolph@example.com',
-  shirtSize: 'M',
   skillLevel: 'intermediate',
   phone: '0412 345 678',
   emergencyContactName: 'Mrs Claus',
@@ -260,7 +259,6 @@ describe('validateRegistrationForm', () => {
         'emergencyContactPhone',
         'partnerIdentifier',
         'phone',
-        'shirtSize',
         'skillLevel',
       ].sort()
     )
@@ -293,8 +291,7 @@ describe('validateRegistrationForm', () => {
     ).toMatch(/two humans/)
   })
 
-  it('rejects an unknown shirt size or skill level', () => {
-    expect(validateRegistrationForm({ ...VALID_FORM, shirtSize: 'XXXXL' }, CONTEXT).shirtSize).toBeDefined()
+  it('rejects an unknown skill level', () => {
     expect(validateRegistrationForm({ ...VALID_FORM, skillLevel: 'pro' }, CONTEXT).skillLevel).toBeDefined()
   })
 

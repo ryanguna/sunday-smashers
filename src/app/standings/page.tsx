@@ -16,6 +16,7 @@ import {
 import { MedalIcon, SnowflakeIcon } from '@/components/icons'
 import { getStandings, tiebreakLabel, type PublicDivisionStandings, type PublicStandingRow } from '@/lib/public-data'
 import { cn } from '@/lib/cn'
+import { PageGate } from '@/components/PageGate'
 
 export const metadata: Metadata = {
   title: 'Standings',
@@ -157,37 +158,39 @@ export default async function StandingsPage() {
   const standings = await getStandings()
 
   return (
-    <main className="relative overflow-hidden pb-20">
-      <Snowfall />
+    <PageGate pageKey="standings">
+      <main className="relative overflow-hidden pb-20">
+        <Snowfall />
 
-      <section className="relative z-10 mx-auto max-w-5xl px-4 pt-14 pb-8 sm:px-6">
-        <SectionHeading
-          eyebrow="Standings"
-          title="Round-Robin Standings"
-          level={1}
-          description="Every pair plays every other pair once. Wins decide the ranking; the top 4 in each division go through to the semi-finals."
-        />
-      </section>
-
-      <section aria-label="Division standings" className="relative z-10 mx-auto max-w-5xl px-4 sm:px-6">
-        {standings.length === 0 ? (
-          <Card variant="frosted" className="mx-auto max-w-md text-center">
-            <CardBody>
-              <SnowflakeIcon size={32} className="mx-auto mb-3 text-[var(--color-brand-lilac)]" />
-              <p className="font-bold text-[var(--color-plum)]">Standings aren&rsquo;t published yet</p>
-              <p className="mt-1 text-sm text-[var(--color-ink-soft)]">Check back closer to tournament day.</p>
-            </CardBody>
-          </Card>
-        ) : (
-          <Tabs
-            items={standings.map((division) => ({
-              id: division.division.slug,
-              label: division.division.name,
-              content: <DivisionPanel standings={division} />,
-            }))}
+        <section className="relative z-10 mx-auto max-w-5xl px-4 pt-14 pb-8 sm:px-6">
+          <SectionHeading
+            eyebrow="Standings"
+            title="Round-Robin Standings"
+            level={1}
+            description="Every pair plays every other pair once. Wins decide the ranking; the top 4 in each division go through to the semi-finals."
           />
-        )}
-      </section>
-    </main>
+        </section>
+
+        <section aria-label="Division standings" className="relative z-10 mx-auto max-w-5xl px-4 sm:px-6">
+          {standings.length === 0 ? (
+            <Card variant="frosted" className="mx-auto max-w-md text-center">
+              <CardBody>
+                <SnowflakeIcon size={32} className="mx-auto mb-3 text-[var(--color-brand-lilac)]" />
+                <p className="font-bold text-[var(--color-plum)]">Standings aren&rsquo;t published yet</p>
+                <p className="mt-1 text-sm text-[var(--color-ink-soft)]">Check back closer to tournament day.</p>
+              </CardBody>
+            </Card>
+          ) : (
+            <Tabs
+              items={standings.map((division) => ({
+                id: division.division.slug,
+                label: division.division.name,
+                content: <DivisionPanel standings={division} />,
+              }))}
+            />
+          )}
+        </section>
+      </main>
+    </PageGate>
   )
 }

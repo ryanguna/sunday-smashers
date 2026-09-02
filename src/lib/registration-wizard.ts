@@ -91,14 +91,6 @@ const ALL_STEPS: WizardStep[] = [
     cheer: 'Noted.',
   },
   {
-    id: 'shirt',
-    fields: ['shirtSize'],
-    question: 'What size shirt do you take?',
-    blurb: 'For your loot bag. 🎁',
-    badge: 'Shirt',
-    cheer: 'One loot bag, reserved.',
-  },
-  {
     id: 'contact',
     fields: ['phone'],
     question: 'What’s the best number to reach you on?',
@@ -224,7 +216,7 @@ export function wizardProgress(
  * Whether the stepper may offer a jump to `index`.
  *
  * Reachability is "have they been here", NOT "does this step look answered".
- * Completeness cannot stand in for it: skill, shirt size, phone and emergency
+ * Completeness cannot stand in for it: skill, phone and emergency
  * contact are all pre-filled from the player's profile, so they read as
  * answered before the player has ever laid eyes on them. Gating on
  * completeness therefore let someone on question 1 jump straight to question 7,

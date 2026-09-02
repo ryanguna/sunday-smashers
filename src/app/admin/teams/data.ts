@@ -115,7 +115,6 @@ async function loadLive(): Promise<TeamsAdminRows> {
       divisionName: divisionById.get(row.division_id)?.name ?? 'Unknown division',
       status: row.status,
       paymentStatus: payment?.status ?? derivePaymentStatus(amountPaidCents, amountCents),
-      shirtSize: profile?.shirt_size ?? null,
       skillLevel: profile?.skill_level ?? null,
       teamId: teamIdByPlayer.get(row.player_id) ?? null,
       createdAt: row.created_at,

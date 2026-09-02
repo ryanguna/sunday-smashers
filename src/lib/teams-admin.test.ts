@@ -50,7 +50,6 @@ function player(overrides: PlayerOverrides): TeamPlayer {
     divisionName: "Men's Doubles",
     status: 'approved',
     paymentStatus: 'paid',
-    shirtSize: 'M',
     skillLevel: 'intermediate',
     teamId: null,
     createdAt: '2026-09-06T00:00:00.000Z',

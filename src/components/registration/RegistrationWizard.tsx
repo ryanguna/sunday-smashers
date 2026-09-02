@@ -12,7 +12,6 @@ import {
   EMPTY_REGISTRATION_FORM,
   isDivisionEligible,
   MAX_NOTES_LENGTH,
-  SHIRT_SIZES,
   SKILL_LEVELS,
   isDuplicateRegistration,
   type RegistrationFormValues,
@@ -65,7 +64,6 @@ export function RegistrationWizard({ context, window: registrationWindow, onSubm
   const [values, setValues] = useState<RegistrationFormValues>(() => ({
     ...EMPTY_REGISTRATION_FORM,
     divisionId: eligibleDivisions.length === 1 ? eligibleDivisions[0].id : '',
-    shirtSize: profile?.shirt_size ?? '',
     skillLevel: profile?.skill_level ?? '',
     phone: profile?.phone ?? '',
     emergencyContactName: profile?.emergency_contact_name ?? '',
@@ -456,43 +454,6 @@ function StepFields({
         </div>
       )
 
-    case 'shirt':
-      return (
-        <div>
-          <div className="flex flex-wrap gap-2.5">
-            {SHIRT_SIZES.map((size) => {
-              const selected = values.shirtSize === size
-              return (
-                <label
-                  key={size}
-                  className={cn(
-                    'flex h-14 w-14 cursor-pointer items-center justify-center rounded-[var(--radius-lg)] border-2 bg-white font-[family-name:var(--font-heading)] text-lg font-bold shadow-[var(--shadow-soft)] transition',
-                    selected
-                      ? 'border-[var(--color-brand-mint-dark)] bg-[image:var(--gradient-mint-sky)] text-white shadow-[var(--shadow-glow-mint)]'
-                      : 'border-[var(--color-brand-lilac-light)] text-[var(--color-plum)]'
-                  )}
-                >
-                  <input
-                    type="radio"
-                    name="shirt-size"
-                    className="sr-only"
-                    value={size}
-                    checked={selected}
-                    onChange={() => update('shirtSize', size)}
-                  />
-                  {size}
-                </label>
-              )
-            })}
-          </div>
-          {errors.shirtSize && (
-            <p role="alert" className="mt-2 text-xs font-semibold text-[var(--color-danger)]">
-              {errors.shirtSize}
-            </p>
-          )}
-        </div>
-      )
-
     case 'contact':
       return (
         <TextField
@@ -643,7 +604,6 @@ function ReviewList({
     partner: values.partnerMode === 'partner' ? 'Bringing a partner' : 'Find me a partner',
     'partner-details': values.partnerIdentifier || '—',
     skill: skill?.label ?? '—',
-    shirt: values.shirtSize || '—',
     contact: values.phone || '—',
     emergency: [values.emergencyContactName, values.emergencyContactPhone].filter(Boolean).join(' · ') || '—',
     notes: values.dietaryNotes.trim() || 'Nothing to report',

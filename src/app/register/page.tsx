@@ -6,6 +6,7 @@ import { PRE_REGISTRATION_OPENS_AT, REGISTRATION_CLOSES_AT } from '@/lib/tournam
 import { Countdown } from '@/components/ui'
 import { RegistrationShell } from '@/components/registration/RegistrationShell'
 import { RegisterExperience, type RegisterPreview } from '@/components/registration/RegisterExperience'
+import { PageGate } from '@/components/PageGate'
 
 export const metadata: Metadata = {
   title: 'Register',
@@ -58,43 +59,45 @@ export default async function RegisterPage({
   const waitingRoom = info.window === 'not-open-yet'
 
   return (
-    <RegistrationShell
-      eyebrow="Sign up &amp; smash"
-      title={waitingRoom ? 'Pre-registration' : 'Register to play'}
-      description={waitingRoom ? undefined : info.message}
-      aside={
-        !waitingRoom && info.countdownTarget ? (
-          <div className="flex flex-col items-center gap-2">
-            <p className="font-[family-name:var(--font-heading)] text-sm font-bold tracking-wide text-[var(--color-brand-lilac-dark)] uppercase">
-              {info.countdownLabel}
-            </p>
-            <Countdown target={info.countdownTarget} />
-          </div>
-        ) : undefined
-      }
-    >
-      <RegisterExperience info={info} preview={preview} />
+    <PageGate pageKey="register">
+      <RegistrationShell
+        eyebrow="Sign up &amp; smash"
+        title={waitingRoom ? 'Pre-registration' : 'Register to play'}
+        description={waitingRoom ? undefined : info.message}
+        aside={
+          !waitingRoom && info.countdownTarget ? (
+            <div className="flex flex-col items-center gap-2">
+              <p className="font-[family-name:var(--font-heading)] text-sm font-bold tracking-wide text-[var(--color-brand-lilac-dark)] uppercase">
+                {info.countdownLabel}
+              </p>
+              <Countdown target={info.countdownTarget} />
+            </div>
+          ) : undefined
+        }
+      >
+        <RegisterExperience info={info} preview={preview} />
 
-      {!isSupabaseConfigured() && (
-        <nav
-          aria-label="Demo preview states"
-          className="mt-8 flex flex-wrap items-center justify-center gap-x-3 gap-y-2 rounded-[var(--radius-lg)] bg-white/70 px-4 py-3 text-sm text-[var(--color-ink-muted)]"
-        >
-          <span className="font-semibold text-[var(--color-plum)]">Demo preview:</span>
-          <a className="underline hover:text-[var(--color-brand-pink-dark)]" href="/register">
-            Live state
-          </a>
-          <a className="underline hover:text-[var(--color-brand-pink-dark)]" href="/register?preview=open">
-            Registration open
-          </a>
-          <a className="underline hover:text-[var(--color-brand-pink-dark)]" href="/register?preview=full">
-            Division full
-          </a>
-          <a className="underline hover:text-[var(--color-brand-pink-dark)]" href="/register?preview=closed">
-            Closed (waitlist)
-          </a>
-        </nav>
-      )}
-    </RegistrationShell>
+        {!isSupabaseConfigured() && (
+          <nav
+            aria-label="Demo preview states"
+            className="mt-8 flex flex-wrap items-center justify-center gap-x-3 gap-y-2 rounded-[var(--radius-lg)] bg-white/70 px-4 py-3 text-sm text-[var(--color-ink-muted)]"
+          >
+            <span className="font-semibold text-[var(--color-plum)]">Demo preview:</span>
+            <a className="underline hover:text-[var(--color-brand-pink-dark)]" href="/register">
+              Live state
+            </a>
+            <a className="underline hover:text-[var(--color-brand-pink-dark)]" href="/register?preview=open">
+              Registration open
+            </a>
+            <a className="underline hover:text-[var(--color-brand-pink-dark)]" href="/register?preview=full">
+              Division full
+            </a>
+            <a className="underline hover:text-[var(--color-brand-pink-dark)]" href="/register?preview=closed">
+              Closed (waitlist)
+            </a>
+          </nav>
+        )}
+      </RegistrationShell>
+    </PageGate>
   )
 }

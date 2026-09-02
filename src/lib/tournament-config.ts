@@ -1,4 +1,5 @@
-import { createClient } from '@/lib/supabase/server'
+import { unstable_cache } from 'next/cache'
+import { createPublicClient } from '@/lib/supabase/public'
 import { isSupabaseConfigured } from '@/lib/supabase/config'
 import {
   DEFAULT_TOURNAMENT_DATES,
@@ -60,9 +61,13 @@ const FALLBACK: PublicTournamentConfig = {
 
 export async function loadPublicTournamentConfig(): Promise<PublicTournamentConfig> {
   if (!isSupabaseConfigured()) return FALLBACK
+  return cachedPublicTournamentConfig()
+}
 
+async function fetchPublicTournamentConfig(): Promise<PublicTournamentConfig> {
   try {
-    const supabase = await createClient()
+    const supabase = createPublicClient()
+    if (!supabase) return FALLBACK
     const { data } = await supabase
       .from('tournament_public')
       .select('*')
@@ -91,6 +96,38 @@ export async function loadPublicTournamentConfig(): Promise<PublicTournamentConf
     return FALLBACK
   }
 }
+
+/**
+ * Cache tag for the published tournament row. Anything that edits the
+ * tournament from the admin console must call `revalidateTag` with this, or
+ * the public site keeps quoting the old date for up to `REVALIDATE_SECONDS`.
+ */
+export const TOURNAMENT_CONFIG_TAG = 'public-tournament-config'
+
+/**
+ * Seconds before a cached copy is refetched.
+ *
+ * Short on purpose. The row changes rarely, but when the committee *does*
+ * change it — opening registration, shifting the doors-open time on the
+ * morning — they expect the site to follow almost immediately, and they will
+ * not think to look for a cache.
+ */
+const REVALIDATE_SECONDS = 30
+
+/**
+ * Why this is cached at all: this loader runs on the landing page, the rules
+ * page, the registration page and the footer, i.e. very nearly every
+ * navigation. It used to use the cookie-backed server client, which made every
+ * one of those routes dynamic and put a Supabase round trip on the critical
+ * path of each click — measured at 1.3s for /rules and 2.4s for /. The data is
+ * a single world-readable row from the `tournament_public` view, so none of
+ * that was buying anything.
+ */
+const cachedPublicTournamentConfig = unstable_cache(
+  fetchPublicTournamentConfig,
+  ['public-tournament-config'],
+  { revalidate: REVALIDATE_SECONDS, tags: [TOURNAMENT_CONFIG_TAG] },
+)
 
 /** Convenience for callers that only need the three dates. */
 export async function loadTournamentDates(): Promise<TournamentDates> {

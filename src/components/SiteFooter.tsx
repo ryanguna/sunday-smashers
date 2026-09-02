@@ -2,8 +2,16 @@ import Link from 'next/link'
 import { ShuttlecockIcon, HollyIcon } from '@/components/icons'
 import { TOURNAMENT_DATE_LABEL } from '@/lib/tournament'
 import { FOOTER_LINKS } from '@/components/site-nav'
+import { visibleNavLinks, type SitePageVisibility } from '@/lib/site-pages'
 
-export function SiteFooter() {
+/**
+ * `visibility` is passed down from the root layout rather than fetched here so
+ * the footer and the header are guaranteed to be reading the same answer — a
+ * page hidden from one but not the other is exactly the drift `site-nav.ts`
+ * exists to prevent.
+ */
+export function SiteFooter({ visibility }: { visibility?: SitePageVisibility }) {
+  const footerLinks = visibleNavLinks(FOOTER_LINKS, visibility)
   return (
     <footer className="relative z-10 mt-16 border-t border-white/60 bg-frost-glass">
       <div className="mx-auto flex max-w-6xl flex-col gap-8 px-4 py-10 sm:px-6 md:flex-row md:justify-between">
@@ -28,7 +36,7 @@ export function SiteFooter() {
           aria-label="Footer"
           className="grid grid-cols-2 gap-x-8 gap-y-2.5 sm:grid-cols-3 lg:grid-cols-4"
         >
-          {FOOTER_LINKS.map((link) => (
+          {footerLinks.map((link) => (
             <Link
               key={link.href}
               href={link.href}

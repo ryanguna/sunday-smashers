@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useRef, useState, type FormEvent } from 'react'
+import { useState, type FormEvent } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui'
@@ -10,8 +10,7 @@ import { TextField } from '@/components/auth/FormField'
 import { AlertBanner, DemoModeNotice } from '@/components/auth/DemoModeNotice'
 import { createClient } from '@/lib/supabase/client'
 import { isSupabaseConfigured } from '@/lib/supabase/config'
-import { ResendConfirmation, SpamFolderNote } from '../auth/ResendConfirmation'
-import { isAlreadyRegisteredError, isEmailNotAuthorizedError } from '../auth/resend-cooldown'
+import { isAlreadyRegisteredError, isEmailDeliveryError } from '../auth/sign-in-errors'
 
 interface FormErrors {
   fullName?: string
@@ -20,7 +19,12 @@ interface FormErrors {
   confirmPassword?: string
 }
 
-function validate(fullName: string, email: string, password: string, confirmPassword: string): FormErrors {
+function validate(
+  fullName: string,
+  email: string,
+  password: string,
+  confirmPassword: string,
+): FormErrors {
   const errors: FormErrors = {}
   if (fullName.trim().length < 2) errors.fullName = 'Tell us your full name (at least 2 characters).'
   if (!/^\S+@\S+\.\S+$/.test(email)) errors.email = 'That doesn\u2019t look like a valid email address.'
@@ -29,6 +33,19 @@ function validate(fullName: string, email: string, password: string, confirmPass
   return errors
 }
 
+/**
+ * Create a player account and go straight to the profile questions.
+ *
+ * Email confirmation is switched **off** in the Supabase project, because the
+ * tournament has no SMTP server to send the confirmation with. So signup now
+ * has exactly one happy path: Supabase returns a session, and we move the
+ * player on to `/onboarding`. The old "check your inbox" screen, its resend
+ * button and its spam-folder note are gone — they described an email that will
+ * never be sent.
+ *
+ * The address is still collected because it is the account's *identity* — it is
+ * what you sign in with. It is never used to send anything.
+ */
 export default function SignupPage() {
   const [fullName, setFullName] = useState('')
   const [email, setEmail] = useState('')
@@ -36,25 +53,17 @@ export default function SignupPage() {
   const [confirmPassword, setConfirmPassword] = useState('')
   const [errors, setErrors] = useState<FormErrors>({})
   const [serverError, setServerError] = useState<string | null>(null)
-  const [loading, setLoading] = useState(false)
-  const [submitted, setSubmitted] = useState(false)
   const [existingAccount, setExistingAccount] = useState(false)
-  const [emailUndeliverable, setEmailUndeliverable] = useState(false)
-  const doneRef = useRef<HTMLDivElement>(null)
+  const [confirmationRequired, setConfirmationRequired] = useState(false)
+  const [loading, setLoading] = useState(false)
   const router = useRouter()
-
-  // Send focus to the confirmation once it appears, so a screen reader reads
-  // "check your email" instead of leaving the user on a vanished form.
-  useEffect(() => {
-    if (submitted) doneRef.current?.focus()
-  }, [submitted])
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
     if (loading) return
     setServerError(null)
     setExistingAccount(false)
-    setEmailUndeliverable(false)
+    setConfirmationRequired(false)
     const validation = validate(fullName, email, password, confirmPassword)
     setErrors(validation)
     if (Object.keys(validation).length > 0) return
@@ -64,33 +73,35 @@ export default function SignupPage() {
     const { data, error } = await supabase.auth.signUp({
       email,
       password,
-      options: {
-        data: { full_name: fullName },
-        emailRedirectTo: `${window.location.origin}/auth/callback?next=${encodeURIComponent('/onboarding')}`,
-      },
+      options: { data: { full_name: fullName } },
     })
     setLoading(false)
+
     if (error) {
       if (isAlreadyRegisteredError(error.message)) {
         setExistingAccount(true)
         return
       }
-      if (isEmailNotAuthorizedError(error.message)) {
-        setEmailUndeliverable(true)
+      // Only reachable if someone switches "Confirm email" back on in Supabase
+      // without wiring up an SMTP server. Say who to chase rather than showing
+      // the raw "Error sending confirmation email".
+      if (isEmailDeliveryError(error.message)) {
+        setConfirmationRequired(true)
         return
       }
       setServerError(error.message)
       return
     }
-    // When the project has email confirmation switched off, Supabase signs the
-    // player in immediately and sends nothing. Telling them to go and click a
-    // link that will never arrive would strand someone who is, in fact,
-    // already logged in.
+
     if (data.session) {
       router.replace('/onboarding')
       return
     }
-    setSubmitted(true)
+
+    // Signup succeeded but Supabase withheld the session, which only happens
+    // when confirmation is required. No email is coming, so send them to a
+    // human instead of a dead "check your inbox" screen.
+    setConfirmationRequired(true)
   }
 
   return (
@@ -102,7 +113,10 @@ export default function SignupPage() {
       footer={
         <>
           Already playing?{' '}
-          <Link href="/login" className="font-semibold text-[var(--color-brand-pink-dark)] hover:underline">
+          <Link
+            href="/login"
+            className="font-semibold text-[var(--color-brand-pink-dark)] hover:underline"
+          >
             Sign in
           </Link>
         </>
@@ -110,42 +124,29 @@ export default function SignupPage() {
     >
       {!isSupabaseConfigured() ? (
         <DemoModeNotice />
-      ) : submitted ? (
-        <div ref={doneRef} tabIndex={-1} className="outline-none">
-          <AlertBanner variant="success">
-            Almost there! We&apos;ve sent a confirmation link to <strong>{email}</strong> — click it
-            to verify your account, then finish your player profile.
-          </AlertBanner>
-          <SpamFolderNote />
-          <ResendConfirmation email={email} startOnCooldown className="mt-4" />
-          <button
-            type="button"
-            onClick={() => setSubmitted(false)}
-            className="mt-4 w-full text-sm font-semibold text-[var(--color-brand-pink-dark)] underline hover:no-underline"
-          >
-            Wrong email? Start again
-          </button>
-        </div>
       ) : (
         <form onSubmit={handleSubmit} noValidate>
           {serverError && <AlertBanner>{serverError}</AlertBanner>}
-          {emailUndeliverable && (
+
+          {confirmationRequired && (
             <div
               role="alert"
               className="mb-4 rounded-[var(--radius-md)] bg-[var(--color-warn-bg)] p-3.5 text-sm text-[var(--color-warn)]"
             >
               <p className="font-[family-name:var(--font-heading)] font-bold">
-                We can&apos;t email you just yet
+                Your account needs an organiser to switch it on
               </p>
               <p className="mt-1.5 font-medium">
-                This one is on us, not you — the tournament&apos;s email delivery
-                isn&apos;t working right now, so the confirmation link can&apos;t
-                reach <strong>{email}</strong>. Your details haven&apos;t been
-                saved. Please let an organiser know, and try again once
-                they&apos;ve sorted it.
+                This one is on us, not you. Sunday Smashers doesn&apos;t send email, so the
+                confirmation step can&apos;t finish by itself.{' '}
+                <Link href="/forgot-password" className="font-semibold underline">
+                  Message an organiser
+                </Link>{' '}
+                and they&apos;ll activate <strong>{email}</strong> for you.
               </p>
             </div>
           )}
+
           {existingAccount && (
             <div
               role="alert"
@@ -159,16 +160,15 @@ export default function SignupPage() {
                 <Link href="/login" className="font-semibold underline">
                   Sign in
                 </Link>{' '}
-                or{' '}
+                instead — and if you&apos;ve forgotten the password,{' '}
                 <Link href="/forgot-password" className="font-semibold underline">
-                  reset your password
+                  an organiser can reset it
                 </Link>
-                . Never confirmed your email? We can send that link again.
+                .
               </p>
-              <ResendConfirmation email={email} className="mt-3" />
-              <SpamFolderNote />
             </div>
           )}
+
           <TextField
             label="Full name"
             name="fullName"
@@ -188,6 +188,7 @@ export default function SignupPage() {
             value={email}
             onChange={(event) => setEmail(event.target.value)}
             error={errors.email}
+            hint="This is how you sign in. We never send you email."
             placeholder="you@example.com"
           />
           <TextField
@@ -199,7 +200,7 @@ export default function SignupPage() {
             value={password}
             onChange={(event) => setPassword(event.target.value)}
             error={errors.password}
-            hint="At least 8 characters."
+            hint="At least 8 characters. Write it down — we can't email you a reset link."
             placeholder="••••••••"
           />
           <TextField

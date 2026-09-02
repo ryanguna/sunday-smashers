@@ -5,10 +5,9 @@ import type { DerivedQuantities } from '@/lib/checklist'
 
 /**
  * Every number here is derived from real data — approved registrations for
- * the loot-bag and shirt counts (via `shirtSizeTally`) and the Settings →
- * Prizes config for the money and hardware. Nothing on this panel is typed
- * in by hand, which is the whole point: the shirt order can't drift from
- * who actually entered.
+ * the loot-bag counts and the Settings → Prizes config for the money and
+ * hardware. Nothing on this panel is typed in by hand, which is the whole
+ * point: the loot bag order can't drift from who actually entered.
  */
 export interface DerivedQuantitiesPanelProps {
   derived: DerivedQuantities
@@ -51,8 +50,6 @@ function Figure({
 }
 
 export function DerivedQuantitiesPanel({ derived, print = false }: DerivedQuantitiesPanelProps) {
-  const shirtTotal = derived.shirtSizes.reduce((total, line) => total + line.count, 0)
-
   const body = (
     <div className="space-y-4">
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
@@ -82,35 +79,7 @@ export function DerivedQuantitiesPanel({ derived, print = false }: DerivedQuanti
         />
       </div>
 
-      <div className="grid gap-3 lg:grid-cols-2">
-        <div className="rounded-[var(--radius-md)] bg-white/70 p-3 print:border print:border-black print:bg-white">
-          <p
-            className="font-[family-name:var(--font-heading)] font-extrabold"
-            style={{ color: 'var(--color-plum)' }}
-          >
-            Shirt order · {shirtTotal} shirts
-          </p>
-          <p className="mb-2 text-xs text-[var(--color-ink-soft)]">
-            Straight from approved registrations. Do not retype this into the supplier email.
-          </p>
-          {derived.shirtSizes.length === 0 ? (
-            <p className="text-sm text-[var(--color-ink-muted)]">
-              No registrations yet, so no sizes to order.
-            </p>
-          ) : (
-            <ul className="flex flex-wrap gap-2">
-              {derived.shirtSizes.map((line) => (
-                <li
-                  key={line.size}
-                  className="rounded-[var(--radius-pill)] bg-[var(--color-brand-mint-light)] px-3 py-1 text-sm font-semibold text-[var(--color-brand-mint-dark)] print:border print:border-black print:bg-white print:text-black"
-                >
-                  {line.size} × {line.count}
-                </li>
-              ))}
-            </ul>
-          )}
-        </div>
-
+      <div className="grid gap-3">
         <div className="rounded-[var(--radius-md)] bg-white/70 p-3 print:border print:border-black print:bg-white">
           <p
             className="font-[family-name:var(--font-heading)] font-extrabold"

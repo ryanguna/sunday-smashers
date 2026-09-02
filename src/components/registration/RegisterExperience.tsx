@@ -43,7 +43,12 @@ export function RegisterExperience({ info, preview = null }: RegisterExperienceP
   }, [])
 
   if (info.window === 'not-open-yet') {
-    return <NotOpenYetPanel info={info} />
+    // Auth may still be resolving here — this branch runs before the `loading`
+    // check below, so `signedIn` stays null until we actually know. Waiting for
+    // the spinner instead would replace the whole "entries open on…" panel with
+    // a loading state on every visit, which is a worse trade.
+    const signedIn = loading ? null : Boolean(context?.userId)
+    return <NotOpenYetPanel info={info} signedIn={signedIn} />
   }
 
   if (!info.acceptsSubmissions) {

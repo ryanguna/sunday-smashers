@@ -39,7 +39,6 @@ export interface TeamPlayer {
   divisionName: string
   status: RegistrationStatus
   paymentStatus: PaymentStatus
-  shirtSize: string | null
   skillLevel: string | null
   /** `null` for a free agent; otherwise the team they already belong to. */
   teamId: string | null
@@ -607,7 +606,7 @@ export function teamMatchesSearch(team: AdminTeam, query: string): boolean {
     teamDisplayName(team),
     team.divisionName,
     team.seed === null ? '' : `seed ${team.seed.toString()}`,
-    ...team.members.flatMap((m) => [m.name, m.nickname ?? '', m.skillLevel ?? '', m.shirtSize ?? '']),
+    ...team.members.flatMap((m) => [m.name, m.nickname ?? '', m.skillLevel ?? '']),
   ]
     .join(' ')
     .toLowerCase()

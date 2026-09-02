@@ -18,8 +18,8 @@ import type { BadgeStatus } from '@/components/ui'
 
 /**
  * The pairing queue: every solo registration, grouped by division, with the
- * two facts an admin actually pairs on (skill level and shirt size for the
- * loot bag) plus their approval and payment state.
+ * fact an admin actually pairs on (skill level) plus their approval and
+ * payment state.
  *
  * Selection is capped at two players — doubles is doubles.
  */
@@ -84,8 +84,6 @@ function FreeAgentCard({
           </span>
           <span className="mt-0.5 block text-xs text-[var(--color-ink-soft)]">
             <span className="capitalize">{player.skillLevel ?? 'skill unknown'}</span>
-            {' · shirt '}
-            {player.shirtSize ?? '—'}
             {' · joined '}
             {formatAdminDate(player.createdAt)}
           </span>

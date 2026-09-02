@@ -57,7 +57,6 @@ function registration(overrides: Partial<AdminRegistration> = {}): AdminRegistra
     phone: null,
     emergencyContactName: null,
     emergencyContactPhone: null,
-    shirtSize: 'M',
     skillLevel: null,
     divisionId: 'div-mens',
     divisionName: "Men's Doubles",
@@ -80,12 +79,12 @@ function registration(overrides: Partial<AdminRegistration> = {}): AdminRegistra
 }
 
 const REGISTRATIONS: AdminRegistration[] = [
-  registration({ id: 'r1', playerId: 'p1', shirtSize: 'M', teamId: 'team-1' }),
-  registration({ id: 'r2', playerId: 'p2', shirtSize: 'L', teamId: 'team-1' }),
-  registration({ id: 'r3', playerId: 'p3', shirtSize: 'S', teamId: 'team-2' }),
-  registration({ id: 'r4', playerId: 'p4', shirtSize: null, teamId: 'team-2' }),
-  registration({ id: 'r5', playerId: 'p5', shirtSize: 'M', status: 'waitlisted', teamId: null }),
-  registration({ id: 'r6', playerId: 'p6', shirtSize: 'XL', status: 'rejected', teamId: null }),
+  registration({ id: 'r1', playerId: 'p1', teamId: 'team-1' }),
+  registration({ id: 'r2', playerId: 'p2', teamId: 'team-1' }),
+  registration({ id: 'r3', playerId: 'p3', teamId: 'team-2' }),
+  registration({ id: 'r4', playerId: 'p4', teamId: 'team-2' }),
+  registration({ id: 'r5', playerId: 'p5', status: 'waitlisted', teamId: null }),
+  registration({ id: 'r6', playerId: 'p6', status: 'rejected', teamId: null }),
 ]
 
 const PRIZES: PrizeSettings = {
@@ -139,7 +138,6 @@ describe('defaultChecklistItems', () => {
     const labels = items.map((i) => i.label.toLowerCase()).join(' | ')
     for (const needle of [
       'loot bags',
-      'shirts',
       'medals',
       'trophies',
       'cash prize',
@@ -166,12 +164,11 @@ describe('defaultChecklistItems', () => {
     expect(defaultChecklistItems().map((i) => i.id)).toEqual(items.map((i) => i.id))
   })
 
-  it('marks loot bags and shirts as auto-derived, never hand-typed', () => {
+  it('marks loot bags and santa hats as auto-derived, never hand-typed', () => {
     const loot = items.find((i) => i.label === 'Loot bags packed')
-    const shirts = items.find((i) => i.label === 'Event shirts ordered')
+    const hats = items.find((i) => i.label === 'Santa hats counted')
     expect(loot?.derivedQuantity).toBe('lootBags')
-    expect(shirts?.derivedQuantity).toBe('shirts')
-    expect(loot?.derivedQuantity).not.toBeNull()
+    expect(hats?.derivedQuantity).toBe('players')
   })
 })
 
@@ -181,15 +178,6 @@ describe('deriveQuantities', () => {
     expect(DERIVED.lootBags).toBe(5)
     expect(DERIVED.playerCount).toBe(5)
     expect(DERIVED.approvedPlayers).toBe(4)
-  })
-
-  it('uses shirtSizeTally from @/lib/admin (rejected players excluded)', () => {
-    expect(DERIVED.shirtSizes).toEqual([
-      { size: 'S', count: 1 },
-      { size: 'M', count: 2 },
-      { size: 'L', count: 1 },
-      { size: 'Unknown', count: 1 },
-    ])
   })
 
   it('counts distinct approved pairs', () => {
@@ -226,7 +214,6 @@ describe('deriveQuantities', () => {
       divisionCount: 0,
     })
     expect(empty.lootBags).toBe(0)
-    expect(empty.shirtSizes).toEqual([])
     expect(empty.prizePoolCents).toBe(0)
     expect(empty.medalsNeeded).toBe(0)
   })
@@ -241,16 +228,10 @@ describe('quantityText', () => {
     expect(quantityText('lootBags', DERIVED)).toBe('5 bags')
     expect(quantityText('players', DERIVED)).toBe('5 players')
     expect(quantityText('teams', DERIVED)).toBe('2 pairs')
-    expect(quantityText('shirts', DERIVED)).toBe('S×1, M×2, L×1, Unknown×1')
     expect(quantityText('medals', DERIVED)).toBe('12 needed · 12 ordered')
     expect(quantityText('trophies', DERIVED)).toBe('2 needed · 2 ordered')
     expect(quantityText('prizeMoney', DERIVED)).toBe('$1,050.00')
     expect(quantityText('shuttleTubes', DERIVED)).toContain('tubes')
-  })
-
-  it('says so when there are no shirt sizes at all', () => {
-    const empty = deriveQuantities({ registrations: [], prizes: PRIZES, divisionCount: 2 })
-    expect(quantityText('shirts', empty)).toBe('No shirt sizes yet')
   })
 
   it('only ever shows a derived quantity — there is nothing to hand-type', () => {
@@ -265,7 +246,7 @@ describe('quantityText', () => {
       divisionCount: 0,
     })
     expect(quantityIsPending(item({ derivedQuantity: 'lootBags' }), empty)).toBe(true)
-    expect(quantityIsPending(item({ derivedQuantity: 'shirts' }), empty)).toBe(true)
+    expect(quantityIsPending(item({ derivedQuantity: 'players' }), empty)).toBe(true)
     expect(quantityIsPending(item({ derivedQuantity: 'prizeMoney' }), empty)).toBe(true)
     expect(quantityIsPending(item({ derivedQuantity: 'lootBags' }), DERIVED)).toBe(false)
     expect(quantityIsPending(item(), empty)).toBe(false)
@@ -390,11 +371,6 @@ describe('checklistAlerts', () => {
     ).toBe(true)
   })
 
-  it('chases missing shirt sizes', () => {
-    const alerts = checklistAlerts([item({ done: true })], DERIVED, now)
-    expect(alerts.some((a) => a.title.includes('no shirt size'))).toBe(true)
-  })
-
   it('nags about unassigned jobs', () => {
     const alerts = checklistAlerts([item({ owner: '' })], DERIVED, now)
     expect(alerts.some((a) => a.title.includes('no owner'))).toBe(true)
@@ -402,7 +378,7 @@ describe('checklistAlerts', () => {
 
   it('congratulates a fully ticked, fully stocked board', () => {
     const perfect = deriveQuantities({
-      registrations: [registration({ shirtSize: 'M' })],
+      registrations: [registration({})],
       prizes: PRIZES,
       divisionCount: 2,
     })
@@ -625,7 +601,7 @@ describe('CSV export', () => {
 
   it('groups by category, not insertion order', () => {
     const lines = toChecklistCsv(items, DERIVED).trimEnd().split('\r\n')
-    expect(lines[1]).toContain('Loot bags & shirts')
+    expect(lines[1]).toContain('Loot bags')
     expect(lines[2]).toContain('Paperwork')
   })
 

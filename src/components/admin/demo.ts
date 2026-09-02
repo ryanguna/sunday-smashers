@@ -23,7 +23,6 @@ export const DEMO_ADMIN_DIVISIONS: AdminDivision[] = [
   { id: 'womens_doubles', name: "Women's Doubles", gender: 'womens', maxTeams: 12 },
 ]
 
-const SHIRT_SIZES = ['S', 'M', 'L', 'XL', 'XXL', 'M', 'L'] as const
 const SKILL_LEVELS = ['beginner', 'intermediate', 'advanced', 'open'] as const
 const METHODS: (PaymentMethod | null)[] = ['cash', 'bank_transfer', 'card', null]
 
@@ -74,7 +73,6 @@ function buildRegistration(args: {
     phone: fakePhone(seed),
     emergencyContactName: seed % 3 === 0 ? null : 'Robin Kirk',
     emergencyContactPhone: seed % 3 === 0 ? null : fakePhone(seed + 7),
-    shirtSize: SHIRT_SIZES[seed % SHIRT_SIZES.length],
     skillLevel: SKILL_LEVELS[seed % SKILL_LEVELS.length],
     divisionId: args.divisionId,
     divisionName: args.divisionName,

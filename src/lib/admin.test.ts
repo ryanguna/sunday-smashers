@@ -22,7 +22,6 @@ import {
   planBulkTransition,
   registrationAuditEntry,
   REGISTRATIONS_CSV_HEADERS,
-  shirtSizeTally,
   summariseByDivision,
   toRegistrationsCsv,
   type AdminDivision,
@@ -52,7 +51,6 @@ function reg(overrides: RegOverrides): AdminRegistration {
     phone: '0400 111 222',
     emergencyContactName: 'Bree Walsh',
     emergencyContactPhone: '0400 333 444',
-    shirtSize: 'M',
     skillLevel: 'intermediate',
     divisionId: 'womens',
     divisionName: "Women's Doubles",
@@ -312,23 +310,6 @@ describe('buildAlerts', () => {
   })
 })
 
-describe('shirtSizeTally', () => {
-  it('tallies in size order and excludes rejected players', () => {
-    const rows = [
-      reg({ id: '1', shirtSize: 'L' }),
-      reg({ id: '2', shirtSize: 'S' }),
-      reg({ id: '3', shirtSize: 'L' }),
-      reg({ id: '4', shirtSize: null }),
-      reg({ id: '5', shirtSize: 'XL', status: 'rejected' }),
-    ]
-    expect(shirtSizeTally(rows)).toEqual([
-      { size: 'S', count: 1 },
-      { size: 'L', count: 2 },
-      { size: 'Unknown', count: 1 },
-    ])
-  })
-})
-
 describe('CSV export', () => {
   it('escapes quotes, commas and newlines', () => {
     expect(csvEscape('plain')).toBe('plain')
@@ -345,7 +326,7 @@ describe('CSV export', () => {
 
   it('serialises a header row plus one row per registration', () => {
     const csv = toRegistrationsCsv([
-      reg({ id: '1', playerName: 'Amy Chen', shirtSize: 'M', payment: { amountPaidCents: 1000 } }),
+      reg({ id: '1', playerName: 'Amy Chen', payment: { amountPaidCents: 1000 } }),
     ])
     const lines = csv.trimEnd().split('\r\n')
     expect(lines[0]).toBe(REGISTRATIONS_CSV_HEADERS.join(','))
@@ -354,8 +335,8 @@ describe('CSV export', () => {
     expect(lines[1]).toContain('Partial')
     expect(lines[1]).toContain('25.00')
     expect(lines[1]).toContain('10.00')
-    // Shirt size must be present for the loot bags.
-    expect(lines[1].split(',')).toContain('M')
+    // Skill level rides along so the draw can be sanity-checked in a spreadsheet.
+    expect(lines[1].split(',')).toContain('intermediate')
   })
 
   it('ends with a trailing CRLF', () => {

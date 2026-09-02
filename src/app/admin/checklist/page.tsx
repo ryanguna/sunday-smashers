@@ -15,12 +15,12 @@ export const metadata: Metadata = {
 export const dynamic = 'force-dynamic'
 
 /**
- * The committee's operational readiness board: loot bags, shirts, medals,
- * trophies, prize money, shuttles, first aid, scoresheets, pens.
+ * The committee's operational readiness board: loot bags, medals, trophies,
+ * prize money, shuttles, first aid, scoresheets, pens.
  *
- * Quantities are never typed in — loot bags and the shirt-size breakdown
- * come from approved registrations via `shirtSizeTally`, and the money and
- * hardware counts come from Settings → Prizes.
+ * Quantities are never typed in — the loot bag count comes from approved
+ * registrations, and the money and hardware counts come from Settings →
+ * Prizes.
  */
 export default async function AdminChecklistPage() {
   await requireAdmin('/admin/checklist')

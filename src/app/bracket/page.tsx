@@ -5,6 +5,7 @@ import { MedalIcon, TrophyIcon } from '@/components/icons'
 import { MatchCard } from '@/components/results'
 import { getBrackets, teamDisplayName, type PublicBracket, type PublicKnockoutFixture, type PublicTeam } from '@/lib/public-data'
 import { cn } from '@/lib/cn'
+import { PageGate } from '@/components/PageGate'
 
 export const metadata: Metadata = {
   title: 'Bracket',
@@ -129,31 +130,33 @@ export default async function BracketPage() {
   const brackets = await getBrackets()
 
   return (
-    <main className="relative overflow-hidden pb-20">
-      <Snowfall />
+    <PageGate pageKey="bracket">
+      <main className="relative overflow-hidden pb-20">
+        <Snowfall />
 
-      <section className="relative z-10 mx-auto max-w-5xl px-4 pt-14 pb-8 sm:px-6">
-        <SectionHeading
-          eyebrow="Bracket"
-          title="Semis & Finals"
-          level={1}
-          description="Top 4 from the round robin: M1 is Rank 1 v Rank 4, M2 is Rank 2 v Rank 3. Losers battle for 3rd, winners play the championship — first to 21, no deuce."
-        />
-      </section>
-
-      <section aria-label="Knockout brackets" className="relative z-10 mx-auto max-w-5xl px-4 sm:px-6">
-        {brackets.length === 0 ? (
-          <EmptyState icon={<TrophyIcon size={30} />} title="The bracket isn't set yet" description="It fills in once the round robin standings are final." />
-        ) : (
-          <Tabs
-            items={brackets.map((bracket) => ({
-              id: bracket.division.slug,
-              label: bracket.division.name,
-              content: <DivisionBracket bracket={bracket} />,
-            }))}
+        <section className="relative z-10 mx-auto max-w-5xl px-4 pt-14 pb-8 sm:px-6">
+          <SectionHeading
+            eyebrow="Bracket"
+            title="Semis & Finals"
+            level={1}
+            description="Top 4 from the round robin: M1 is Rank 1 v Rank 4, M2 is Rank 2 v Rank 3. Losers battle for 3rd, winners play the championship — first to 21, no deuce."
           />
-        )}
-      </section>
-    </main>
+        </section>
+
+        <section aria-label="Knockout brackets" className="relative z-10 mx-auto max-w-5xl px-4 sm:px-6">
+          {brackets.length === 0 ? (
+            <EmptyState icon={<TrophyIcon size={30} />} title="The bracket isn't set yet" description="It fills in once the round robin standings are final." />
+          ) : (
+            <Tabs
+              items={brackets.map((bracket) => ({
+                id: bracket.division.slug,
+                label: bracket.division.name,
+                content: <DivisionBracket bracket={bracket} />,
+              }))}
+            />
+          )}
+        </section>
+      </main>
+    </PageGate>
   )
 }

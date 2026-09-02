@@ -15,12 +15,28 @@ import type { RegistrationWindowInfo } from '@/lib/registration'
 /** The prep checklist shown while players wait for the window to open. */
 const PREP_LIST = [
   { icon: <ShuttlecockIcon size={18} />, text: 'Find a partner (or plan to join the free-agent pool).' },
-  { icon: <GiftIcon size={18} />, text: 'Know your shirt size — every player gets a loot bag.' },
+  { icon: <GiftIcon size={18} />, text: 'Bring festive spirit — every player goes home with a loot bag 🎁' },
   { icon: <MedalIcon size={18} />, text: 'Be honest about your level so the draw stays fair.' },
   { icon: <BaubleIcon size={18} />, text: 'Have an emergency contact handy.' },
 ]
 
-export function NotOpenYetPanel({ info }: { info: RegistrationWindowInfo }) {
+/**
+ * Entries are not open yet.
+ *
+ * `signedIn` is deliberately three-valued. This panel renders *before*
+ * `RegisterExperience` has resolved the session, and it used to unconditionally
+ * offer "Create your player account" — so a player who was already logged in
+ * was told to sign up again, which reads as the site having forgotten them.
+ * `null` means "we don't know yet": show only the neutral action rather than
+ * flashing the wrong one and correcting it a moment later.
+ */
+export function NotOpenYetPanel({
+  info,
+  signedIn = null,
+}: {
+  info: RegistrationWindowInfo
+  signedIn?: boolean | null
+}) {
   return (
     <div className="grid gap-5">
       <Card variant="frosted" className="border-candy-stripe text-center">
@@ -34,10 +50,17 @@ export function NotOpenYetPanel({ info }: { info: RegistrationWindowInfo }) {
         )}
         <p className="mx-auto mt-5 max-w-md text-[var(--color-ink-soft)]">{info.message}</p>
         <div className="mt-5 flex flex-wrap justify-center gap-3">
-          <Button href="/signup" variant="primary">
-            Create your player account
-          </Button>
-          <Button href="/rules" variant="secondary">
+          {signedIn === true && (
+            <Button href="/dashboard" variant="primary">
+              Go to my dashboard
+            </Button>
+          )}
+          {signedIn === false && (
+            <Button href="/signup" variant="primary">
+              Create your player account
+            </Button>
+          )}
+          <Button href="/rules" variant={signedIn === null ? 'primary' : 'secondary'}>
             Read the rules first
           </Button>
         </div>

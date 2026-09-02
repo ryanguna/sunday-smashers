@@ -3,6 +3,7 @@ import type { IconProps } from '@/components/icons/types'
 import {
   BaubleIcon,
   GiftIcon,
+  HollyIcon,
   MedalIcon,
   RacketIcon,
   ShuttlecockIcon,
@@ -45,6 +46,12 @@ export const SETTINGS_SECTIONS: SettingsSection[] = [
     label: 'Courts & slots',
     description: 'Courts available and the time slots matches run in.',
     icon: SnowflakeIcon,
+  },
+  {
+    href: '/admin/settings/pages',
+    label: 'Pages',
+    description: 'Which parts of the site players can see right now.',
+    icon: HollyIcon,
   },
   {
     href: '/admin/settings/roles',

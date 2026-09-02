@@ -7,7 +7,9 @@ import { Button } from '@/components/ui'
 import { ShuttlecockIcon } from '@/components/icons'
 import { cn } from '@/lib/cn'
 import { SiteHeaderAuth } from '@/components/SiteHeaderAuth'
-import { NAV_LINKS } from '@/components/site-nav'
+import { useAuth } from '@/lib/useAuth'
+import { accountNavState, NAV_LINKS, shouldShowRegisterCta } from '@/components/site-nav'
+import { isPageVisible, visibleNavLinks, type SitePageVisibility } from '@/lib/site-pages'
 
 /**
  * Site-wide header: logo/wordmark, primary nav, a prominent Register CTA,
@@ -23,9 +25,18 @@ import { NAV_LINKS } from '@/components/site-nav'
  * expected and fine; a missing route just 404s to the festive not-found
  * page rather than breaking this build.
  */
-export function SiteHeader() {
+export function SiteHeader({ visibility }: { visibility?: SitePageVisibility }) {
   const pathname = usePathname()
+  const { user, loading, configured } = useAuth()
   const [open, setOpen] = useState(false)
+
+  // Both computed from the same two inputs so the desktop row, the mobile
+  // panel and the CTA can never disagree about what exists.
+  const navLinks = visibleNavLinks(NAV_LINKS, visibility)
+  const showRegister = shouldShowRegisterCta({
+    accountState: accountNavState({ configured, loading, signedIn: Boolean(user) }),
+    registerPageVisible: isPageVisible(visibility, 'register'),
+  })
   const menuId = useId()
   const panelRef = useRef<HTMLDivElement>(null)
   const triggerRef = useRef<HTMLButtonElement>(null)
@@ -85,7 +96,7 @@ export function SiteHeader() {
 
         {/* Desktop nav */}
         <nav aria-label="Primary" className="hidden items-center gap-0.5 xl:flex">
-          {NAV_LINKS.map((link) => {
+          {navLinks.map((link) => {
             const active = pathname === link.href
             return (
               <Link
@@ -111,9 +122,11 @@ export function SiteHeader() {
             <SiteHeaderAuth variant="desktop" />
           </div>
 
-          <Button href="/register" size="sm" className="ml-1 hidden sm:inline-flex">
-            Register
-          </Button>
+          {showRegister && (
+            <Button href="/register" size="sm" className="ml-1 hidden sm:inline-flex">
+              Register
+            </Button>
+          )}
 
           {/* Mobile hamburger */}
           <button
@@ -163,7 +176,7 @@ export function SiteHeader() {
             onClick={(e) => e.stopPropagation()}
           >
             <nav aria-label="Mobile primary" className="flex flex-col gap-1">
-              {NAV_LINKS.map((link) => {
+              {navLinks.map((link) => {
                 const active = pathname === link.href
                 return (
                   <Link
@@ -181,9 +194,11 @@ export function SiteHeader() {
                   </Link>
                 )
               })}
-              <Button href="/register" className="mt-2 justify-center">
-                Register
-              </Button>
+              {showRegister && (
+                <Button href="/register" className="mt-2 justify-center">
+                  Register
+                </Button>
+              )}
 
               <div
                 role="separator"

@@ -1,8 +1,9 @@
 'use server'
 
-import { revalidatePath } from 'next/cache'
+import { revalidatePath, revalidateTag, updateTag } from 'next/cache'
 
 import { getCurrentUser } from '@/lib/auth'
+import { TOURNAMENT_CONFIG_TAG } from '@/lib/tournament-config'
 import {
   parseEntryFeeCents,
   setupFormErrors,
@@ -173,6 +174,10 @@ export async function createTournamentAction(
     // ignored on purpose
   }
 
+  // The landing page reads the tournament through a cache; the whole point of
+  // first-run setup is that the site stops saying "no tournament yet".
+  updateTag(TOURNAMENT_CONFIG_TAG)
+  revalidateTag(TOURNAMENT_CONFIG_TAG, 'max')
   revalidatePath('/setup')
   revalidatePath('/admin')
   revalidatePath('/')

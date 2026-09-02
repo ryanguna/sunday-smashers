@@ -1,6 +1,6 @@
 'use server'
 
-import { revalidatePath } from 'next/cache'
+import { revalidatePath, revalidateTag, updateTag } from 'next/cache'
 
 import type { Json } from '@/lib/supabase/types'
 import { requireAdmin } from '@/lib/auth'
@@ -37,6 +37,8 @@ import {
   type TimeSlotSettings,
   type TournamentDetails,
 } from '@/lib/settings'
+import { TOURNAMENT_CONFIG_TAG } from '@/lib/tournament-config'
+import { SITE_CONTENT_TAG } from '@/lib/site-content'
 import { loadSettingsPageData, PRIZES_SLUG, SETTINGS_EXTRAS_SLUG } from './data'
 
 /**
@@ -126,6 +128,12 @@ async function mergeExtras(
     body_markdown: JSON.stringify(mutate(current), null, 2),
     is_published: false,
   })
+
+  // The rules page reads published `site_content` through a shared cache.
+  // These extras blobs are unpublished, so they can't leak — but the same tag
+  // covers both, and invalidating it costs one refetch.
+  updateTag(SITE_CONTENT_TAG)
+  revalidateTag(SITE_CONTENT_TAG, 'max')
 }
 
 // ---------------------------------------------------------------------------
@@ -193,6 +201,11 @@ export async function saveTournamentDetailsAction(details: TournamentDetails): P
     buildAuditEntry('settings.details.update', 'tournament', current.tournamentId, changes),
   )
 
+  // The public site reads the tournament row through a 30s cache, so without
+  // this the committee edits the date, reloads the landing page, and sees the
+  // old countdown — the single most alarming way for this feature to look broken.
+  updateTag(TOURNAMENT_CONFIG_TAG)
+  revalidateTag(TOURNAMENT_CONFIG_TAG, 'max')
   revalidatePath(SETTINGS_PATH)
   revalidatePath('/')
   revalidatePath('/pay')
@@ -530,6 +543,8 @@ export async function saveLiveStatusAction(status: LiveStatus): Promise<ActionRe
     )
   }
 
+  updateTag(TOURNAMENT_CONFIG_TAG)
+  revalidateTag(TOURNAMENT_CONFIG_TAG, 'max')
   revalidatePath(SETTINGS_PATH)
   revalidatePath('/')
   revalidatePath('/register')
