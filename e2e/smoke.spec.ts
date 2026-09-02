@@ -30,6 +30,7 @@ const GATED_ROUTES = [
   '/dashboard',
   '/admin',
   '/admin/checklist',
+  '/admin/people',
   '/admin/teams',
   '/admin/matches',
   '/scoring',
@@ -86,6 +87,36 @@ test.describe('gated routes in demo mode', () => {
       expect(errors, `${route} logged console errors`).toEqual([])
     })
   }
+})
+
+/**
+ * Roles are the one thing in this console that can lock the committee out of
+ * it. The pure rules are unit-tested in `src/lib/people.test.ts`; this checks
+ * they actually reach the rendered controls.
+ */
+test.describe('people & roles', () => {
+  test('the signed-in admin cannot remove their own admin access', async ({ page }) => {
+    await page.goto('/admin/people')
+
+    const self = page.locator('li').filter({ hasText: 'You' }).first()
+    const adminToggle = self.getByRole('button', { name: 'Admin' })
+
+    await expect(adminToggle).toBeDisabled()
+    await expect(adminToggle).toHaveAttribute('title', /locked out/i)
+  })
+
+  test('every role is explained rather than left as jargon', async ({ page }) => {
+    await page.goto('/admin/people')
+
+    // Scoped to the legend card: a bare text search also matches the "Players"
+    // link in the nav, which is hidden behind the drawer on a phone.
+    const legend = page.getByTestId('role-legend')
+    await expect(legend).toBeVisible()
+
+    for (const role of ['Player', 'Duty official', 'Tabulator', 'Admin']) {
+      await expect(legend.getByRole('listitem').filter({ hasText: role }).first()).toBeVisible()
+    }
+  })
 })
 
 test.describe('layout', () => {

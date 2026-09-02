@@ -59,6 +59,13 @@ export const ADMIN_NAV: AdminNavItem[] = [
     group: 'People & money',
   },
   {
+    href: '/admin/people',
+    label: 'People & roles',
+    description: 'See every account and grant admin, tabulator or duty access.',
+    icon: SparkleIcon,
+    group: 'People & money',
+  },
+  {
     href: '/admin/payments',
     label: 'Payments',
     description: 'Record entry fees and reconcile the till.',
