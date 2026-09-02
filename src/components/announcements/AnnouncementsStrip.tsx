@@ -43,7 +43,7 @@ export function AnnouncementsStrip({
     <Card variant="frosted" className={cn('overflow-hidden', className)}>
       <CardBody className="p-5 sm:p-6">
         <div className="flex flex-wrap items-center gap-3">
-          <span className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-[image:var(--gradient-candy)] text-white shadow-[var(--shadow-glow-pink)]">
+          <span className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-[image:var(--gradient-candy)] text-[var(--color-plum)] shadow-[var(--shadow-glow-pink)]">
             <HollyIcon size={18} />
           </span>
           <h2 className="text-lg font-extrabold text-[var(--color-plum)]">{heading}</h2>

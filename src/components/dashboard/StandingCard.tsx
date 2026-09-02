@@ -49,7 +49,7 @@ export function StandingCard({ record, cut, podium, className }: StandingCardPro
     >
       <CardBody className="flex h-full flex-col gap-3 p-5">
         <div className="flex flex-wrap items-center gap-2">
-          <span className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-[image:var(--gradient-gold)] text-white">
+          <span className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-[image:var(--gradient-gold)] text-[var(--color-plum)]">
             <MedalIcon size={16} />
           </span>
           <h3 className="text-base font-extrabold" style={{ color: 'var(--color-plum)' }}>
@@ -76,7 +76,7 @@ export function StandingCard({ record, cut, podium, className }: StandingCardPro
         </div>
 
         {podium ? (
-          <p className="flex items-center gap-2 rounded-[var(--radius-lg)] bg-[image:var(--gradient-gold)] px-3 py-2 text-sm font-extrabold text-white">
+          <p className="flex items-center gap-2 rounded-[var(--radius-lg)] bg-[image:var(--gradient-gold)] px-3 py-2 text-sm font-extrabold text-[var(--color-plum)]">
             <TrophyIcon size={18} aria-hidden="true" />
             {PODIUM_COPY[podium]}
           </p>

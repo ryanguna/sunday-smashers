@@ -99,7 +99,7 @@ export function ScheduleGrid({
                           ? 'bg-white text-[var(--color-ink)] shadow-[var(--shadow-soft)] hover:bg-[var(--color-brand-lilac-light)]/50'
                           : 'border border-dashed border-[var(--color-brand-lilac-light)] bg-white/40 text-[var(--color-ink-muted)] hover:bg-[var(--color-brand-mint-light)]/50',
                         isSelected &&
-                          'bg-[image:var(--gradient-candy)] text-white shadow-[var(--shadow-glow-pink)]',
+                          'bg-[image:var(--gradient-candy)] text-[var(--color-plum)] shadow-[var(--shadow-glow-pink)]',
                         hasError && !isSelected && 'ring-2 ring-[var(--color-danger)]',
                         isDimmed && 'opacity-40',
                         picking && !match && 'border-solid border-[var(--color-brand-mint-dark)]',

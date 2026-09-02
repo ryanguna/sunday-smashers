@@ -37,7 +37,7 @@ const variantClasses: Record<ToastVariant, string> = {
   success: 'bg-[var(--color-success-bg)] text-[var(--color-success)]',
   warning: 'bg-[var(--color-warn-bg)] text-[var(--color-warn)]',
   danger: 'bg-[var(--color-danger-bg)] text-[var(--color-danger)]',
-  festive: 'bg-[image:var(--gradient-candy)] text-white',
+  festive: 'bg-[image:var(--gradient-candy)] text-[var(--color-plum)]',
 }
 
 export function ToastProvider({ children }: { children: ReactNode }) {

@@ -36,7 +36,7 @@ function NavLink({
       className={cn(
         'group flex items-center gap-2.5 rounded-[var(--radius-pill)] px-3 py-2 text-sm font-semibold font-[family-name:var(--font-heading)] transition-colors',
         active
-          ? 'bg-[image:var(--gradient-candy)] text-white shadow-[var(--shadow-glow-pink)]'
+          ? 'bg-[image:var(--gradient-candy)] text-[var(--color-plum)] shadow-[var(--shadow-glow-pink)]'
           : 'text-[var(--color-ink-soft)] hover:bg-[var(--color-brand-lilac-light)]/60 hover:text-[var(--color-plum)]',
       )}
     >
@@ -111,7 +111,7 @@ export function AdminShell({ children, demo = false }: { children: ReactNode; de
             onClick={() => setDrawerOpen(true)}
             aria-expanded={drawerOpen}
             aria-controls="admin-drawer"
-            className="flex items-center gap-2 rounded-[var(--radius-pill)] bg-[image:var(--gradient-candy)] px-3.5 py-2 text-sm font-bold text-white shadow-[var(--shadow-glow-pink)]"
+            className="flex items-center gap-2 rounded-[var(--radius-pill)] bg-[image:var(--gradient-candy)] px-3.5 py-2 text-sm font-bold text-[var(--color-plum)] shadow-[var(--shadow-glow-pink)]"
           >
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
               <path

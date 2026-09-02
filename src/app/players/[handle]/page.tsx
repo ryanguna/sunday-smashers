@@ -51,10 +51,10 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
       locale: 'en_AU',
       images: [
         {
-          url: '/sunday-smashers-logo.jpg',
-          width: 1024,
-          height: 1536,
-          alt: 'Sunday Smashers Christmas Mini Tournament poster',
+          url: '/brand/og-card.png',
+          width: 1200,
+          height: 630,
+          alt: 'Sunday Smashers Christmas Mini Tournament',
         },
       ],
     },
@@ -62,7 +62,7 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
       card: 'summary_large_image',
       title: `${title} · Sunday Smashers`,
       description: profile.headline,
-      images: ['/sunday-smashers-logo.jpg'],
+      images: ['/brand/og-card.png'],
     },
   }
 }

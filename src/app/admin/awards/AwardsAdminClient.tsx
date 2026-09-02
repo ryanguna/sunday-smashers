@@ -118,7 +118,7 @@ function AwardRowEditor({
           className={cn(
             'flex h-9 w-9 items-center justify-center rounded-[var(--radius-md)]',
             record.key === 'champion'
-              ? 'bg-[image:var(--gradient-gold)] text-white'
+              ? 'bg-[image:var(--gradient-gold)] text-[var(--color-plum)]'
               : 'bg-[var(--color-brand-lilac-light)] text-[var(--color-brand-lilac-dark)]'
           )}
           aria-hidden="true"

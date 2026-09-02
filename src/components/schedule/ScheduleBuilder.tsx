@@ -304,7 +304,7 @@ export function ScheduleBuilder({
         className={cn(
           'rounded-[var(--radius-md)] px-3.5 py-2.5 text-sm font-semibold',
           pickedUp
-            ? 'bg-[image:var(--gradient-candy)] text-white'
+            ? 'bg-[image:var(--gradient-candy)] text-[var(--color-plum)]'
             : 'bg-[var(--color-info-bg)] text-[var(--color-info)]',
         )}
         role="status"
@@ -480,7 +480,7 @@ function BenchRail({
               className={cn(
                 'rounded-[var(--radius-md)] px-2.5 py-1.5 text-left text-xs shadow-[var(--shadow-soft)]',
                 pickedUp === match.id
-                  ? 'bg-[image:var(--gradient-candy)] text-white'
+                  ? 'bg-[image:var(--gradient-candy)] text-[var(--color-plum)]'
                   : 'bg-white text-[var(--color-ink)] hover:bg-[var(--color-brand-mint-light)]/60',
               )}
             >

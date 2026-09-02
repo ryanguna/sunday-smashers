@@ -266,7 +266,7 @@ export function RegistrationsClient({
         className={cn(
           'mb-4 flex flex-wrap items-center gap-2 rounded-[var(--radius-lg)] px-4 py-3 transition-colors',
           selectedRows.length > 0
-            ? 'bg-[image:var(--gradient-candy)] text-white shadow-[var(--shadow-glow-pink)]'
+            ? 'bg-[image:var(--gradient-candy)] text-[var(--color-plum)] shadow-[var(--shadow-glow-pink)]'
             : 'bg-white/70 text-[var(--color-ink-muted)] shadow-[var(--shadow-soft)]',
         )}
         aria-live="polite"

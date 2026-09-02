@@ -262,7 +262,7 @@ export function GalleryModeration({ photos: initialPhotos, matches }: GalleryMod
               className={cn(
                 'rounded-[var(--radius-pill)] px-3.5 py-1.5 text-sm font-bold font-[family-name:var(--font-heading)] transition-colors',
                 tab === item.id
-                  ? 'bg-[image:var(--gradient-candy)] text-white shadow-[var(--shadow-glow-pink)]'
+                  ? 'bg-[image:var(--gradient-candy)] text-[var(--color-plum)] shadow-[var(--shadow-glow-pink)]'
                   : 'bg-white text-[var(--color-ink-soft)] hover:text-[var(--color-plum)]'
               )}
             >

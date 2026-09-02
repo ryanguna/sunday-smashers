@@ -15,7 +15,7 @@ export default function PlayerNotFound() {
           action={
             <Link
               href="/players"
-              className="inline-flex items-center gap-1.5 rounded-[var(--radius-pill)] bg-[image:var(--gradient-candy)] px-5 py-2.5 font-[family-name:var(--font-heading)] font-extrabold text-white shadow-[var(--shadow-glow-pink)]"
+              className="inline-flex items-center gap-1.5 rounded-[var(--radius-pill)] bg-[image:var(--gradient-candy)] px-5 py-2.5 font-[family-name:var(--font-heading)] font-extrabold text-[var(--color-plum)] shadow-[var(--shadow-glow-pink)]"
             >
               Browse every pair 🎄
             </Link>

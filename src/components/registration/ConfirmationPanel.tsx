@@ -47,7 +47,7 @@ export function ConfirmationPanel({
       <Card variant="frosted" className="border-candy-stripe text-center">
         <span
           aria-hidden="true"
-          className="animate-pop-in mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-[image:var(--gradient-candy)] text-white shadow-[var(--shadow-glow-pink)]"
+          className="animate-pop-in mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-[image:var(--gradient-candy)] text-[var(--color-plum)] shadow-[var(--shadow-glow-pink)]"
         >
           {status === 'waitlisted' ? <HollyIcon size={32} /> : <TrophyIcon size={32} />}
         </span>

@@ -68,7 +68,7 @@ export function InvitesCard({ className }: InvitesCardProps) {
     <Card variant="frosted" className={cn('h-full', className)}>
       <CardBody className="flex h-full flex-col gap-3 p-5">
         <div className="flex flex-wrap items-center gap-2">
-          <span className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-[image:var(--gradient-candy)] text-white">
+          <span className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-[image:var(--gradient-candy)] text-[var(--color-plum)]">
             <GiftIcon size={16} />
           </span>
           <h3 className="text-base font-extrabold" style={{ color: 'var(--color-plum)' }}>

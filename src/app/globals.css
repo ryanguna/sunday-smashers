@@ -11,26 +11,40 @@
   --font-heading: var(--font-heading), "Baloo 2", ui-rounded, system-ui, sans-serif;
   --font-body: var(--font-body), "Nunito", ui-sans-serif, system-ui, sans-serif;
 
-  /* ---- Brand pastel palette (poster-matched) ---- */
-  --color-brand-pink: #ff8fc7;
-  --color-brand-pink-light: #ffd6ec;
+  /* ---- Brand pastel palette ----
+     The `base` values are the official brand kit hexes (brand-tokens.json);
+     they are decorative — fills, gradients, glows, chips — and are pale by
+     design, so they carry *navy* text, never white.
+
+     `-light` is the same hue lifted to a card-safe tint. `-dark` is the text
+     tone: those were tuned for WCAG AA in an earlier pass and are already
+     within 3-12 degrees of the kit hues, so they are kept rather than
+     re-derived — moving them would risk the contrast for no visible gain. */
+  --color-brand-pink: #f7a8c8;
+  --color-brand-pink-light: #fbd5e4;
   --color-brand-pink-dark: #b5196a;
 
-  --color-brand-lilac: #b8a0f0;
-  --color-brand-lilac-light: #e3d8ff;
+  --color-brand-lilac: #d3c3f3;
+  --color-brand-lilac-light: #e3d9f7;
   --color-brand-lilac-dark: #663dd5;
 
-  --color-brand-mint: #7fe0c0;
-  --color-brand-mint-light: #d3fbec;
+  --color-brand-mint: #bfe6d1;
+  --color-brand-mint-light: #def2e7;
   --color-brand-mint-dark: #25775b;
 
-  --color-brand-sky: #7ec8f2;
-  --color-brand-sky-light: #d6efff;
+  --color-brand-sky: #b9d9f7;
+  --color-brand-sky-light: #d6e9fa;
   --color-brand-sky-dark: #206ca0;
 
-  --color-brand-gold: #ffc861;
-  --color-brand-gold-light: #ffe9bd;
+  --color-brand-gold: #ffe29a;
+  --color-brand-gold-light: #fff2d1;
   --color-brand-gold-dark: #855e12;
+
+  /* Peach completes the kit's seven-colour ramp; the poster palette had no
+     equivalent, so nothing referenced it before. */
+  --color-brand-peach: #fad29f;
+  --color-brand-peach-light: #fdebd3;
+  --color-brand-peach-dark: #8a5107;
 
   --color-brand-holly: #3f8f5f;
   --color-brand-berry: #d9435e;
@@ -39,11 +53,16 @@
   --color-frost-100: #f5f3ff;
   --color-frost-200: #eef1fb;
 
-  /* ---- Ink / body text tones (WCAG AA on pastels) ---- */
-  --color-ink: #2c2144;
-  --color-ink-soft: #4a3d68;
-  --color-ink-muted: #6a5d8a;
-  --color-plum: #3a1f4d;
+  /* ---- Ink / body text tones ----
+     The kit's navy (#2e2a57) is the logo's outline colour, so the whole ink
+     ramp is built from it and the type sits in the same family as the mark.
+     Every tone clears WCAG AA (4.5:1) on the page wash, on white, and on all
+     six `-light` tints — `-muted` is the tight one at 4.66:1, which is why it
+     is darker than a naive step down the ramp would give. */
+  --color-ink: #2e2a57;
+  --color-ink-soft: #494475;
+  --color-ink-muted: #5f5a8d;
+  --color-plum: #241f45;
 
   /* ---- Semantic (still festive) ---- */
   --color-success: #23754f;
@@ -65,15 +84,30 @@
   /* ---- Shadows ---- */
   --shadow-soft: 0 4px 14px -4px rgba(120, 80, 160, 0.18), 0 2px 4px -1px rgba(120, 80, 160, 0.1);
   --shadow-lift: 0 14px 34px -10px rgba(120, 80, 160, 0.32), 0 4px 10px -4px rgba(120, 80, 160, 0.18);
-  --shadow-glow-pink: 0 8px 24px -6px rgba(255, 143, 199, 0.55);
-  --shadow-glow-mint: 0 8px 24px -6px rgba(127, 224, 192, 0.55);
+  /* Tinted to the kit pink/mint. The alpha is raised because the kit colours
+     are paler than the poster ones, so the glow would otherwise disappear. */
+  --shadow-glow-pink: 0 8px 24px -6px rgba(247, 168, 200, 0.7);
+  --shadow-glow-mint: 0 8px 24px -6px rgba(191, 230, 209, 0.75);
 
   /* ---- Named gradients ---- */
+  /* The kit's own gradient runs pink -> lavender; sky is kept as a third stop
+     so wide fills (hero, TV panels) still travel across the full ramp. */
   --gradient-candy: linear-gradient(120deg, var(--color-brand-pink) 0%, var(--color-brand-lilac) 50%, var(--color-brand-sky) 100%);
+  /* The same sweep built from the AA-tuned `-dark` ramp, for gradients that
+     are clipped to *text* rather than painted behind it. The pastel version
+     above is tuned to sit under navy type; used as letterforms on the page
+     wash it measures about 1.8:1 and is unreadable. Automated checks cannot
+     catch that — axe skips elements whose colour is transparent — so the
+     split has to be enforced by which token a component reaches for. */
+  --gradient-candy-text: linear-gradient(120deg, var(--color-brand-pink-dark) 0%, var(--color-brand-lilac-dark) 50%, var(--color-brand-sky-dark) 100%);
+  /* The kit gradient verbatim, for buttons and pills. */
+  --gradient-brand: linear-gradient(90deg, var(--color-brand-pink), var(--color-brand-lilac));
+  /* The logo's full rainbow, in the order it appears across the shuttlecock. */
+  --gradient-rainbow: linear-gradient(90deg, var(--color-brand-pink) 0%, var(--color-brand-peach) 20%, var(--color-brand-gold) 40%, var(--color-brand-mint) 60%, var(--color-brand-sky) 80%, var(--color-brand-lilac) 100%);
   --gradient-mint-sky: linear-gradient(120deg, var(--color-brand-mint) 0%, var(--color-brand-sky) 100%);
-  --gradient-gold: linear-gradient(120deg, var(--color-brand-gold) 0%, var(--color-brand-pink) 100%);
+  --gradient-gold: linear-gradient(120deg, var(--color-brand-gold) 0%, var(--color-brand-peach) 100%);
   --gradient-wash: radial-gradient(120% 120% at 10% 0%, #fff7fb 0%, #f5f3ff 35%, #eaf7f2 65%, #eaf4fb 100%);
-  --gradient-festive-border: linear-gradient(135deg, var(--color-brand-pink), var(--color-brand-lilac), var(--color-brand-mint), var(--color-brand-sky));
+  --gradient-festive-border: linear-gradient(135deg, var(--color-brand-pink), var(--color-brand-peach), var(--color-brand-gold), var(--color-brand-mint), var(--color-brand-sky), var(--color-brand-lilac));
 
   /* ---- Motion ---- */
   --ease-bounce: cubic-bezier(0.34, 1.56, 0.64, 1);
@@ -102,9 +136,19 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
-h1, h2, h3, h4, h5, h6 {
-  font-family: var(--font-heading);
-  color: var(--color-plum);
+/* In @layer base deliberately. Tailwind v4 puts utilities in a cascade layer,
+   and *unlayered* CSS beats every layer regardless of specificity — so while
+   this rule sat outside a layer it silently defeated `text-transparent` on any
+   heading element. That broke <GradientText as="h1">: the landing page's main
+   headline rendered flat plum instead of the brand's rainbow lettering, with
+   the gradient still painted behind fully opaque text. Keeping element
+   defaults in `base` restores the normal expectation that a utility class
+   overrides a bare element rule. */
+@layer base {
+  h1, h2, h3, h4, h5, h6 {
+    font-family: var(--font-heading);
+    color: var(--color-plum);
+  }
 }
 
 ::selection {

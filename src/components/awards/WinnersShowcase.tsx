@@ -70,7 +70,7 @@ export function WinnersShowcase({
             >
               <CardBody className="flex items-center gap-3">
                 <span
-                  className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-[image:var(--gradient-gold)] text-white"
+                  className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-[image:var(--gradient-gold)] text-[var(--color-plum)]"
                   aria-hidden="true"
                 >
                   <TrophyIcon size={22} />

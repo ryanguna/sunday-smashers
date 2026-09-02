@@ -60,7 +60,7 @@ function FixtureNode({ fixture }: { fixture: PublicKnockoutFixture }) {
 
 function Podium({ placings }: { placings: PublicBracket['placings'] }) {
   const spots: { label: string; team: PublicTeam | null; icon: ReactNode; tone: string }[] = [
-    { label: 'Champion', team: placings.champion, icon: <TrophyIcon size={22} />, tone: 'bg-[image:var(--gradient-gold)] text-white' },
+    { label: 'Champion', team: placings.champion, icon: <TrophyIcon size={22} />, tone: 'bg-[image:var(--gradient-gold)] text-[var(--color-plum)]' },
     { label: 'Runner-up', team: placings.runnerUp, icon: <MedalIcon size={22} />, tone: 'bg-[var(--color-brand-lilac-light)] text-[var(--color-brand-lilac-dark)]' },
     { label: '3rd place', team: placings.third, icon: <MedalIcon size={22} />, tone: 'bg-[var(--color-brand-mint-light)] text-[var(--color-brand-mint-dark)]' },
     { label: '4th place', team: placings.fourth, icon: <MedalIcon size={22} />, tone: 'bg-[var(--color-frost-100)] text-[var(--color-ink-muted)]' },

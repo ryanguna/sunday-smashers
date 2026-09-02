@@ -21,7 +21,7 @@ export default function Error({
       <div className="relative z-10">
         <span
           aria-hidden="true"
-          className="mx-auto mb-4 flex h-16 w-16 animate-bob items-center justify-center rounded-full bg-[image:var(--gradient-candy)] text-white shadow-[var(--shadow-glow-pink)]"
+          className="mx-auto mb-4 flex h-16 w-16 animate-bob items-center justify-center rounded-full bg-[image:var(--gradient-candy)] text-[var(--color-plum)] shadow-[var(--shadow-glow-pink)]"
         >
           <ShuttlecockIcon size={32} />
         </span>

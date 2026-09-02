@@ -15,13 +15,13 @@ const TEASERS: { icon: React.ReactNode; title: string; blurb: string; tone: stri
     icon: <TrophyIcon size={24} />,
     title: 'Trophies',
     blurb: 'One champion trophy per division, engraved and waiting.',
-    tone: 'bg-[image:var(--gradient-gold)] text-white',
+    tone: 'bg-[image:var(--gradient-gold)] text-[var(--color-plum)]',
   },
   {
     icon: <MedalIcon size={24} />,
     title: 'Medals',
     blurb: 'Gold, silver and bronze for every pair on the podium.',
-    tone: 'bg-[var(--color-brand-lilac)] text-white',
+    tone: 'bg-[var(--color-brand-lilac)] text-[var(--color-plum)]',
   },
   {
     icon: <GiftIcon size={24} />,
@@ -33,7 +33,7 @@ const TEASERS: { icon: React.ReactNode; title: string; blurb: string; tone: stri
     icon: <BaubleIcon size={24} />,
     title: 'Special gongs',
     blurb: 'MVP, Most Improved, Sportsmanship and Best Christmas Outfit.',
-    tone: 'bg-[var(--color-brand-pink)] text-white',
+    tone: 'bg-[var(--color-brand-pink)] text-[var(--color-plum)]',
   },
 ]
 
@@ -60,7 +60,7 @@ export function AwardsPending({ status, countdownTarget, className }: AwardsPend
         />
         <CardBody className="relative flex flex-col items-center gap-3 py-6">
           <span
-            className="animate-bob flex h-16 w-16 items-center justify-center rounded-full bg-[image:var(--gradient-gold)] text-white [animation-duration:4s]"
+            className="animate-bob flex h-16 w-16 items-center justify-center rounded-full bg-[image:var(--gradient-gold)] text-[var(--color-plum)] [animation-duration:4s]"
             aria-hidden="true"
           >
             <TrophyIcon size={32} />

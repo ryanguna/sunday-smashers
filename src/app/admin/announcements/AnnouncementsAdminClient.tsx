@@ -320,7 +320,7 @@ function AnnouncementsComposer({ initialAnnouncements, tournamentId }: Announcem
                 className={cn(
                   'rounded-[var(--radius-pill)] px-4 py-2 text-sm font-extrabold transition',
                   status === tab.id
-                    ? 'bg-[image:var(--gradient-candy)] text-white shadow-[var(--shadow-soft)]'
+                    ? 'bg-[image:var(--gradient-candy)] text-[var(--color-plum)] shadow-[var(--shadow-soft)]'
                     : 'text-[var(--color-ink-soft)] hover:text-[var(--color-plum)]',
                 )}
               >

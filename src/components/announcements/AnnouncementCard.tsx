@@ -82,7 +82,7 @@ export function AnnouncementCard({
       <CardBody className={cn(pinned ? 'p-5 sm:p-6' : 'py-5 pr-5 pl-6 sm:py-6 sm:pr-6 sm:pl-7')}>
         <div className="flex flex-wrap items-center gap-2">
           {pinned && (
-            <span className="inline-flex items-center gap-1.5 rounded-[var(--radius-pill)] bg-[image:var(--gradient-candy)] px-3 py-1 text-xs font-extrabold tracking-wide text-white uppercase shadow-[var(--shadow-soft)]">
+            <span className="inline-flex items-center gap-1.5 rounded-[var(--radius-pill)] bg-[image:var(--gradient-candy)] px-3 py-1 text-xs font-extrabold tracking-wide text-[var(--color-plum)] uppercase shadow-[var(--shadow-soft)]">
               <HollyIcon size={14} />
               Pinned
             </span>

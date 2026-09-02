@@ -39,7 +39,7 @@ export function ProfileFixtures({ fixtures, pairName, className }: ProfileFixtur
         <div className="flex flex-wrap items-center gap-2">
           <span
             aria-hidden="true"
-            className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-[image:var(--gradient-candy)] text-white"
+            className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-[image:var(--gradient-candy)] text-[var(--color-plum)]"
           >
             <ShuttlecockIcon size={16} />
           </span>

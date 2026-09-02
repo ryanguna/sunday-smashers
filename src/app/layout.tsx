@@ -32,7 +32,10 @@ const pacifico = Pacifico({
   display: 'swap',
 })
 
-const OG_IMAGE = '/sunday-smashers-logo.jpg'
+// Purpose-built 1200x630 card (see gen-brand-images.mjs). The teaser poster
+// is 1024x1536 portrait, which every social platform letterboxes or centre-
+// crops into an unreadable slice of the artwork.
+const OG_IMAGE = '/brand/og-card.png'
 
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),
@@ -49,7 +52,7 @@ export const metadata: Metadata = {
       'Something BIG is smashing this Christmas. Sunday 13 December 2026 — Men\u2019s & Women\u2019s Doubles, cash prizes, trophies & medals, loot bags for everyone.',
     url: SITE_URL,
     siteName: 'Sunday Smashers',
-    images: [{ url: OG_IMAGE, width: 1024, height: 1536, alt: 'Sunday Smashers Christmas Mini Tournament poster' }],
+    images: [{ url: OG_IMAGE, width: 1200, height: 630, alt: 'Sunday Smashers Christmas Mini Tournament' }],
     locale: 'en_AU',
     type: 'website',
   },
@@ -60,8 +63,14 @@ export const metadata: Metadata = {
     images: [OG_IMAGE],
   },
   icons: {
-    icon: '/sunday-smashers-logo.jpg',
-    apple: '/sunday-smashers-logo.jpg',
+    icon: [
+      { url: '/brand/favicon.ico', sizes: 'any' },
+      { url: '/brand/favicon-192.png', type: 'image/png', sizes: '192x192' },
+      { url: '/brand/favicon-512.png', type: 'image/png', sizes: '512x512' },
+    ],
+    // iOS ignores transparency and composites onto black, so the Apple icon
+    // points at the same opaque-background artwork used for Android maskables.
+    apple: '/brand/icon-maskable-512.png',
   },
 }
 

@@ -90,7 +90,7 @@ export function NotRegisteredPanel({ className }: { className?: string }) {
   return (
     <Card variant="candy-stripe" className={cn(className)}>
       <CardBody className="flex flex-col items-center gap-3 p-6 text-center sm:p-8">
-        <span className="flex h-16 w-16 items-center justify-center rounded-full bg-[image:var(--gradient-candy)] text-white">
+        <span className="flex h-16 w-16 items-center justify-center rounded-full bg-[image:var(--gradient-candy)] text-[var(--color-plum)]">
           <GiftIcon size={30} />
         </span>
         <h2 className="text-2xl font-extrabold" style={{ color: 'var(--color-plum)' }}>
@@ -145,7 +145,7 @@ export function FinishedPanel({ summary, className }: { summary: string; classNa
   return (
     <Card variant="frosted" className={cn('border-2 border-[var(--color-brand-gold)]', className)}>
       <CardBody className="flex flex-col items-center gap-3 p-6 text-center sm:p-8">
-        <span className="flex h-16 w-16 items-center justify-center rounded-full bg-[image:var(--gradient-gold)] text-white">
+        <span className="flex h-16 w-16 items-center justify-center rounded-full bg-[image:var(--gradient-gold)] text-[var(--color-plum)]">
           <TrophyIcon size={30} />
         </span>
         <h2 className="text-2xl font-extrabold" style={{ color: 'var(--color-plum)' }}>

@@ -226,7 +226,7 @@ function Avatar({ who, avatarUrl }: { who: string; avatarUrl: string | null }) {
   return (
     <span
       aria-hidden="true"
-      className="flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded-full bg-[image:var(--gradient-candy)] text-xs font-bold text-white shadow-[var(--shadow-glow-pink)]"
+      className="flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded-full bg-[image:var(--gradient-candy)] text-xs font-bold text-[var(--color-plum)] shadow-[var(--shadow-glow-pink)]"
     >
       {avatarUrl ? (
         // eslint-disable-next-line @next/next/no-img-element

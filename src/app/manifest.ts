@@ -10,15 +10,14 @@ export default function manifest(): MetadataRoute.Manifest {
     display: 'standalone',
     background_color: '#fbfbff',
     theme_color: '#ff8fc7',
-    // Square PNGs cropped from the badge in the teaser poster. The poster
-    // itself is 480x720 — a portrait image can't be an app icon, and every
-    // launcher would have letterboxed or rejected it.
+    // Official brand-kit favicons. These are the circular shuttlecock badge.
     icons: [
-      { src: '/icon-192.png', sizes: '192x192', type: 'image/png', purpose: 'any' },
-      { src: '/icon-512.png', sizes: '512x512', type: 'image/png', purpose: 'any' },
-      // Padded so the badge sits inside the inner 80% safe zone Android
-      // crops to when it applies its own mask shape.
-      { src: '/icon-maskable-512.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' },
+      { src: '/brand/favicon-192.png', sizes: '192x192', type: 'image/png', purpose: 'any' },
+      { src: '/brand/favicon-512.png', sizes: '512x512', type: 'image/png', purpose: 'any' },
+      // Separate artwork, not the same file: Android keeps only the inner 80%
+      // of a maskable icon, which would slice through the badge's outline ring.
+      // This variant is the bare shuttlecock on an opaque brand tint.
+      { src: '/brand/icon-maskable-512.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' },
     ],
   }
 }

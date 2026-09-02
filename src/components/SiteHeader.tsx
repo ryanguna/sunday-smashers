@@ -1,10 +1,10 @@
 'use client'
 
+import Image from 'next/image'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { useEffect, useId, useRef, useState } from 'react'
 import { Button } from '@/components/ui'
-import { ShuttlecockIcon } from '@/components/icons'
 import { cn } from '@/lib/cn'
 import { SiteHeaderAuth } from '@/components/SiteHeaderAuth'
 import { useAuth } from '@/lib/useAuth'
@@ -78,20 +78,20 @@ export function SiteHeader({ visibility }: { visibility?: SitePageVisibility }) 
           href="/"
           className="flex items-center gap-2 rounded-[var(--radius-md)] focus-visible:outline-offset-4"
         >
-          <span
-            aria-hidden="true"
-            className="flex h-9 w-9 items-center justify-center rounded-full bg-[image:var(--gradient-candy)] text-white shadow-[var(--shadow-glow-pink)]"
-          >
-            <ShuttlecockIcon size={20} />
-          </span>
-          <span className="flex flex-col leading-none">
-            <span className="font-[family-name:var(--font-script)] text-xl text-[var(--color-brand-pink-dark)]">
-              Sunday
-            </span>
-            <span className="font-[family-name:var(--font-heading)] text-sm font-extrabold tracking-wide text-[var(--color-plum)]">
-              SMASHERS
-            </span>
-          </span>
+          {/* The real wordmark, not a CSS approximation of it. `priority`
+              because it sits in the header on every page, so it is always in
+              the initial viewport and would otherwise cause a visible pop. The
+              alt text is on the link's label below, so the image is decorative
+              here and must not repeat it to a screen reader. */}
+          <Image
+            src="/brand/logo-secondary.png"
+            alt=""
+            width={369}
+            height={167}
+            priority
+            className="h-10 w-auto sm:h-11"
+          />
+          <span className="sr-only">Sunday Smashers — home</span>
         </Link>
 
         {/* Desktop nav */}

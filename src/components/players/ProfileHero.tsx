@@ -59,7 +59,7 @@ export function ProfileHero({ profile, className }: ProfileHeroProps) {
               className="-mt-0.5 h-2.5 w-6 rounded-[3px] bg-[image:var(--gradient-gold)]"
             />
             <span
-              className="animate-bob [animation-duration:6s] flex h-24 w-24 items-center justify-center rounded-full bg-[image:var(--gradient-candy)] font-[family-name:var(--font-heading)] text-3xl font-extrabold text-white shadow-[var(--shadow-glow-pink)] sm:h-28 sm:w-28 sm:text-4xl"
+              className="animate-bob [animation-duration:6s] flex h-24 w-24 items-center justify-center rounded-full bg-[image:var(--gradient-candy)] font-[family-name:var(--font-heading)] text-3xl font-extrabold text-[var(--color-plum)] shadow-[var(--shadow-glow-pink)] sm:h-28 sm:w-28 sm:text-4xl"
               aria-hidden="true"
             >
               {profile.initials}
@@ -135,7 +135,7 @@ export function ProfileHero({ profile, className }: ProfileHeroProps) {
           </div>
 
           {ribbon && (
-            <p className="flex items-center gap-2 self-center rounded-[var(--radius-pill)] sm:self-start bg-[image:var(--gradient-gold)] px-4 py-2 font-[family-name:var(--font-heading)] text-sm font-extrabold text-white shadow-[var(--shadow-lift)]">
+            <p className="flex items-center gap-2 self-center rounded-[var(--radius-pill)] sm:self-start bg-[image:var(--gradient-gold)] px-4 py-2 font-[family-name:var(--font-heading)] text-sm font-extrabold text-[var(--color-plum)] shadow-[var(--shadow-lift)]">
               <TrophyIcon size={18} aria-hidden="true" />
               <span>
                 {ribbon.emoji} {ribbon.label}

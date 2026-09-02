@@ -85,7 +85,7 @@ export function Tabs({ items, defaultTabId, className }: TabsProps) {
               className={cn(
                 'rounded-[var(--radius-pill)] px-4 py-2 text-sm font-semibold font-[family-name:var(--font-heading)] transition-colors',
                 selected
-                  ? 'bg-[image:var(--gradient-candy)] text-white shadow-[var(--shadow-glow-pink)]'
+                  ? 'bg-[image:var(--gradient-candy)] text-[var(--color-plum)] shadow-[var(--shadow-glow-pink)]'
                   : 'text-[var(--color-ink-muted)] hover:bg-[var(--color-brand-lilac-light)]/50'
               )}
             >

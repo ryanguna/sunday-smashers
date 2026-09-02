@@ -45,7 +45,7 @@ function FilterChip({
       className={cn(
         'rounded-[var(--radius-pill)] px-3 py-1.5 text-sm font-bold font-[family-name:var(--font-heading)] transition-colors',
         active
-          ? 'bg-[image:var(--gradient-candy)] text-white shadow-[var(--shadow-glow-pink)]'
+          ? 'bg-[image:var(--gradient-candy)] text-[var(--color-plum)] shadow-[var(--shadow-glow-pink)]'
           : 'bg-white/80 text-[var(--color-ink-soft)] hover:bg-white hover:text-[var(--color-plum)]'
       )}
     >

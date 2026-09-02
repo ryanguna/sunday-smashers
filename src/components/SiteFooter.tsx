@@ -27,7 +27,7 @@ export async function SiteFooter({ visibility }: { visibility?: SitePageVisibili
           <div className="flex items-center gap-2">
             <span
               aria-hidden="true"
-              className="flex h-8 w-8 items-center justify-center rounded-full bg-[image:var(--gradient-candy)] text-white"
+              className="flex h-8 w-8 items-center justify-center rounded-full bg-[image:var(--gradient-candy)] text-[var(--color-plum)]"
             >
               <ShuttlecockIcon size={18} />
             </span>

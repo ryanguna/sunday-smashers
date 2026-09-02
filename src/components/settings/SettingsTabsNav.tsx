@@ -33,7 +33,7 @@ export function SettingsTabsNav() {
                   'inline-flex items-center gap-2 rounded-[var(--radius-pill)] px-4 py-2 text-sm font-semibold whitespace-nowrap transition',
                   'font-[family-name:var(--font-heading)]',
                   active
-                    ? 'bg-[image:var(--gradient-candy)] text-white shadow-[var(--shadow-glow-pink)]'
+                    ? 'bg-[image:var(--gradient-candy)] text-[var(--color-plum)] shadow-[var(--shadow-glow-pink)]'
                     : 'bg-white text-[var(--color-plum)] shadow-[var(--shadow-soft)] hover:bg-[var(--color-brand-lilac-light)]/50',
                 )}
               >

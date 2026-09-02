@@ -1,5 +1,6 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
+import Image from 'next/image'
 import { Button, Card, CardBody, CardHeader, GradientText, SectionHeading, Snowfall } from '@/components/ui'
 import {
   GiftIcon,
@@ -123,9 +124,19 @@ export default async function HomePage() {
         <p className="animate-fade-in font-[family-name:var(--font-heading)] text-sm font-bold uppercase tracking-[0.2em] text-[var(--color-brand-lilac-dark)]">
           Sunday Smashers presents
         </p>
-        <p className="mt-3 font-[family-name:var(--font-script)] text-4xl text-[var(--color-brand-pink-dark)] sm:text-5xl">
-          Sunday Smashers
-        </p>
+        {/* The poster's own mark. It replaces a script-font rendering of the
+            name, which never matched the rainbow lettering people recognise
+            from the flyer. Sized in `rem` rather than a fixed pixel width so
+            it scales with the hero, and `priority` because it is the largest
+            element above the fold. */}
+        <Image
+          src="/brand/logo-primary.png"
+          alt="Sunday Smashers"
+          width={575}
+          height={375}
+          priority
+          className="mx-auto mt-3 h-auto w-full max-w-[20rem] sm:max-w-[28rem]"
+        />
         <GradientText
           as="h1"
           shimmer
@@ -133,6 +144,19 @@ export default async function HomePage() {
         >
           Something BIG is smashing this Christmas
         </GradientText>
+        {/* The kit's hand-drawn underline, used the way its own showcase does:
+            beneath a headline, never as a divider. Purely decorative, so it is
+            hidden from assistive tech and rendered as a plain <img> — it has no
+            layout-shift risk at a fixed height and Next's optimiser has nothing
+            to do with an SVG — next/image passes vectors through untouched, so
+            the usual <img> warning does not apply here. */}
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src="/brand/underline-rainbow.svg"
+          alt=""
+          aria-hidden="true"
+          className="mx-auto mt-2 h-4 w-48 sm:h-5 sm:w-64"
+        />
         <p className="mx-auto mt-4 max-w-xl text-lg font-semibold text-[var(--color-ink-soft)]">
           The Christmas battle is coming! 🎄🏸 Join the Sunday Smashers Christmas Mini Tournament —
           <span className="text-[var(--color-brand-pink-dark)]"> SMASH. COMPETE. CELEBRATE.</span>
@@ -252,7 +276,7 @@ export default async function HomePage() {
                 <CardHeader>
                   <span
                     aria-hidden="true"
-                    className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[image:var(--gradient-candy)] font-[family-name:var(--font-heading)] font-extrabold text-white"
+                    className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[image:var(--gradient-candy)] font-[family-name:var(--font-heading)] font-extrabold text-[var(--color-plum)]"
                   >
                     {step}
                   </span>

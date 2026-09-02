@@ -16,13 +16,13 @@ import { podiumLayoutOrder, revealDelay, type PodiumSpot, type PodiumTone } from
 const toneStyles: Record<PodiumTone, { plinth: string; badge: string; ring: string; label: string }> = {
   gold: {
     plinth: 'bg-[image:var(--gradient-gold)]',
-    badge: 'bg-[image:var(--gradient-gold)] text-white',
+    badge: 'bg-[image:var(--gradient-gold)] text-[var(--color-plum)]',
     ring: 'ring-[var(--color-brand-gold)]',
     label: 'text-[var(--color-brand-gold-dark)]',
   },
   silver: {
     plinth: 'bg-[image:linear-gradient(120deg,var(--color-brand-lilac),var(--color-brand-sky))]',
-    badge: 'bg-[var(--color-brand-lilac)] text-white',
+    badge: 'bg-[var(--color-brand-lilac)] text-[var(--color-plum)]',
     ring: 'ring-[var(--color-brand-lilac)]',
     label: 'text-[var(--color-brand-lilac-dark)]',
   },

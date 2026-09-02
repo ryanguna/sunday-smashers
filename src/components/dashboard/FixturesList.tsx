@@ -95,7 +95,7 @@ export function FixturesList({ fixtures, duties, className }: FixturesListProps)
     <Card variant="frosted" className={cn(className)}>
       <CardBody className="p-5 sm:p-6">
         <div className="flex flex-wrap items-center gap-2">
-          <span className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-[image:var(--gradient-candy)] text-white">
+          <span className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-[image:var(--gradient-candy)] text-[var(--color-plum)]">
             <ShuttlecockIcon size={16} />
           </span>
           <h2 className="text-lg font-extrabold" style={{ color: 'var(--color-plum)' }}>

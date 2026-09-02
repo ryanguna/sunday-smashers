@@ -28,7 +28,7 @@ export function AuthShell({ icon, eyebrow, title, subtitle, children, footer, cl
             <div className="mb-6 text-center">
               <span
                 aria-hidden="true"
-                className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-[image:var(--gradient-candy)] text-white shadow-[var(--shadow-glow-pink)]"
+                className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-[image:var(--gradient-candy)] text-[var(--color-plum)] shadow-[var(--shadow-glow-pink)]"
               >
                 {icon ?? <SnowflakeIcon size={28} />}
               </span>

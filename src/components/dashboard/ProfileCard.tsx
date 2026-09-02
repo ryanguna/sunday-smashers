@@ -130,7 +130,7 @@ export function ProfileCard({ profile, demo, className }: ProfileCardProps) {
     <Card variant="frosted" className={cn(className)}>
       <CardBody className="p-5 sm:p-6">
         <div className="flex flex-wrap items-center gap-3">
-          <span className="flex h-12 w-12 items-center justify-center overflow-hidden rounded-full bg-[image:var(--gradient-candy)] font-[family-name:var(--font-heading)] text-lg font-extrabold text-white">
+          <span className="flex h-12 w-12 items-center justify-center overflow-hidden rounded-full bg-[image:var(--gradient-candy)] font-[family-name:var(--font-heading)] text-lg font-extrabold text-[var(--color-plum)]">
             {values.avatar_url ? (
               // eslint-disable-next-line @next/next/no-img-element
               <img src={values.avatar_url} alt="" className="h-full w-full object-cover" />

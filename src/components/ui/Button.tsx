@@ -5,11 +5,23 @@ import { cn } from '@/lib/cn'
 export type ButtonVariant = 'primary' | 'secondary' | 'ghost' | 'danger' | 'festive'
 export type ButtonSize = 'sm' | 'md' | 'lg'
 
+/**
+ * `primary` follows the brand kit's own button rule: the pink-to-lavender
+ * gradient carries **navy** text, not white.
+ *
+ * That is also the accessible choice, and the reason the change was made. The
+ * kit's pastels are pale by design — white on them measures about 2:1, well
+ * under WCAG AA, and it went unnoticed because axe cannot evaluate contrast
+ * against a `background-image`, so the automated pass had nothing to report.
+ * Navy on the same gradient measures 7.2:1 at its lightest stop.
+ *
+ * `secondary` mirrors the kit's outline button: white fill, lavender border.
+ */
 const variantClasses: Record<ButtonVariant, string> = {
   primary:
-    'bg-[image:var(--gradient-candy)] text-white shadow-[var(--shadow-glow-pink)] hover:brightness-105 active:brightness-95',
+    'bg-[image:var(--gradient-brand)] text-[var(--color-plum)] shadow-[var(--shadow-glow-pink)] hover:brightness-105 active:brightness-95',
   secondary:
-    'bg-white text-[var(--color-plum)] border border-[var(--color-brand-lilac-light)] shadow-[var(--shadow-soft)] hover:bg-[var(--color-brand-lilac-light)]/40',
+    'bg-white text-[var(--color-plum)] border-2 border-[var(--color-brand-lilac)] shadow-[var(--shadow-soft)] hover:bg-[var(--color-brand-lilac-light)]/40',
   ghost: 'bg-transparent text-[var(--color-plum)] hover:bg-[var(--color-brand-lilac-light)]/50',
   danger: 'bg-[var(--color-danger)] text-white shadow-[var(--shadow-soft)] hover:brightness-105',
   festive:
