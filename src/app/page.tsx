@@ -20,12 +20,15 @@ import { loadPublicAnnouncementsFeed } from '@/lib/announcements-server'
 import { hasAnyWinners } from '@/lib/awards'
 import { getPublicAwards } from './awards/data'
 import { formatTournamentDate, formatTournamentDateLabel } from '@/lib/tournament'
+import { howItWorksSteps } from '@/lib/tournament-copy'
+import type { DivisionGender } from '@/lib/supabase/types'
 
 export const metadata: Metadata = {
   title: 'Home',
 }
 
-const DIVISIONS = [
+/** Shown until divisions are published — matches the seeded defaults. */
+const DEFAULT_DIVISIONS = [
   {
     name: "Men's Doubles",
     icon: RacketIcon,
@@ -37,6 +40,31 @@ const DIVISIONS = [
     description: 'Bring your best partner and smash your way to the podium.',
   },
 ] as const
+
+/**
+ * A division's name and gender are configurable, its blurb is not — there is
+ * no field for one. Keyed by gender so a renamed or extra division still gets
+ * sensible copy rather than an empty paragraph.
+ */
+const DIVISION_BLURBS: Record<DivisionGender, { icon: typeof RacketIcon; description: string }> = {
+  mens: { icon: RacketIcon, description: 'Pair up and battle it out on court for Christmas glory.' },
+  womens: {
+    icon: ShuttlecockIcon,
+    description: 'Bring your best partner and smash your way to the podium.',
+  },
+  mixed: { icon: ShuttlecockIcon, description: 'One of each — mixed doubles, maximum chaos.' },
+  open: { icon: RacketIcon, description: 'Open to all comers. Bring a partner and bring your best.' },
+}
+
+const COUNT_WORDS = ['no', 'one', 'two', 'three', 'four', 'five', 'six'] as const
+
+function countWord(n: number): string {
+  return COUNT_WORDS[n] ?? String(n)
+}
+
+function pluralDivisions(n: number): string {
+  return `${countWord(n)} division${n === 1 ? '' : 's'}`
+}
 
 const PRIZES = [
   {
@@ -56,31 +84,6 @@ const PRIZES = [
   },
 ] as const
 
-const HOW_IT_WORKS = [
-  {
-    step: '1',
-    title: 'Round robin',
-    description:
-      'Every pair in your division plays every other pair once, first to 15 points (no deuce). Ranking is by wins, with head-to-head deciding ties.',
-  },
-  {
-    step: '2',
-    title: 'Top 4 qualify',
-    description:
-      'The top 4 ranked pairs move on to the semi-finals: Rank 1 vs Rank 4, and Rank 2 vs Rank 3.',
-  },
-  {
-    step: '3',
-    title: 'Semi-finals',
-    description: 'Semis are first to 21 points (no deuce) — winner takes their spot in the final.',
-  },
-  {
-    step: '4',
-    title: 'Battle for 3rd & Championship',
-    description:
-      'Semi-final losers play the Battle for 3rd; semi-final winners play the Championship match for the title.',
-  },
-] as const
 
 export default async function HomePage() {
   // The landing page doubles as the post-event front page, so it pulls in
@@ -99,6 +102,15 @@ export default async function HomePage() {
   // organiser who moves the date in Settings must see the hero move with it.
   const dateLabel = formatTournamentDateLabel(tournament.dates.tournamentDate)
   const opensLabel = formatTournamentDate(tournament.dates.preRegistrationOpensAt)
+  // Scoring and qualifying places are per-division settings, so the "how it
+  // works" copy is generated rather than written — see `tournament-copy.ts`.
+  const howItWorks = howItWorksSteps(tournament.divisions)
+  const divisionCards =
+    tournament.divisions.length > 0
+      ? tournament.divisions.map((d) => ({ name: d.name, ...DIVISION_BLURBS[d.gender] }))
+      : DEFAULT_DIVISIONS.map((d) => ({ ...d }))
+  const eyebrowText = pluralDivisions(divisionCards.length)
+  const divisionsEyebrow = eyebrowText.charAt(0).toUpperCase() + eyebrowText.slice(1)
 
   return (
     <main className="relative overflow-hidden">
@@ -174,12 +186,14 @@ export default async function HomePage() {
       {/* ---------------------------------------------------------------- */}
       <section aria-labelledby="divisions-heading" className="relative z-10 mx-auto max-w-6xl px-4 py-14 sm:px-6">
         <SectionHeading
-          eyebrow="Two divisions"
+          eyebrow={divisionsEyebrow}
           title={<span id="divisions-heading">Pick your battlefield</span>}
-          description="Sunday Smashers runs two doubles divisions this Christmas."
+          description={`Sunday Smashers runs ${countWord(divisionCards.length)} doubles ${
+            divisionCards.length === 1 ? 'division' : 'divisions'
+          } this Christmas.`}
         />
         <div className="mt-10 grid gap-6 sm:grid-cols-2">
-          {DIVISIONS.map(({ name, icon: Icon, description }) => (
+          {divisionCards.map(({ name, icon: Icon, description }) => (
             <Card key={name} variant="candy-stripe" interactive className="text-center">
               <CardBody>
                 <span
@@ -232,7 +246,7 @@ export default async function HomePage() {
           description="Round robin, then the top 4 fight it out for the Christmas crown."
         />
         <ol className="mt-10 grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
-          {HOW_IT_WORKS.map(({ step, title, description }) => (
+          {howItWorks.map(({ step, title, description }) => (
             <li key={step}>
               <Card className="h-full">
                 <CardHeader>

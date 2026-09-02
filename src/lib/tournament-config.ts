@@ -6,7 +6,8 @@ import {
   tournamentDatesFrom,
   type TournamentDates,
 } from '@/lib/tournament'
-import type { TournamentPublicRow } from '@/lib/supabase/types'
+import type { DivisionGender, DivisionRow, TournamentPublicRow } from '@/lib/supabase/types'
+import type { StageRulesConfig } from '@/lib/settings'
 
 /**
  * Server-side loader for the published tournament's public configuration.
@@ -26,10 +27,30 @@ import type { TournamentPublicRow } from '@/lib/supabase/types'
  * an "Invalid Date" countdown.
  */
 
+/**
+ * The scoring rules of one published division, narrowed to what public copy
+ * needs. Deliberately not the whole `DivisionRow`: this is read anonymously,
+ * so it only carries what is already visible on the rules page.
+ */
+export interface PublicDivisionSummary {
+  id: string
+  name: string
+  gender: DivisionGender
+  elims: StageRulesConfig
+  finals: StageRulesConfig
+  qualifyingPlaces: number
+}
+
 export interface PublicTournamentConfig {
   dates: TournamentDates
   /** Null in demo mode or before setup — callers should fall back to their own copy. */
   row: TournamentPublicRow | null
+  /**
+   * Published divisions, ordered by name. Empty in demo mode, before setup,
+   * or while every division is still unpublished — callers must fall back to
+   * their own copy rather than rendering "first to points".
+   */
+  divisions: PublicDivisionSummary[]
   /**
    * The organiser's explicit switch. `null` means "no tournament row yet", in
    * which case the date window alone decides, exactly as it did before.
@@ -48,6 +69,7 @@ export interface PublicTournamentConfig {
 const FALLBACK: PublicTournamentConfig = {
   dates: DEFAULT_TOURNAMENT_DATES,
   row: null,
+  divisions: [],
   isRegistrationOpen: null,
   entryFeeCents: null,
   paymentInstructions: null,
@@ -59,8 +81,41 @@ const FALLBACK: PublicTournamentConfig = {
   doorsOpenAt: null,
 }
 
-export async function loadPublicTournamentConfig(): Promise<PublicTournamentConfig> {
-  if (!isSupabaseConfigured()) return FALLBACK
+type PublicDivisionRow = Pick<
+  DivisionRow,
+  | 'id'
+  | 'name'
+  | 'gender'
+  | 'points_to_win_elims'
+  | 'deuce_enabled_elims'
+  | 'cap_elims'
+  | 'points_to_win_finals'
+  | 'deuce_enabled_finals'
+  | 'cap_finals'
+  | 'qualifying_places'
+>
+
+function toPublicDivisionSummary(row: PublicDivisionRow): PublicDivisionSummary {
+  return {
+    id: row.id,
+    name: row.name,
+    gender: row.gender,
+    // A cap is only meaningful with deuce on, matching `stageConfigFromRow`.
+    elims: {
+      pointsToWin: row.points_to_win_elims,
+      deuce: row.deuce_enabled_elims,
+      cap: row.deuce_enabled_elims ? row.cap_elims : null,
+    },
+    finals: {
+      pointsToWin: row.points_to_win_finals,
+      deuce: row.deuce_enabled_finals,
+      cap: row.deuce_enabled_finals ? row.cap_finals : null,
+    },
+    qualifyingPlaces: row.qualifying_places,
+  }
+}
+
+export async function loadPublicTournamentConfig(): Promise<PublicTournamentConfig> {  if (!isSupabaseConfigured()) return FALLBACK
   return cachedPublicTournamentConfig()
 }
 
@@ -78,9 +133,23 @@ async function fetchPublicTournamentConfig(): Promise<PublicTournamentConfig> {
     const row = (data ?? null) as TournamentPublicRow | null
     if (!row) return FALLBACK
 
+    // Divisions carry the scoring rules the public copy quotes. Anonymous
+    // reads are allowed only for published rows (RLS policy
+    // `divisions_select_published_or_admin`), which is exactly the set we
+    // want: an unpublished division is not yet something to advertise.
+    const { data: divisionRows } = await supabase
+      .from('divisions')
+      .select(
+        'id, name, gender, points_to_win_elims, deuce_enabled_elims, cap_elims, points_to_win_finals, deuce_enabled_finals, cap_finals, qualifying_places',
+      )
+      .eq('tournament_id', row.id)
+      .eq('is_published', true)
+      .order('name', { ascending: true })
+
     return {
       dates: tournamentDatesFrom(row),
       row,
+      divisions: (divisionRows ?? []).map(toPublicDivisionSummary),
       isRegistrationOpen: row.is_registration_open,
       entryFeeCents: row.entry_fee_cents,
       paymentInstructions: row.payment_instructions,
