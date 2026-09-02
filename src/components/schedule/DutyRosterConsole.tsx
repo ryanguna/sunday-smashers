@@ -180,7 +180,7 @@ export function DutyRosterConsole({
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4 print:hidden">
+      <div className="grid grid-cols-1 min-[380px]:grid-cols-2 gap-3 lg:grid-cols-4 print:hidden">
         <StatCard
           label="Matches rostered"
           value={view.matches.length}

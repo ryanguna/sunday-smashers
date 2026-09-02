@@ -72,7 +72,7 @@ export default async function AnnouncementsPage() {
                 day, or check the{' '}
                 <a
                   href="/rules"
-                  className="font-extrabold text-[var(--color-brand-lilac-dark)] underline-offset-4 hover:underline"
+                  className="font-extrabold text-[var(--color-brand-lilac-dark)] inline-flex min-h-[24px] items-center underline-offset-4 hover:underline"
                 >
                   rules &amp; FAQ
                 </a>

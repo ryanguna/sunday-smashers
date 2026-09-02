@@ -232,7 +232,7 @@ export function ScheduleBuilder({
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+      <div className="grid grid-cols-1 min-[380px]:grid-cols-2 gap-3 lg:grid-cols-4">
         <StatCard
           label="Matches placed"
           value={`${stats.placed}/${stats.total}`}
@@ -335,7 +335,7 @@ export function ScheduleBuilder({
               id: 'grid',
               label: 'Timeline grid',
               content: (
-                <div className="flex flex-col gap-3">
+                <div className="flex min-w-0 flex-col gap-3">
                   <ScheduleGrid
                     rows={timeline}
                     courts={courts}
@@ -376,7 +376,7 @@ export function ScheduleBuilder({
           ]}
         />
 
-        <div className="flex flex-col gap-3">
+        <div className="flex min-w-0 flex-col gap-3">
           <section aria-labelledby="conflict-heading">
             <h2
               id="conflict-heading"

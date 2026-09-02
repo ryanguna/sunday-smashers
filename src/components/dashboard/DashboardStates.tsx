@@ -104,7 +104,7 @@ export function NotRegisteredPanel({ className }: { className?: string }) {
         <Button href="/register" variant="primary" size="lg">
           Register to play
         </Button>
-        <Link href="/rules" className="text-sm font-extrabold text-[var(--color-brand-lilac-dark)] underline-offset-4 hover:underline">
+        <Link href="/rules" className="text-sm font-extrabold text-[var(--color-brand-lilac-dark)] inline-flex min-h-[24px] items-center underline-offset-4 hover:underline">
           Read the tournament rules first →
         </Link>
       </CardBody>

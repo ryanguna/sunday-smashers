@@ -124,7 +124,7 @@ export function DivisionsEditor({ initial, entryCounts, save, readOnly = false }
                     checked={division.enabled}
                     disabled={readOnly}
                     onChange={(event) => update(division.id, { enabled: event.target.checked })}
-                    className="h-4 w-4 accent-[var(--color-brand-pink-dark)]"
+                    className="h-6 w-6 accent-[var(--color-brand-pink-dark)]"
                   />
                   Accept entries
                 </label>

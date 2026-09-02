@@ -75,7 +75,7 @@ function SideChoice({
               value={side}
               checked={value === side}
               onChange={() => onChange(side)}
-              className="h-4 w-4 accent-[var(--color-brand-pink-dark)]"
+              className="h-6 w-6 accent-[var(--color-brand-pink-dark)]"
             />
             {teamForSide(row, side).name}
           </label>
@@ -159,7 +159,7 @@ export function MatchesResultDialog({
                     value={status}
                     checked={draft.status === status}
                     onChange={() => patchDraft({ status })}
-                    className="mt-0.5 h-4 w-4 shrink-0 accent-[var(--color-brand-pink-dark)]"
+                    className="mt-0.5 h-6 w-6 shrink-0 accent-[var(--color-brand-pink-dark)]"
                   />
                   <span>
                     <span className="block font-bold text-[var(--color-plum)]">
@@ -317,7 +317,7 @@ export function MatchesResultDialog({
                   type="checkbox"
                   checked={acknowledged}
                   onChange={(event) => setAcknowledged(event.target.checked)}
-                  className="h-4 w-4 accent-[var(--color-danger)]"
+                  className="h-6 w-6 accent-[var(--color-danger)]"
                 />
                 I understand, and I still want to change it.
               </label>

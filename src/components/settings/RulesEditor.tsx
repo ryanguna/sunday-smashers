@@ -105,7 +105,7 @@ function StageEditor({
           checked={config.deuce}
           disabled={disabled}
           onChange={(event) => onChange({ deuce: event.target.checked })}
-          className="mt-0.5 h-5 w-5 shrink-0 accent-[var(--color-brand-pink-dark)]"
+          className="mt-0.5 h-6 w-6 shrink-0 accent-[var(--color-brand-pink-dark)]"
         />
         <span className="text-sm">
           <span className="block font-semibold text-[var(--color-plum)]">Play deuce (win by 2)</span>
@@ -330,7 +330,7 @@ export function RulesEditor({
               type="checkbox"
               checked={acknowledged}
               onChange={(event) => setAcknowledged(event.target.checked)}
-              className="mt-0.5 h-5 w-5 shrink-0 accent-[var(--color-brand-pink-dark)]"
+              className="mt-0.5 h-6 w-6 shrink-0 accent-[var(--color-brand-pink-dark)]"
             />
             <span className="text-[var(--color-ink-soft)]">
               I understand the draw is already published and I will tell the players what changed.

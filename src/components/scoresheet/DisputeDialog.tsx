@@ -70,7 +70,7 @@ export function DisputeDialog({ open, onClose, matchLabel, busy, onSubmit }: Dis
                 value={option}
                 checked={prompt === option}
                 onChange={() => setPrompt(option)}
-                className="h-4 w-4 accent-[var(--color-brand-pink-dark)]"
+                className="h-6 w-6 accent-[var(--color-brand-pink-dark)]"
               />
               <span className="text-[var(--color-ink)]">{option}</span>
             </label>

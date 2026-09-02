@@ -152,7 +152,7 @@ export function AdminFilterBar({
               type="checkbox"
               checked={filters.freeAgentsOnly ?? false}
               onChange={(event) => patch({ freeAgentsOnly: event.target.checked })}
-              className="h-4 w-4 accent-[var(--color-brand-pink-dark)]"
+              className="h-6 w-6 accent-[var(--color-brand-pink-dark)]"
             />
             Free agents only (no partner yet)
           </label>

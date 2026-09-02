@@ -49,7 +49,7 @@ export function AnnouncementsStrip({
           <h2 className="text-lg font-extrabold text-[var(--color-plum)]">{heading}</h2>
           <Link
             href={href}
-            className="ml-auto text-sm font-extrabold text-[var(--color-brand-lilac-dark)] underline-offset-4 hover:underline"
+            className="ml-auto text-sm font-extrabold text-[var(--color-brand-lilac-dark)] inline-flex min-h-[24px] items-center underline-offset-4 hover:underline"
           >
             See all →
           </Link>

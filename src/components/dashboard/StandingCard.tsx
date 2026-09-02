@@ -103,7 +103,7 @@ export function StandingCard({ record, cut, podium, className }: StandingCardPro
 
         <Link
           href="/standings"
-          className="mt-auto text-sm font-extrabold text-[var(--color-brand-lilac-dark)] underline-offset-4 hover:underline"
+          className="mt-auto text-sm font-extrabold text-[var(--color-brand-lilac-dark)] inline-flex min-h-[24px] items-center underline-offset-4 hover:underline"
         >
           See the full standings →
         </Link>

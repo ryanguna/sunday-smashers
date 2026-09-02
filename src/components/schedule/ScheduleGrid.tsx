@@ -39,7 +39,7 @@ export function ScheduleGrid({
   const picking = Boolean(selectedMatchId)
 
   return (
-    <div className="overflow-x-auto rounded-[var(--radius-lg)] bg-frost-glass p-2 shadow-[var(--shadow-soft)]">
+    <div className="min-w-0 overflow-x-auto rounded-[var(--radius-lg)] bg-frost-glass p-2 shadow-[var(--shadow-soft)]">
       <table className="w-full min-w-[46rem] border-separate border-spacing-1">
         <caption className="sr-only">
           Match schedule by court and time slot. Choose a match to pick it up, then choose a cell to

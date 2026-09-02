@@ -48,7 +48,7 @@ export default async function ScoringMatchPage({
       <div className="mb-4 flex flex-col gap-2">
         <Link
           href="/scoring"
-          className="inline-flex w-fit items-center gap-1 rounded-[var(--radius-pill)] px-1 text-sm font-semibold text-[var(--color-brand-lilac-dark)] underline-offset-4 hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--color-plum)]"
+          className="inline-flex w-fit items-center gap-1 rounded-[var(--radius-pill)] px-1 text-sm font-semibold text-[var(--color-brand-lilac-dark)] inline-flex min-h-[24px] items-center underline-offset-4 hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--color-plum)]"
         >
           ← All my duties
         </Link>

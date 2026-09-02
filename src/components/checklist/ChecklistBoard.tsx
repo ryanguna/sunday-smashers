@@ -119,7 +119,7 @@ function ItemRow({
           onChange={onToggle}
           disabled={busy}
           id={`check-${item.id}`}
-          className="mt-1 h-5 w-5 shrink-0 accent-[var(--color-brand-pink-dark)]"
+          className="mt-1 h-6 w-6 shrink-0 accent-[var(--color-brand-pink-dark)]"
         />
         <div className="min-w-0 flex-1">
           <label

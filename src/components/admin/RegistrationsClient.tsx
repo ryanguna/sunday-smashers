@@ -329,7 +329,7 @@ export function RegistrationsClient({
                     type="checkbox"
                     checked={allVisibleSelected}
                     onChange={toggleAll}
-                    className="h-4 w-4 accent-[var(--color-brand-pink-dark)]"
+                    className="h-6 w-6 accent-[var(--color-brand-pink-dark)]"
                   />
                   <span className="sr-only">Select all visible registrations</span>
                 </label>
@@ -361,7 +361,7 @@ export function RegistrationsClient({
                         type="checkbox"
                         checked={isSelected}
                         onChange={() => toggleRow(row.id)}
-                        className="h-4 w-4 accent-[var(--color-brand-pink-dark)]"
+                        className="h-6 w-6 accent-[var(--color-brand-pink-dark)]"
                       />
                       <span className="sr-only">Select {row.playerName}</span>
                     </label>

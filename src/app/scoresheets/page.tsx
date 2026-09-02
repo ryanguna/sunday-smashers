@@ -49,7 +49,7 @@ export default async function ScoresheetsPage() {
           {isTabulator ? (
             <a
               href="/tabulator"
-              className="inline-flex items-center gap-1 rounded-[var(--radius-pill)] bg-[var(--color-brand-lilac-light)] px-3 py-1 text-xs font-extrabold text-[var(--color-plum)] underline-offset-4 hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--color-plum)]"
+              className="inline-flex items-center gap-1 rounded-[var(--radius-pill)] bg-[var(--color-brand-lilac-light)] px-3 py-1 text-xs font-extrabold text-[var(--color-plum)] inline-flex min-h-[24px] items-center underline-offset-4 hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--color-plum)]"
             >
               Go to the tabulator inbox →
             </a>

@@ -83,16 +83,16 @@ export default async function RegisterPage({
             className="mt-8 flex flex-wrap items-center justify-center gap-x-3 gap-y-2 rounded-[var(--radius-lg)] bg-white/70 px-4 py-3 text-sm text-[var(--color-ink-muted)]"
           >
             <span className="font-semibold text-[var(--color-plum)]">Demo preview:</span>
-            <a className="underline hover:text-[var(--color-brand-pink-dark)]" href="/register">
+            <a className="inline-flex min-h-[24px] items-center underline hover:text-[var(--color-brand-pink-dark)]" href="/register">
               Live state
             </a>
-            <a className="underline hover:text-[var(--color-brand-pink-dark)]" href="/register?preview=open">
+            <a className="inline-flex min-h-[24px] items-center underline hover:text-[var(--color-brand-pink-dark)]" href="/register?preview=open">
               Registration open
             </a>
-            <a className="underline hover:text-[var(--color-brand-pink-dark)]" href="/register?preview=full">
+            <a className="inline-flex min-h-[24px] items-center underline hover:text-[var(--color-brand-pink-dark)]" href="/register?preview=full">
               Division full
             </a>
-            <a className="underline hover:text-[var(--color-brand-pink-dark)]" href="/register?preview=closed">
+            <a className="inline-flex min-h-[24px] items-center underline hover:text-[var(--color-brand-pink-dark)]" href="/register?preview=closed">
               Closed (waitlist)
             </a>
           </nav>

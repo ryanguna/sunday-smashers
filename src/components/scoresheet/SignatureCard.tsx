@@ -201,7 +201,7 @@ export function SignatureCard({
                       setPicked(p.id)
                       setError('')
                     }}
-                    className="h-4 w-4 accent-[var(--color-brand-pink-dark)]"
+                    className="h-6 w-6 accent-[var(--color-brand-pink-dark)]"
                   />
                   <span className="font-semibold text-[var(--color-ink)]">{p.name}</span>
                 </label>

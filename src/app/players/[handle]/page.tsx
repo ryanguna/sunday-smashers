@@ -86,7 +86,7 @@ export default async function PlayerProfilePage({ params }: PageProps) {
         <nav aria-label="Breadcrumb">
           <Link
             href="/players"
-            className="inline-flex items-center gap-1.5 rounded-[var(--radius-sm)] text-sm font-extrabold text-[var(--color-brand-lilac-dark)] underline-offset-4 hover:underline"
+            className="inline-flex items-center gap-1.5 rounded-[var(--radius-sm)] text-sm font-extrabold text-[var(--color-brand-lilac-dark)] inline-flex min-h-[24px] items-center underline-offset-4 hover:underline"
           >
             <span aria-hidden="true">←</span> All players &amp; pairs
           </Link>

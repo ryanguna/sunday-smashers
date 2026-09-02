@@ -75,7 +75,10 @@ export function StatCard({
         {icon ?? <SparkleIcon size={20} />}
       </span>
       <div className="min-w-0">
-        <p className="text-[0.7rem] font-bold uppercase tracking-[0.12em] text-[var(--color-ink-muted)]">
+        {/* `break-words`: at 320px the icon leaves ~48px for the label, which
+            is narrower than a single word like "rostered". Without this the
+            text spills out of the card and scrolls the whole page sideways. */}
+        <p className="text-[0.7rem] font-bold uppercase tracking-[0.12em] break-words text-[var(--color-ink-muted)]">
           {label}
         </p>
         <p className="font-[family-name:var(--font-heading)] text-2xl font-extrabold leading-tight text-[var(--color-plum)]">

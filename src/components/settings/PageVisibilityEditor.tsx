@@ -158,7 +158,7 @@ function PageToggle({
         checked={checked}
         disabled={disabled}
         onChange={(event) => onChange(event.target.checked)}
-        className="mt-0.5 h-5 w-5 shrink-0 accent-[var(--color-brand-pink-dark)]"
+        className="mt-0.5 h-6 w-6 shrink-0 accent-[var(--color-brand-pink-dark)]"
       />
       <span className="min-w-0 text-sm">
         <span className="flex flex-wrap items-baseline gap-x-2">

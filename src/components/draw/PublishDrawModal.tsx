@@ -95,7 +95,7 @@ function PublishDrawModalContent({
               type="checkbox"
               checked={confirmReplace}
               onChange={(event) => setConfirmReplace(event.target.checked)}
-              className="mt-0.5 h-4 w-4 shrink-0 accent-[var(--color-brand-pink-dark)]"
+              className="mt-0.5 h-6 w-6 shrink-0 accent-[var(--color-brand-pink-dark)]"
             />
             <span>
               <span className="font-bold text-[var(--color-plum)]">Regenerate and replace</span> the{' '}
@@ -112,7 +112,7 @@ function PublishDrawModalContent({
                 type="checkbox"
                 checked={confirmDestroy}
                 onChange={(event) => setConfirmDestroy(event.target.checked)}
-                className="mt-0.5 h-4 w-4 shrink-0 accent-[var(--color-danger)]"
+                className="mt-0.5 h-6 w-6 shrink-0 accent-[var(--color-danger)]"
               />
               <span>
                 I understand that{' '}

@@ -197,7 +197,7 @@ export function MatchesRescheduleDialog({
                   type="checkbox"
                   checked={acknowledged}
                   onChange={(event) => setAcknowledged(event.target.checked)}
-                  className="h-4 w-4 accent-[var(--color-danger)]"
+                  className="h-6 w-6 accent-[var(--color-danger)]"
                 />
                 Move it anyway — I will sort the clash out by hand.
               </label>

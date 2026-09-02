@@ -172,7 +172,7 @@ export function TournamentDetailsForm({ initial, save, readOnly = false }: Tourn
             checked={draft.registrationCloseConfirmed}
             onChange={(event) => set('registrationCloseConfirmed', event.target.checked)}
             disabled={readOnly}
-            className="mt-0.5 h-5 w-5 shrink-0 accent-[var(--color-brand-pink-dark)]"
+            className="mt-0.5 h-6 w-6 shrink-0 accent-[var(--color-brand-pink-dark)]"
           />
           <span className="text-sm">
             <span className="block font-semibold text-[var(--color-plum)]">

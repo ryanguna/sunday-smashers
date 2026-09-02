@@ -53,7 +53,7 @@ export function TeamCard({ team, division, partnerNames, className }: TeamCardPr
             </p>
             <Link
               href="/players"
-              className="mt-auto text-sm font-extrabold text-[var(--color-brand-lilac-dark)] underline-offset-4 hover:underline"
+              className="mt-auto text-sm font-extrabold text-[var(--color-brand-lilac-dark)] inline-flex min-h-[24px] items-center underline-offset-4 hover:underline"
             >
               See every pair in the draw →
             </Link>
@@ -70,7 +70,7 @@ export function TeamCard({ team, division, partnerNames, className }: TeamCardPr
             </p>
             <Link
               href="/register"
-              className="mt-auto text-sm font-extrabold text-[var(--color-brand-pink-dark)] underline-offset-4 hover:underline"
+              className="mt-auto text-sm font-extrabold text-[var(--color-brand-pink-dark)] inline-flex min-h-[24px] items-center underline-offset-4 hover:underline"
             >
               Add a partner or join the free-agent list →
             </Link>

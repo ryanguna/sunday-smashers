@@ -210,7 +210,7 @@ export function DrawWorkbench({
         <WarningRail warnings={warnings} />
       </div>
 
-      <div className="grid gap-4 xl:grid-cols-[minmax(0,22rem)_minmax(0,1fr)]">
+      <div className="grid grid-cols-[minmax(0,1fr)] gap-4 xl:grid-cols-[minmax(0,22rem)_minmax(0,1fr)]">
         <Card variant="candy-stripe" className="h-fit">
           <PanelHeading
             icon={<MedalIcon size={18} className="text-[var(--color-brand-gold-dark)]" />}

@@ -55,7 +55,13 @@ export function Tabs({ items, defaultTabId, className }: TabsProps) {
   const activeItem = items.find((item) => item.id === activeId) ?? items[0]
 
   return (
-    <div className={className}>
+    // `min-w-0` on the root and the panel: both are routinely flex or grid
+    // items, and such items default to `min-width: auto`, meaning they refuse
+    // to shrink below their content. A tab panel holding a wide table (the
+    // schedule grid is `min-w-[46rem]`) therefore stretched its whole ancestor
+    // chain and scrolled the *page* sideways on a phone, instead of letting
+    // the table's own `overflow-x-auto` scroll on its own.
+    <div className={cn('min-w-0', className)}>
       <div
         role="tablist"
         aria-label="Tabs"
@@ -94,7 +100,7 @@ export function Tabs({ items, defaultTabId, className }: TabsProps) {
           id={`${baseId}-panel-${activeItem.id}`}
           aria-labelledby={`${baseId}-tab-${activeItem.id}`}
           tabIndex={0}
-          className="mt-4 animate-fade-in"
+          className="mt-4 min-w-0 animate-fade-in"
         >
           {activeItem.content}
         </div>

@@ -536,7 +536,7 @@ function StepFields({
               checked={values.codeOfConductAccepted}
               onChange={(event) => update('codeOfConductAccepted', event.target.checked)}
               aria-invalid={!!errors.codeOfConductAccepted}
-              className="mt-1 h-5 w-5 shrink-0 accent-[var(--color-brand-pink-dark)]"
+              className="mt-1 h-6 w-6 shrink-0 accent-[var(--color-brand-pink-dark)]"
             />
             <span className="text-sm text-[var(--color-ink-soft)]">
               <span className="block font-[family-name:var(--font-heading)] font-bold text-[var(--color-plum)]">

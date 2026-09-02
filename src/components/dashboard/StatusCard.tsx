@@ -55,7 +55,7 @@ export function StatusCard({ title, view, icon = 'gift', className }: StatusCard
         {view.href && view.actionLabel && (
           <Link
             href={view.href}
-            className="mt-auto inline-block text-sm font-extrabold text-[var(--color-brand-pink-dark)] underline-offset-4 hover:underline"
+            className="mt-auto text-sm font-extrabold text-[var(--color-brand-pink-dark)] inline-flex min-h-[24px] items-center underline-offset-4 hover:underline"
           >
             {view.actionLabel} →
           </Link>

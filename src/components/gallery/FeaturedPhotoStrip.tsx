@@ -63,7 +63,7 @@ export async function FeaturedPhotoStrip({
         <p className="text-center">
           <Link
             href="/gallery"
-            className="inline-flex items-center gap-1.5 font-extrabold text-[var(--color-brand-lilac-dark)] underline-offset-4 hover:underline"
+            className="inline-flex items-center gap-1.5 font-extrabold text-[var(--color-brand-lilac-dark)] inline-flex min-h-[24px] items-center underline-offset-4 hover:underline"
           >
             <SparkleIcon size={16} />
             See the whole gallery

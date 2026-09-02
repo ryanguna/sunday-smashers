@@ -86,7 +86,7 @@ export function PublishScheduleModal({
               type="checkbox"
               checked={overrideConflicts}
               onChange={(event) => onToggleOverride(event.target.checked)}
-              className="mt-0.5 h-4 w-4 shrink-0 accent-[var(--color-brand-pink-dark)]"
+              className="mt-0.5 h-6 w-6 shrink-0 accent-[var(--color-brand-pink-dark)]"
             />
             <span>
               <span className="font-bold">Publish with unresolved conflicts.</span> I have read them
@@ -101,7 +101,7 @@ export function PublishScheduleModal({
               type="checkbox"
               checked={confirmMoveResults}
               onChange={(event) => onToggleMoveResults(event.target.checked)}
-              className="mt-0.5 h-4 w-4 shrink-0 accent-[var(--color-danger)]"
+              className="mt-0.5 h-6 w-6 shrink-0 accent-[var(--color-danger)]"
             />
             <span>
               <span className="font-bold">

@@ -401,7 +401,7 @@ export function TeamsClient({
                 onChange={(event) => {
                   setFilters({ ...filters, issuesOnly: event.target.checked })
                 }}
-                className="h-4 w-4 accent-[var(--color-brand-pink-dark)]"
+                className="h-6 w-6 accent-[var(--color-brand-pink-dark)]"
               />
               Only teams that need attention
             </label>

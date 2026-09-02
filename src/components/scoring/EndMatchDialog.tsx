@@ -60,7 +60,7 @@ export function EndMatchDialog({
                 value={option.kind}
                 checked={kind === option.kind}
                 onChange={() => setKind(option.kind)}
-                className="mt-1 h-5 w-5 accent-[var(--color-brand-lilac-dark)]"
+                className="mt-1 h-6 w-6 accent-[var(--color-brand-lilac-dark)]"
               />
               <span>
                 <span className="block font-semibold text-[var(--color-plum)]">{option.label}</span>
@@ -91,7 +91,7 @@ export function EndMatchDialog({
                   value={value}
                   checked={side === value}
                   onChange={() => setSide(value)}
-                  className="h-5 w-5 accent-[var(--color-brand-lilac-dark)]"
+                  className="h-6 w-6 accent-[var(--color-brand-lilac-dark)]"
                 />
                 <span className="font-semibold text-[var(--color-plum)]">{label}</span>
               </label>

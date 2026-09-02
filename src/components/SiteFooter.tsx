@@ -42,13 +42,18 @@ export async function SiteFooter({ visibility }: { visibility?: SitePageVisibili
 
         <nav
           aria-label="Footer"
-          className="grid grid-cols-2 gap-x-8 gap-y-2.5 sm:grid-cols-3 lg:grid-cols-4"
+          className="grid grid-cols-2 gap-x-8 gap-y-0.5 sm:grid-cols-3 lg:grid-cols-4"
         >
           {footerLinks.map((link) => (
             <Link
               key={link.href}
               href={link.href}
-              className="text-sm font-semibold text-[var(--color-ink-soft)] hover:text-[var(--color-brand-pink-dark)]"
+              // A block of navigation, not prose, so WCAG 2.5.8's
+              // "inline in a sentence" exemption does not apply. The text is
+              // 20px tall; the vertical padding brings the tap target to 32px
+              // without changing the visual rhythm (the row gap shrank to
+              // compensate).
+              className="-mx-2 inline-flex min-h-[32px] items-center rounded-[var(--radius-sm)] px-2 text-sm font-semibold text-[var(--color-ink-soft)] hover:text-[var(--color-brand-pink-dark)]"
             >
               {link.label}
             </Link>

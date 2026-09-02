@@ -127,7 +127,7 @@ export function NextDutyCard({ duty, countdown, className }: NextDutyCardProps) 
 
           <Link
             href="/rules"
-            className="mt-3 inline-block text-sm font-extrabold text-[var(--color-brand-mint-dark)] underline-offset-4 hover:underline"
+            className="mt-3 text-sm font-extrabold text-[var(--color-brand-mint-dark)] inline-flex min-h-[24px] items-center underline-offset-4 hover:underline"
           >
             Brush up on the officiating rules →
           </Link>

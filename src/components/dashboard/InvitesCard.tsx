@@ -88,7 +88,7 @@ export function InvitesCard({ className }: InvitesCardProps) {
         ) : invites.length === 0 ? (
           <p className="text-sm text-[var(--color-ink-soft)]">
             No invites right now. Found someone to pair with?{' '}
-            <Link href="/register" className="font-extrabold text-[var(--color-brand-pink-dark)] underline-offset-4 hover:underline">
+            <Link href="/register" className="font-extrabold text-[var(--color-brand-pink-dark)] inline-flex min-h-[24px] items-center underline-offset-4 hover:underline">
               Send them an invite
             </Link>
             .

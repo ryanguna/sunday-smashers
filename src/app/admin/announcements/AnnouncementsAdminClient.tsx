@@ -544,7 +544,7 @@ function AnnouncementsComposer({ initialAnnouncements, tournamentId }: Announcem
                   type="checkbox"
                   checked={editor.isPublished}
                   onChange={(event) => setEditor({ ...editor, isPublished: event.target.checked })}
-                  className="h-4 w-4 accent-[var(--color-brand-pink-dark)]"
+                  className="h-6 w-6 accent-[var(--color-brand-pink-dark)]"
                 />
                 Published (visible to everyone)
               </label>
@@ -553,7 +553,7 @@ function AnnouncementsComposer({ initialAnnouncements, tournamentId }: Announcem
                   type="checkbox"
                   checked={editor.isPinned}
                   onChange={(event) => setEditor({ ...editor, isPinned: event.target.checked })}
-                  className="h-4 w-4 accent-[var(--color-brand-pink-dark)]"
+                  className="h-6 w-6 accent-[var(--color-brand-pink-dark)]"
                 />
                 Pin to the top of the noticeboard
               </label>
