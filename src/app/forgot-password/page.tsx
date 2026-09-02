@@ -11,11 +11,15 @@ export const metadata: Metadata = {
 }
 
 /**
- * There is no "email me a reset link" any more, because there is no SMTP
- * server to send it (see `docs/GO-LIVE.md`). Rather than 404 the route — the
- * sign-in page links here, and "Forgot password?" is the first thing a stuck
- * player looks for — this page tells them the truth and gives them a human to
- * ask.
+ * There is no "email me a reset link", because there is no SMTP server to send
+ * it (see `docs/GO-LIVE.md`). Rather than 404 the route — the sign-in page
+ * links here, and "Forgot password?" is the first thing a stuck player looks
+ * for — this page points them at a human.
+ *
+ * The copy is deliberately one sentence. It previously spent three paragraphs
+ * explaining that the tournament sends no email at all, which is an
+ * implementation detail the player did not ask about and cannot act on; all
+ * they need to know is who to message.
  *
  * The organiser's contact details come from the tournament row, so the
  * committee can change who fields these requests without a redeploy. If they
@@ -36,7 +40,7 @@ export default async function ForgotPasswordPage() {
       icon={<BaubleIcon size={26} />}
       eyebrow="Locked out?"
       title="Let's get you back on court"
-      subtitle="Password resets are done by a human, not a robot."
+      subtitle="Ask an organiser to change it for you."
       footer={
         <>
           Remembered it?{' '}
@@ -49,19 +53,8 @@ export default async function ForgotPasswordPage() {
         </>
       }
     >
-      <div className="rounded-[var(--radius-md)] bg-[var(--color-info-bg)] p-4 text-sm text-[var(--color-info)]">
-        <p className="font-[family-name:var(--font-heading)] font-bold">
-          We can&apos;t email you a reset link
-        </p>
-        <p className="mt-1.5 font-medium">
-          Sunday Smashers doesn&apos;t send email at all — no confirmation messages, no reset links,
-          nothing to get lost in a spam folder. Message an organiser instead and they&apos;ll set a
-          new password on your account straight away.
-        </p>
-      </div>
-
       {contacts.length > 0 ? (
-        <dl className="mt-5 grid gap-3">
+        <dl className="grid gap-3">
           {contacts.map((contact) => (
             <div
               key={contact.label}
@@ -90,8 +83,14 @@ export default async function ForgotPasswordPage() {
       )}
 
       <p className="mt-5 text-sm text-[var(--color-ink-soft)]">
-        Once they&apos;ve set a new password for you, sign in with it and change it to something you
-        like from your dashboard.
+        Signed in already and just want a different password?{' '}
+        <Link
+          href="/account/password"
+          className="font-semibold text-[var(--color-brand-pink-dark)] hover:underline"
+        >
+          Change it yourself
+        </Link>
+        .
       </p>
 
       <Button href="/login" className="mt-5 w-full">

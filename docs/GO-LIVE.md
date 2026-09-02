@@ -217,11 +217,27 @@ contact fields are filled in (step 5) or that page is a dead end.
 To reset a password for someone, an organiser runs:
 
 ```bash
-npm run bootstrap:organiser -- player@example.com
+SUPABASE_DB_URL='postgresql://…:5432/postgres' \
+  npm run reset:password -- player@example.com 'their-new-password'
 ```
 
-It is idempotent and sets a password on an existing account, so it doubles as
-the reset tool. Keep it on a committee laptop, not on a phone.
+Then tell them the new password out of band (group chat, in person) and point
+them at **`/account/password`**, where they can change it to something only
+they know. That page is in the avatar menu under *Change password*, and it is
+the only password-change control in the app — it asks for the current password
+before accepting a new one.
+
+Add `--dry-run` to confirm you have the right account before changing anything.
+The script **refuses to create an account**: if it says "no account with that
+email", you have the wrong address, not a broken script.
+
+> Do not use `npm run bootstrap:organiser` for this. It also resets passwords,
+> but it *creates* the account when the email doesn't match one — so a typo
+> hands the player a password to a brand-new empty account rather than telling
+> you the address was wrong. It is for creating the very first organiser
+> login, nothing else.
+
+Keep this on a committee laptop, not on a phone — it needs the database URL.
 
 **Authentication › Emails › Templates** — nothing to do. Leave the defaults;
 they are never rendered.

@@ -12,7 +12,8 @@
     "test:e2e": "playwright test",
     "verify:live-db": "node scripts/verify-live-db.mjs",
     "rehearse:first-run": "node scripts/rehearse-first-run.mjs",
-    "bootstrap:organiser": "node scripts/bootstrap-organiser.mjs"
+    "bootstrap:organiser": "node scripts/bootstrap-organiser.mjs",
+    "reset:password": "node scripts/set-player-password.mjs"
   },
   "dependencies": {
     "@supabase/ssr": "^0.12.4",

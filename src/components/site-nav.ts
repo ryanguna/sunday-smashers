@@ -88,6 +88,11 @@ export function accountLinks(roles: readonly UserRole[]): NavLink[] {
   return [
     { href: '/dashboard', label: 'My dashboard' },
     ...ROLE_LINKS.filter(({ role }) => roles.includes(role)).map(({ link }) => link),
+    // Last, below the role consoles: needed rarely, but it is the only place
+    // in the app that can change a password, so it must be findable without
+    // asking someone. Ordered after the consoles so a one-off account chore
+    // never sits above the thing an organiser opens every match day.
+    { href: '/account/password', label: 'Change password' },
   ]
 }
 

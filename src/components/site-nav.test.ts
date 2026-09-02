@@ -65,12 +65,36 @@ describe('accountNavState', () => {
 })
 
 describe('accountLinks', () => {
+  /**
+   * The role consoles are the security-relevant part of this menu, so the
+   * assertions below filter out the always-present account chores. Appending
+   * '/account/password' to every expectation instead would have meant a new
+   * chore link silently satisfying "never surfaces a console".
+   */
+  const consoles = (roles: Parameters<typeof accountLinks>[0]) =>
+    accountLinks(roles)
+      .map((link) => link.href)
+      .filter((href) => href !== '/account/password')
+
   it('always offers the dashboard first', () => {
-    expect(accountLinks([])).toEqual([{ href: '/dashboard', label: 'My dashboard' }])
+    expect(accountLinks([])[0]).toEqual({ href: '/dashboard', label: 'My dashboard' })
+  })
+
+  it('always offers a way to change the password', () => {
+    // The only password-change control in the app. If it is not in this menu
+    // it cannot be reached at all without typing the URL.
+    for (const roles of [[], ['player'], ['admin']] as const) {
+      expect(accountLinks(roles).map((link) => link.href)).toContain('/account/password')
+    }
+  })
+
+  it('keeps account chores below the role consoles', () => {
+    const hrefs = accountLinks(['admin']).map((link) => link.href)
+    expect(hrefs.indexOf('/account/password')).toBeGreaterThan(hrefs.indexOf('/admin'))
   })
 
   it('adds a console for each role held, in a stable order', () => {
-    expect(accountLinks(['admin', 'duty_official', 'tabulator']).map((link) => link.href)).toEqual([
+    expect(consoles(['admin', 'duty_official', 'tabulator'])).toEqual([
       '/dashboard',
       '/scoring',
       '/tabulator',
@@ -79,14 +103,11 @@ describe('accountLinks', () => {
   })
 
   it('ignores roles with no console of their own', () => {
-    expect(accountLinks(['player', 'public']).map((link) => link.href)).toEqual(['/dashboard'])
+    expect(consoles(['player', 'public'])).toEqual(['/dashboard'])
   })
 
   it('never surfaces a console the player has not been granted', () => {
-    expect(accountLinks(['duty_official']).map((link) => link.href)).toEqual([
-      '/dashboard',
-      '/scoring',
-    ])
+    expect(consoles(['duty_official'])).toEqual(['/dashboard', '/scoring'])
   })
 })
 
