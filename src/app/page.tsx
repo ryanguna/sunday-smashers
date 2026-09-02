@@ -22,6 +22,9 @@ import { hasAnyWinners } from '@/lib/awards'
 import { getPublicAwards } from './awards/data'
 import { formatTournamentDate, formatTournamentDateLabel } from '@/lib/tournament'
 import { howItWorksSteps } from '@/lib/tournament-copy'
+import { loadPublicPrizeBoard } from '@/lib/public-prizes'
+import type { PublicPrizeBoard } from '@/lib/settings'
+import { formatCents } from '@/lib/settings'
 import type { DivisionGender } from '@/lib/supabase/types'
 
 export const metadata: Metadata = {
@@ -85,6 +88,54 @@ const PRIZES = [
   },
 ] as const
 
+/**
+ * Turns the announced prize board into the three headline cards.
+ *
+ * The static `PRIZES` copy above is the "nothing announced yet" state — it
+ * promises cash without naming a figure, because before the committee ticks
+ * the switch in Settings > Prizes there is genuinely no confirmed number to
+ * print. Once they do, every card states real, configured quantities.
+ */
+function prizeCardsFor(board: PublicPrizeBoard | null): typeof PRIZES | PrizeCard[] {
+  if (!board) return PRIZES
+
+  const loot = board.lootBagItems
+    .filter((item) => item.quantity > 0)
+    .map((item) => (item.quantity > 1 ? `${item.quantity} × ${item.name}` : item.name))
+
+  return [
+    {
+      name: 'Cash prizes',
+      icon: SparkleIcon,
+      description: `${formatCents(board.totalPoolCents)} on the table — champion, runner-up and third place paid in every division.`,
+    },
+    {
+      name: 'Trophies & medals',
+      icon: TrophyIcon,
+      description: `${board.trophyCount} ${board.trophyCount === 1 ? 'trophy' : 'trophies'} and ${board.medalCount} medals waiting on the presentation table.`,
+    },
+    {
+      name: 'Loot bags for everyone',
+      icon: GiftIcon,
+      description: loot.length
+        ? `Every player goes home with ${listToSentence(loot)}.`
+        : 'Every single player goes home with a festive Sunday Smashers loot bag.',
+    },
+  ]
+}
+
+interface PrizeCard {
+  name: string
+  icon: typeof SparkleIcon
+  description: string
+}
+
+/** "a, b and c" — loot bags read as a sentence, not a comma-separated dump. */
+function listToSentence(items: readonly string[]): string {
+  if (items.length <= 1) return items[0] ?? ''
+  return `${items.slice(0, -1).join(', ')} and ${items[items.length - 1]}`
+}
+
 
 export default async function HomePage() {
   // The landing page doubles as the post-event front page, so it pulls in
@@ -92,12 +143,17 @@ export default async function HomePage() {
   // and photos render nothing when empty, and the podium only appears once
   // a division has actually been crowned — before match day the countdown
   // stays the hero rather than a row of "to be decided" placeholders.
-  const [{ now, announcements }, { views: awardViews }, featuredPhotos, tournament] = await Promise.all([
-    loadPublicAnnouncementsFeed(),
-    getPublicAwards(),
-    loadFeaturedPhotos(),
-    loadPublicTournamentConfig(),
-  ])
+  const [{ now, announcements }, { views: awardViews }, featuredPhotos, tournament, prizeBoard] =
+    await Promise.all([
+      loadPublicAnnouncementsFeed(),
+      getPublicAwards(),
+      loadFeaturedPhotos(),
+      loadPublicTournamentConfig(),
+      // Null until the committee ticks "Show prize money on the public site"
+      // in Settings > Prizes — the static cards below stay as the fallback.
+      loadPublicPrizeBoard(),
+    ])
+  const prizeCards = prizeCardsFor(prizeBoard)
   const showWinners = hasAnyWinners(awardViews)
   // Derived from the tournament row, never from the seeded constant: an
   // organiser who moves the date in Settings must see the hero move with it.
@@ -241,9 +297,14 @@ export default async function HomePage() {
         <SectionHeading
           eyebrow="What's on offer"
           title={<span id="prizes-heading">Prizes worth smashing for</span>}
+          description={
+            prizeBoard
+              ? `${formatCents(prizeBoard.totalPoolCents)} in cash across every division, plus silverware and a loot bag for every player.`
+              : undefined
+          }
         />
         <div className="mt-10 grid gap-6 sm:grid-cols-3">
-          {PRIZES.map(({ name, icon: Icon, description }) => (
+          {prizeCards.map(({ name, icon: Icon, description }) => (
             <Card key={name} variant="frosted" className="text-center">
               <CardBody>
                 <span
@@ -258,6 +319,48 @@ export default async function HomePage() {
             </Card>
           ))}
         </div>
+
+        {prizeBoard && prizeBoard.divisionPrizes.length > 0 && (
+          <div className="mt-8 overflow-hidden rounded-[var(--radius-lg)] border border-[var(--color-line)] bg-white/70">
+            <table className="w-full border-collapse text-left text-sm">
+              <caption className="sr-only">Prize money by division and placing</caption>
+              <thead>
+                <tr className="bg-[var(--color-brand-gold-light)]/40">
+                  <th scope="col" className="px-4 py-3 font-extrabold text-[var(--color-plum)]">
+                    Division
+                  </th>
+                  <th scope="col" className="px-4 py-3 text-right font-extrabold text-[var(--color-plum)]">
+                    Champion
+                  </th>
+                  <th scope="col" className="px-4 py-3 text-right font-extrabold text-[var(--color-plum)]">
+                    Runner-up
+                  </th>
+                  <th scope="col" className="px-4 py-3 text-right font-extrabold text-[var(--color-plum)]">
+                    3rd
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {prizeBoard.divisionPrizes.map((prize) => (
+                  <tr key={prize.divisionId} className="border-t border-[var(--color-line)]">
+                    <th scope="row" className="px-4 py-3 font-semibold text-[var(--color-ink)]">
+                      {prize.divisionName}
+                    </th>
+                    <td className="px-4 py-3 text-right tabular-nums text-[var(--color-ink)]">
+                      {formatCents(prize.championCents)}
+                    </td>
+                    <td className="px-4 py-3 text-right tabular-nums text-[var(--color-ink)]">
+                      {formatCents(prize.runnerUpCents)}
+                    </td>
+                    <td className="px-4 py-3 text-right tabular-nums text-[var(--color-ink)]">
+                      {formatCents(prize.thirdPlaceCents)}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
       </section>
 
       {/* ---------------------------------------------------------------- */}

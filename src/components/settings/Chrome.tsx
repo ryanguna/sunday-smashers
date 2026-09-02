@@ -160,3 +160,37 @@ export function StatPill({ label, value }: { label: string; value: ReactNode }) 
     </div>
   )
 }
+
+export interface SwitchRowProps {
+  label: string
+  description: string
+  checked: boolean
+  disabled?: boolean
+  onChange: (next: boolean) => void
+}
+
+/**
+ * A large, thumb-friendly checkbox row for a single on/off setting.
+ *
+ * Shared because the go-live switches and the "announce the prizes" switch
+ * must look and behave identically — these all flip something the public can
+ * see, and a committee member should recognise the control instantly. The
+ * 24px box is deliberate: this console is used on phones.
+ */
+export function SwitchRow({ label, description, checked, disabled, onChange }: SwitchRowProps) {
+  return (
+    <label className="flex cursor-pointer items-start gap-3 rounded-2xl border border-[var(--color-line)] bg-white/60 p-4 transition-colors hover:bg-white">
+      <input
+        type="checkbox"
+        checked={checked}
+        disabled={disabled}
+        onChange={(event) => onChange(event.target.checked)}
+        className="mt-1 h-6 w-6 shrink-0 accent-[var(--color-brand-pink)]"
+      />
+      <span className="min-w-0">
+        <span className="block font-semibold text-[var(--color-ink)]">{label}</span>
+        <span className="mt-0.5 block text-sm text-[var(--color-ink-soft)]">{description}</span>
+      </span>
+    </label>
+  )
+}

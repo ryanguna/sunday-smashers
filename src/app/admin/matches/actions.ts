@@ -9,6 +9,7 @@ import type { Json } from '@/lib/supabase/types'
 import { DECIDED_MATCH_STATUSES } from '@/lib/supabase/types'
 import { advanceKnockoutForMatch } from '@/lib/knockout-advance'
 import type { MatchResultPatch, ReschedulePatch } from '@/lib/match-admin'
+import { withDemoHint } from '@/lib/demo-mode'
 
 /**
  * Audit actions. Deliberately declared here rather than imported from
@@ -50,7 +51,7 @@ export interface MatchActionResult {
 const DEMO_RESULT: MatchActionResult = {
   ok: false,
   demo: true,
-  message: 'Demo mode — no database is connected, so that was previewed but not saved. 🎄',
+  message: withDemoHint('Demo mode — no database is connected, so that was previewed but not saved. 🎄'),
 }
 
 const DENIED: MatchActionResult = {

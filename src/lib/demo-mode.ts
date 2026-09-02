@@ -25,6 +25,28 @@ import { isSupabaseConfigured } from '@/lib/supabase/config'
 export const DATA_LOAD_ERROR_MESSAGE =
   "We couldn't reach the database just then, so this page may be missing things. Nothing has been lost — give it a moment and refresh."
 
+/**
+ * Why a save did nothing, appended to every admin action's demo message.
+ *
+ * "Demo mode — the loot bags are imaginary for now" is charming and utterly
+ * unhelpful: it reads like a deliberate feature of the console rather than a
+ * missing environment variable, so the obvious conclusion is that the site is
+ * broken or still a mock-up. Naming the cause turns a mystery into a
+ * two-minute fix.
+ *
+ * The audience here is always technical. Production cannot reach this message
+ * — a production deployment without credentials is blocked outright by
+ * `isUnconfiguredProductionDeployment()` — so this only ever appears in local
+ * development or a pull-request preview.
+ */
+export const DEMO_MODE_HINT =
+  'No Supabase credentials are set for this environment, so there is nothing to write to. Copy .env.local.example to .env.local, fill in NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY, then restart the dev server.'
+
+/** Appends {@link DEMO_MODE_HINT} to an action's own demo message. */
+export function withDemoHint(message: string): string {
+  return `${message} ${DEMO_MODE_HINT}`
+}
+
 export interface LoadedData<T> {
   data: T
   /** True only when Supabase is not configured. */

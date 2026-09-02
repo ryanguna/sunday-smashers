@@ -17,7 +17,7 @@ import {
   type PrizeSettings,
   type SettingsIssue,
 } from '@/lib/settings'
-import { FieldGrid, IssueList, PreviewPanel, SettingsCard, StatPill } from './Chrome'
+import { FieldGrid, IssueList, PreviewPanel, SettingsCard, StatPill, SwitchRow } from './Chrome'
 import { SaveBar } from './SaveBar'
 import { useSettingsDraft, type DraftSaveResult } from './useSettingsDraft'
 
@@ -198,6 +198,29 @@ export function PrizesEditor({ initial, divisions, playerCount, save, readOnly =
             disabled={readOnly}
           />
         </FieldGrid>
+      </SettingsCard>
+
+      <SettingsCard
+        title="Announce the prizes"
+        description="Until this is on, the landing page just promises that details are coming."
+        icon={<SparkleIcon size={20} />}
+        tone="gold"
+      >
+        <SwitchRow
+          label="Show prize money on the public site"
+          description={
+            draft.showOnPublicSite
+              ? `Visitors see the full breakdown per division — ${formatCents(pool)} in total.`
+              : 'Off while the amounts are still being decided. Turn it on once the budget is final.'
+          }
+          checked={draft.showOnPublicSite}
+          disabled={readOnly}
+          onChange={(next) => setDraft((current) => ({ ...current, showOnPublicSite: next }))}
+        />
+        <p className="mt-3 text-sm text-[var(--color-ink-soft)]">
+          Only the amounts, trophy and medal counts and loot bag contents are published. Your
+          per-item notes stay in the committee console.
+        </p>
       </SettingsCard>
 
       <SettingsCard

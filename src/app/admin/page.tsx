@@ -258,7 +258,7 @@ export default async function AdminDashboardPage() {
                   <Link href="/admin/teams" className="font-bold underline underline-offset-2">
                     Teams
                   </Link>{' '}
-                  page (coming soon — see the handover notes).
+                  page.
                 </p>
               </Card>
             </section>

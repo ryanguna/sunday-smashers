@@ -16,6 +16,7 @@ import {
   diffLiveStatus,
   diffDivisions,
   diffPrizes,
+  publicPrizeBoard,
   diffTimeSlots,
   divisionExtras,
   divisionRowPatch,
@@ -40,6 +41,8 @@ import {
 import { TOURNAMENT_CONFIG_TAG } from '@/lib/tournament-config'
 import { SITE_CONTENT_TAG } from '@/lib/site-content'
 import { loadSettingsPageData, PRIZES_SLUG, SETTINGS_EXTRAS_SLUG } from './data'
+import { PUBLIC_PRIZES_SLUG } from '@/lib/public-prizes'
+import { withDemoHint } from '@/lib/demo-mode'
 
 /**
  * Server Actions for `/admin/settings`.
@@ -154,7 +157,7 @@ export async function saveTournamentDetailsAction(details: TournamentDetails): P
     return {
       ok: true,
       demo: true,
-      message: 'Demo mode — your changes validated perfectly but there is no database to save them to.',
+      message: withDemoHint('Demo mode — your changes validated perfectly but there is no database to save them to.'),
       changes,
       issues,
     }
@@ -239,7 +242,7 @@ async function saveDivisions(
     return {
       ok: true,
       demo: true,
-      message: 'Demo mode — validated and diffed, but there is no database to save to.',
+      message: withDemoHint('Demo mode — validated and diffed, but there is no database to save to.'),
       changes,
       issues,
     }
@@ -316,7 +319,7 @@ export async function saveCourtsAndSlotsAction(input: {
     return {
       ok: true,
       demo: true,
-      message: 'Demo mode — courts and slots validated, but nothing was written.',
+      message: withDemoHint('Demo mode — courts and slots validated, but nothing was written.'),
       changes,
       issues,
     }
@@ -391,7 +394,7 @@ export async function savePrizesAction(prizes: PrizeSettings): Promise<ActionRes
     return {
       ok: true,
       demo: true,
-      message: 'Demo mode — the loot bags are imaginary for now.',
+      message: withDemoHint('Demo mode — the loot bags are imaginary for now.'),
       changes,
       issues,
     }
@@ -404,6 +407,17 @@ export async function savePrizesAction(prizes: PrizeSettings): Promise<ActionRes
     ...prizes,
   }))
 
+  // The config blob above stays unpublished (it carries internal notes), so
+  // the landing page reads this narrower, display-safe row instead. Writing
+  // it on every save keeps the two in step; `is_published` is the organiser's
+  // switch, so unticking it retracts the announcement immediately.
+  await supabase.from('site_content').upsert({
+    slug: PUBLIC_PRIZES_SLUG,
+    title: 'Prizes shown on the public site',
+    body_markdown: JSON.stringify(publicPrizeBoard(prizes, current.settings.divisions), null, 2),
+    is_published: prizes.showOnPublicSite,
+  })
+
   await writeAudit(
     supabase,
     user.id,
@@ -411,6 +425,12 @@ export async function savePrizesAction(prizes: PrizeSettings): Promise<ActionRes
   )
 
   revalidatePath(SETTINGS_PATH)
+  // `mergeExtras` invalidates the shared site-content cache *before* the
+  // public row above is written, so without this second pass the landing page
+  // would keep serving the previous prize board for up to the cache TTL.
+  updateTag(SITE_CONTENT_TAG)
+  revalidateTag(SITE_CONTENT_TAG, 'max')
+  revalidatePath('/')
   return { ok: true, message: 'Prizes and loot bags saved. Santa approves.', changes, issues }
 }
 
@@ -522,7 +542,7 @@ export async function saveLiveStatusAction(status: LiveStatus): Promise<ActionRe
     return {
       ok: true,
       demo: true,
-      message: 'Demo mode — there is no tournament row to publish.',
+      message: withDemoHint('Demo mode — there is no tournament row to publish.'),
       changes,
     }
   }

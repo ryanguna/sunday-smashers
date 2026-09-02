@@ -94,6 +94,7 @@ const PRIZES: PrizeSettings = {
   ],
   trophyCount: 2,
   medalCount: 12,
+  showOnPublicSite: false,
   lootBagItems: [
     { id: 'loot-shuttle', name: 'Shuttlecock tube', quantity: 1, notes: 'Feather' },
     { id: 'loot-grip', name: 'Overgrip', quantity: 2, notes: '' },
@@ -210,7 +211,7 @@ describe('deriveQuantities', () => {
   it('survives an empty tournament', () => {
     const empty = deriveQuantities({
       registrations: [],
-      prizes: { divisionPrizes: [], trophyCount: 0, medalCount: 0, lootBagItems: [] },
+      prizes: { divisionPrizes: [], trophyCount: 0, medalCount: 0, lootBagItems: [], showOnPublicSite: false },
       divisionCount: 0,
     })
     expect(empty.lootBags).toBe(0)
@@ -242,7 +243,7 @@ describe('quantityText', () => {
   it('flags derived quantities with no data behind them', () => {
     const empty: DerivedQuantities = deriveQuantities({
       registrations: [],
-      prizes: { divisionPrizes: [], trophyCount: 0, medalCount: 0, lootBagItems: [] },
+      prizes: { divisionPrizes: [], trophyCount: 0, medalCount: 0, lootBagItems: [], showOnPublicSite: false },
       divisionCount: 0,
     })
     expect(quantityIsPending(item({ derivedQuantity: 'lootBags' }), empty)).toBe(true)

@@ -11,7 +11,7 @@ import {
   type LiveStatus,
   type SettingsChange,
 } from '@/lib/settings'
-import { IssueList, SettingsCard } from './Chrome'
+import { IssueList, SettingsCard, SwitchRow } from './Chrome'
 import { SaveBar } from './SaveBar'
 import { useSettingsDraft, type DraftSaveResult } from './useSettingsDraft'
 
@@ -22,32 +22,6 @@ export interface GoLiveCardProps {
 }
 
 const diff = (saved: LiveStatus, draft: LiveStatus): SettingsChange[] => diffLiveStatus(saved, draft)
-
-interface SwitchRowProps {
-  label: string
-  description: string
-  checked: boolean
-  disabled?: boolean
-  onChange: (next: boolean) => void
-}
-
-function SwitchRow({ label, description, checked, disabled, onChange }: SwitchRowProps) {
-  return (
-    <label className="flex cursor-pointer items-start gap-3 rounded-2xl border border-[var(--color-line)] bg-white/60 p-4 transition-colors hover:bg-white">
-      <input
-        type="checkbox"
-        checked={checked}
-        disabled={disabled}
-        onChange={(event) => onChange(event.target.checked)}
-        className="mt-1 h-6 w-6 shrink-0 accent-[var(--color-brand-pink)]"
-      />
-      <span className="min-w-0">
-        <span className="block font-semibold text-[var(--color-ink)]">{label}</span>
-        <span className="mt-0.5 block text-sm text-[var(--color-ink-soft)]">{description}</span>
-      </span>
-    </label>
-  )
-}
 
 /**
  * The two switches that take the site from "placeholder" to "live".

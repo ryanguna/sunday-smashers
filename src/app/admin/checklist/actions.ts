@@ -6,6 +6,7 @@ import { getCurrentUser, isAdmin } from '@/lib/auth'
 import { isSupabaseConfigured } from '@/lib/supabase/config'
 import { createClient } from '@/lib/supabase/server'
 import type { CommitteeChecklistRow, Json } from '@/lib/supabase/types'
+import { withDemoHint } from '@/lib/demo-mode'
 import {
   checklistAuditEntry,
   checklistSeedAuditEntry,
@@ -43,7 +44,7 @@ export interface ChecklistActionResult {
 const DEMO_RESULT: ChecklistActionResult = {
   ok: false,
   demo: true,
-  message: 'Demo mode — no database is connected, so ticks are previewed but not saved.',
+  message: withDemoHint('Demo mode — no database is connected, so ticks are previewed but not saved.'),
 }
 
 type SupabaseLike = Awaited<ReturnType<typeof createClient>>

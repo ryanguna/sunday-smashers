@@ -12,6 +12,7 @@ import {
   type SchedulePatch,
 } from '@/lib/schedule-admin'
 import { DUTY_AUDIT_ACTION, loadScheduleContext, SCHEDULE_AUDIT_ACTION } from './data'
+import { withDemoHint } from '@/lib/demo-mode'
 
 /**
  * Write actions behind the schedule builder and the duty roster.
@@ -41,7 +42,7 @@ export interface ScheduleActionResult {
 const DEMO_RESULT: ScheduleActionResult = {
   ok: false,
   demo: true,
-  message: 'Demo mode — no database is connected, so that was previewed but not saved. 🎄',
+  message: withDemoHint('Demo mode — no database is connected, so that was previewed but not saved. 🎄'),
 }
 
 async function writeAudit(

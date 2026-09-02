@@ -20,6 +20,7 @@ import {
 } from '@/lib/teams-admin'
 
 import { getTeamsAdminData } from './data'
+import { withDemoHint } from '@/lib/demo-mode'
 
 /**
  * Write endpoints for the teams bench.
@@ -43,7 +44,7 @@ export interface TeamActionResult {
 const DEMO_RESULT: TeamActionResult = {
   ok: false,
   demo: true,
-  message: 'Demo mode — no database is connected, so nothing was saved.',
+  message: withDemoHint('Demo mode — no database is connected, so nothing was saved.'),
 }
 
 async function writeAudit(entries: AuditEntry[]): Promise<void> {

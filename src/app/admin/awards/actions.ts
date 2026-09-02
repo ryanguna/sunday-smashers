@@ -6,6 +6,7 @@ import { isSupabaseConfigured } from '@/lib/supabase/config'
 import { createClient } from '@/lib/supabase/server'
 import { getCurrentUser, isAdmin } from '@/lib/auth'
 import type { AwardRow, Json } from '@/lib/supabase/types'
+import { withDemoHint } from '@/lib/demo-mode'
 import {
   awardAuditEntry,
   awardCollisionMessage,
@@ -44,7 +45,7 @@ export interface AwardActionResult {
 const DEMO_RESULT: AwardActionResult = {
   ok: false,
   demo: true,
-  message: 'Demo mode — no database is connected, so the ceremony was rehearsed but not saved.',
+  message: withDemoHint('Demo mode — no database is connected, so the ceremony was rehearsed but not saved.'),
 }
 
 export interface SaveAwardInput {

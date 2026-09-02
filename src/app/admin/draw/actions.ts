@@ -24,6 +24,7 @@ import {
 } from '@/lib/draw-admin'
 import { KNOCKOUT_STAGES, knockoutNextMatchLinks } from '@/lib/knockout-advance'
 import { TIEBREAK_AUDIT_ACTION } from './data'
+import { withDemoHint } from '@/lib/demo-mode'
 
 /**
  * Write actions behind the draw workbench.
@@ -60,7 +61,7 @@ export interface DrawActionResult {
 const DEMO_RESULT: DrawActionResult = {
   ok: false,
   demo: true,
-  message: 'Demo mode — no database is connected, so the draw was previewed but not saved.',
+  message: withDemoHint('Demo mode — no database is connected, so the draw was previewed but not saved.'),
 }
 
 async function writeAudit(

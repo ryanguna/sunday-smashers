@@ -148,6 +148,18 @@ export interface PrizeSettings {
   trophyCount: number
   medalCount: number
   lootBagItems: LootBagItem[]
+  /**
+   * Whether the public landing page shows the real amounts.
+   *
+   * The prize blob itself is stored unpublished because it carries internal
+   * notes ("ask Dad for the trophies"), so nothing here reaches anonymous
+   * visitors directly. This switch instead controls whether a *display-safe
+   * projection* (`publicPrizeBoard`) is published alongside it.
+   *
+   * Defaults to off: the seeded amounts are placeholders, and a committee
+   * mid-way through budgeting must not have draft figures announced for them.
+   */
+  showOnPublicSite: boolean
 }
 
 export interface TournamentSettings {
@@ -266,6 +278,7 @@ export function defaultTournamentSettings(): TournamentSettings {
       })),
       trophyCount: 4,
       medalCount: 16,
+      showOnPublicSite: false,
       lootBagItems: [
         { id: 'loot-shuttle', name: 'Shuttlecock tube', quantity: 1, notes: 'Feather, tournament grade' },
         { id: 'loot-grip', name: 'Overgrip', quantity: 2, notes: 'Assorted pastel colours' },
@@ -1318,6 +1331,13 @@ export function diffPrizes(before: PrizeSettings, after: PrizeSettings): Setting
 
   pushChange(changes, 'prizes.trophyCount', 'Trophies', before.trophyCount, after.trophyCount)
   pushChange(changes, 'prizes.medalCount', 'Medals', before.medalCount, after.medalCount)
+  pushChange(
+    changes,
+    'prizes.showOnPublicSite',
+    'Shown on public site',
+    before.showOnPublicSite ? 'Yes' : 'No',
+    after.showOnPublicSite ? 'Yes' : 'No',
+  )
 
   for (const item of after.lootBagItems) {
     const previous = before.lootBagItems.find((i) => i.id === item.id)
@@ -1562,6 +1582,75 @@ export function totalPrizePoolCents(prizes: PrizeSettings): number {
 export function lootBagTotals(prizes: PrizeSettings, playerCount: number): { name: string; total: number }[] {
   const players = Math.max(0, Math.floor(playerCount))
   return prizes.lootBagItems.map((item) => ({ name: item.name, total: item.quantity * players }))
+}
+
+// ---------------------------------------------------------------------------
+// Publishing prizes to the public site
+// ---------------------------------------------------------------------------
+
+/** One division's prize money, ready to render to anonymous visitors. */
+export interface PublicDivisionPrize {
+  divisionId: string
+  divisionName: string
+  championCents: number
+  runnerUpCents: number
+  thirdPlaceCents: number
+}
+
+/**
+ * The display-safe projection of `PrizeSettings` that the landing page reads.
+ *
+ * Deliberately narrower than `PrizeSettings`: loot bag `notes` are internal
+ * committee reminders and supplier hints, so they are dropped rather than
+ * merely unrendered. If this ever grows a field, ask first whether a player
+ * standing in a gym should be able to read it.
+ */
+export interface PublicPrizeBoard {
+  divisionPrizes: PublicDivisionPrize[]
+  trophyCount: number
+  medalCount: number
+  /** Loot bag contents, names and per-player quantities only. */
+  lootBagItems: { name: string; quantity: number }[]
+  totalPoolCents: number
+}
+
+/**
+ * Builds the anonymous-visitor view of the prize configuration.
+ *
+ * Only *enabled* divisions contribute, so a division the committee has
+ * switched off does not advertise prize money nobody can win. Prizes for a
+ * division that no longer exists are dropped rather than shown with a blank
+ * name.
+ */
+export function publicPrizeBoard(
+  prizes: PrizeSettings,
+  divisions: readonly DivisionSettings[],
+): PublicPrizeBoard {
+  const byId = new Map(divisions.filter((d) => d.enabled).map((d) => [d.id, d]))
+  const divisionPrizes: PublicDivisionPrize[] = []
+
+  for (const prize of prizes.divisionPrizes) {
+    const division = byId.get(prize.divisionId)
+    if (!division) continue
+    divisionPrizes.push({
+      divisionId: prize.divisionId,
+      divisionName: division.name,
+      championCents: prize.championCents,
+      runnerUpCents: prize.runnerUpCents,
+      thirdPlaceCents: prize.thirdPlaceCents,
+    })
+  }
+
+  return {
+    divisionPrizes,
+    trophyCount: prizes.trophyCount,
+    medalCount: prizes.medalCount,
+    lootBagItems: prizes.lootBagItems.map((item) => ({ name: item.name, quantity: item.quantity })),
+    totalPoolCents: divisionPrizes.reduce(
+      (total, p) => total + p.championCents + p.runnerUpCents + p.thirdPlaceCents,
+      0,
+    ),
+  }
 }
 
 /** A stable-ish id for newly added rows (no crypto dependency in tests). */

@@ -5,6 +5,7 @@ import { isSupabaseConfigured } from '@/lib/supabase/config'
 import { createClient } from '@/lib/supabase/server'
 import { getCurrentUser, isAdmin } from '@/lib/auth'
 import type { PaymentRow, RegistrationStatus } from '@/lib/supabase/types'
+import { withDemoHint } from '@/lib/demo-mode'
 import {
   clampPaidAmount,
   derivePaymentStatus,
@@ -38,7 +39,7 @@ export interface ActionResult {
 const DEMO_RESULT: ActionResult = {
   ok: false,
   demo: true,
-  message: 'Demo mode — no database is connected, so nothing was saved.',
+  message: withDemoHint('Demo mode — no database is connected, so nothing was saved.'),
 }
 
 async function writeAudit(entries: AuditEntry[]): Promise<void> {

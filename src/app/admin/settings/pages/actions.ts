@@ -9,6 +9,7 @@ import { buildAuditEntry, type SettingsChange } from '@/lib/settings'
 import { isSitePageKey, sitePageByKey, type SitePageVisibility } from '@/lib/site-pages'
 import { loadSitePageVisibility, SITE_PAGE_VISIBILITY_TAG } from '@/lib/site-pages-server'
 import type { ActionResult } from '../actions'
+import { withDemoHint } from '@/lib/demo-mode'
 
 const PAGES_PATH = '/admin/settings/pages'
 
@@ -27,7 +28,7 @@ export async function saveSitePageVisibilityAction(
     return {
       ok: true,
       demo: true,
-      message: 'Demo mode — the switches work, but there is no database to remember them in.',
+      message: withDemoHint('Demo mode — the switches work, but there is no database to remember them in.'),
       changes: [],
     }
   }
