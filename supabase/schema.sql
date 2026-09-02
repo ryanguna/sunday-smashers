@@ -2996,6 +2996,6 @@ on conflict (page_key) do nothing;
 -- (the loot-bag shirt tally, the two shirt jobs on the committee checklist,
 -- the "no shirt size recorded" alert) are gone. Nothing to replay here: the
 -- `profiles` definition above already omits the column. See
--- supabase/migrations/0012_drop_profiles_shirt_size.sql for the rationale,
+-- supabase/migrations/0012_drop_shirt_size.sql for the rationale,
 -- including why `checklist_item_type` keeps its now-unused 'shirt' member.
 -- ===========================================================================
