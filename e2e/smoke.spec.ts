@@ -170,6 +170,25 @@ test.describe('mobile menu', () => {
   })
 })
 
+test('modals render outside the page, so a blurred card cannot trap them', async ({ page }) => {
+  // Same defect class as the mobile menu: any ancestor with `backdrop-filter`,
+  // `filter` or `transform` becomes the containing block for a `fixed` child,
+  // which is how the header trapped its own menu. `Modal` has fourteen call
+  // sites, so it portals to <body> instead of trusting every one of them.
+  await page.setViewportSize({ width: 390, height: 844 })
+  await page.goto('/gallery')
+  await page.getByRole('button', { name: /^Open photo 1/ }).click()
+
+  const dialog = page.getByRole('dialog')
+  await expect(dialog).toBeVisible()
+
+  const parentIsBody = await page.evaluate(() => {
+    const overlay = document.querySelector('[role="presentation"]')
+    return overlay?.parentElement === document.body
+  })
+  expect(parentIsBody, 'the modal is nested in the page instead of portalled').toBe(true)
+})
+
 test('the courtside TV view stays public', async ({ page }) => {
   // The TV view runs unattended for hours on a monitor with nobody logged in.
   // If it ever starts redirecting to login, match day breaks.

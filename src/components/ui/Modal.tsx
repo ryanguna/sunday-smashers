@@ -1,6 +1,7 @@
 'use client'
 
-import { useEffect, useRef, type ReactNode } from 'react'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
+import { createPortal } from 'react-dom'
 import { cn } from '@/lib/cn'
 
 export interface ModalProps {
@@ -18,6 +19,17 @@ const FOCUSABLE_SELECTOR =
 export function Modal({ open, onClose, title, description, children, className }: ModalProps) {
   const dialogRef = useRef<HTMLDivElement>(null)
   const previouslyFocused = useRef<HTMLElement | null>(null)
+
+  /**
+   * `createPortal` needs a real `document`, absent during the server render.
+   * A modal always opens in response to a client interaction, so gating on
+   * mount costs nothing.
+   */
+  const [mounted, setMounted] = useState(false)
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setMounted(true)
+  }, [])
 
   // Scroll lock + focus trap + Escape-to-close
   useEffect(() => {
@@ -62,9 +74,24 @@ export function Modal({ open, onClose, title, description, children, className }
     }
   }, [open, onClose])
 
-  if (!open) return null
+  if (!open || !mounted) return null
 
-  return (
+  /**
+   * Rendered into `document.body`, never in place.
+   *
+   * A `position: fixed` element is measured against the viewport only while no
+   * ancestor creates a containing block for it — and `backdrop-filter`,
+   * `filter` and `transform` all do. The site header hit exactly this: its
+   * `backdrop-filter` trapped the mobile menu, which then opened *behind* the
+   * page on iOS. `Modal` is used in fourteen places and any one of them could
+   * later be moved inside a blurred card, so this is closed off at the source
+   * rather than audited per call site.
+   *
+   * This cannot be caught by our tests: headless Chromium reports
+   * `backdrop-filter: none` because it needs GPU compositing, so the failure
+   * only ever appears on a real phone. Portalling makes it impossible instead.
+   */
+  return createPortal(
     <div
       className="fixed inset-0 z-50 flex items-center justify-center p-4 animate-fade-in"
       role="presentation"
@@ -116,6 +143,7 @@ export function Modal({ open, onClose, title, description, children, className }
         )}
         <div className="min-h-0 flex-1 overflow-y-auto px-6 pb-6">{children}</div>
       </div>
-    </div>
+    </div>,
+    document.body
   )
 }
