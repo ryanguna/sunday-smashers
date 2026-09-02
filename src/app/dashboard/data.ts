@@ -4,6 +4,7 @@ import { createClient } from '@/lib/supabase/server'
 import { getCurrentUser, getProfile } from '@/lib/auth'
 import { getDivisions, getSchedule, type PublicDivisionInfo, type PublicMatch } from '@/lib/public-data'
 import { getPublishedAnnouncements, type Announcement } from '@/lib/announcements'
+import { loadPublicTournamentConfig } from '@/lib/tournament-config'
 import {
   buildPlayerDashboard,
   demoClock,
@@ -139,9 +140,13 @@ export async function loadDashboardData(): Promise<DashboardPageData> {
     id: user?.id ?? '',
     name: profile?.full_name ?? user?.email ?? '',
   }
-  const [registration, announcements] = await Promise.all([
+  const [registration, announcements, config] = await Promise.all([
     user ? loadRegistrationSnapshot(user.id) : Promise.resolve(null),
     createClient().then((client) => getPublishedAnnouncements(client)),
+    // Slot indexes are offsets from 9am *on tournament day*, so the countdown
+    // to "your next match" is wrong by however far the admin has moved the
+    // date. Without this the dashboard counts down to the seeded default.
+    loadPublicTournamentConfig(),
   ])
   const now = Date.now()
 
@@ -155,6 +160,7 @@ export async function loadDashboardData(): Promise<DashboardPageData> {
       divisions,
       registration,
       now,
+      tournamentDateIso: config.dates.tournamentDate,
     }),
     matches: schedule,
     divisions,

@@ -112,4 +112,34 @@ describe('the tournament dates have exactly one home', () => {
         'Settings leaves these screens quoting the old one.',
     ).toEqual([])
   })
+  /**
+   * Number ten. The `TOURNAMENT_DATE_LABEL` ban above covers the date the
+   * screens *print*. It says nothing about the date they *calculate with*.
+   *
+   * `buildPlayerDashboard` takes `tournamentDateIso` as an optional input that
+   * quietly falls back to the seeded constant, and the real (non-demo)
+   * dashboard loader never passed it. Slot indexes are 15-minute offsets from
+   * 9am on tournament day, so "your next match starts in..." was counting down
+   * to 13 December 2026 no matter what the organiser had saved. Nothing on
+   * screen said the wrong date, which is why reading the copy did not find it.
+   *
+   * An optional parameter with a plausible default is the trap here: the call
+   * site compiles, renders, and is wrong. This asserts the loader supplies it.
+   */
+  it('the dashboard loader passes the saved tournament date, not the default', () => {
+    const loader = readFileSync(join(SRC, 'app/dashboard/data.ts'), 'utf8')
+
+    // The demo branch legitimately uses the seeded date: its fixtures are
+    // pinned to it. Only the live branch, below the `if (demo)` block, matters.
+    const live = loader.slice(loader.indexOf('const [user, profile]'))
+
+    expect(
+      live.includes('tournamentDateIso'),
+      'src/app/dashboard/data.ts calls buildPlayerDashboard without ' +
+        'tournamentDateIso, so it silently falls back to the seeded ' +
+        'TOURNAMENT_DATE. Pass config.dates.tournamentDate from ' +
+        'loadPublicTournamentConfig() — otherwise every match countdown on ' +
+        'the dashboard ignores the date the organiser saved in Settings.',
+    ).toBe(true)
+  })
 })
