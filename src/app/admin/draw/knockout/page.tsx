@@ -12,6 +12,14 @@ import { ShuttlecockIcon } from '@/components/icons'
 import { KnockoutWorkbench } from '@/components/draw/KnockoutWorkbench'
 import { getDrawWorkbenchData } from '../data'
 
+/**
+ * Signed-in only: never prerender. Without this the auth check runs at build
+ * time (when there is no session) and the result is cached and served to
+ * everyone. Most pages here are dynamic anyway because they read cookie-bound
+ * data, but that is incidental — this states it.
+ */
+export const dynamic = 'force-dynamic'
+
 export const metadata: Metadata = {
   title: 'Standings & knockout',
   robots: { index: false, follow: false },

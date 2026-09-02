@@ -5,6 +5,14 @@ import { CourtsAndSlotsEditor } from '@/components/settings'
 import { loadSettingsPageData } from '../data'
 import { saveCourtsAndSlotsAction } from '../actions'
 
+/**
+ * Signed-in only: never prerender. Without this the auth check runs at build
+ * time (when there is no session) and the result is cached and served to
+ * everyone. Most pages here are dynamic anyway because they read cookie-bound
+ * data, but that is incidental — this states it.
+ */
+export const dynamic = 'force-dynamic'
+
 export default async function SettingsCourtsPage() {
   // Redundant with the /admin layout guard, but kept so the requirement is
   // visible at the page itself. In demo mode `requireAdmin` resolves to the
