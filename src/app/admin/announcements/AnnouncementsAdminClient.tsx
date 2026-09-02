@@ -238,13 +238,18 @@ function AnnouncementsComposer({ initialAnnouncements, tournamentId }: Announcem
     toast({ title: 'Announcement deleted', description: target.title, variant: 'warning' })
   }
 
+  // A plain <div>, not <main>: `AdminShell` (the /admin layout) already wraps
+  // every console page in the page's single <main>. Nesting another one here
+  // gave this page two main landmarks, so screen-reader "skip to main" landed
+  // on an ambiguous target.
   return (
-    <main className="relative overflow-hidden">
+    <div className="relative overflow-hidden">
       <Snowfall />
 
       <div className="relative z-10 mx-auto max-w-5xl px-4 pt-12 pb-20 sm:px-6">
         <SectionHeading
           align="left"
+          level={1}
           eyebrow={
             <span className="inline-flex items-center gap-2">
               <HollyIcon size={16} />
@@ -584,6 +589,6 @@ function AnnouncementsComposer({ initialAnnouncements, tournamentId }: Announcem
           </Button>
         </div>
       </Modal>
-    </main>
+    </div>
   )
 }
