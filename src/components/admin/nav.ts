@@ -59,10 +59,10 @@ export const ADMIN_NAV: AdminNavItem[] = [
     group: 'People & money',
   },
   {
-    href: '/admin/people',
+    href: '/admin/settings/roles',
     label: 'People & roles',
-    description: 'See every account and grant admin, tabulator or duty access.',
-    icon: SparkleIcon,
+    description: 'Who is an admin, tabulator or duty official.',
+    icon: MedalIcon,
     group: 'People & money',
   },
   {
@@ -162,8 +162,30 @@ export function adminNavByGroup(): { group: AdminNavGroup; items: AdminNavItem[]
 /**
  * True when `pathname` is inside `href`. `/admin` is matched exactly so the
  * Dashboard link doesn't stay lit on every sub-page.
+ *
+ * Prefix matching alone is not enough once one entry sits inside another —
+ * "People & roles" lives at `/admin/settings/roles`, which is also a prefix
+ * match for "Settings", so both links lit up at once. An item is therefore
+ * only active when no *deeper* nav entry also matches, which is the same
+ * longest-wins rule `findAdminNavItem` already used for the page title.
  */
-export function isAdminNavItemActive(item: AdminNavItem, pathname: string): boolean {
+export function isAdminNavItemActive(
+  item: AdminNavItem,
+  pathname: string,
+  items: readonly AdminNavItem[] = ADMIN_NAV
+): boolean {
+  if (!matchesPath(item, pathname)) return false
+
+  return !items.some(
+    (other) =>
+      other.href !== item.href &&
+      other.href.length > item.href.length &&
+      matchesPath(other, pathname)
+  )
+}
+
+/** Raw prefix match, before the longest-wins rule above is applied. */
+function matchesPath(item: AdminNavItem, pathname: string): boolean {
   if (item.href === '/admin') return pathname === '/admin' || pathname === '/admin/'
   return pathname === item.href || pathname.startsWith(`${item.href}/`)
 }
