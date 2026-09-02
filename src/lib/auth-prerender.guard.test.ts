@@ -29,6 +29,22 @@ const APP = join(import.meta.dirname, '..', 'app')
 /** Anything that turns an anonymous visitor away. */
 const GUARDS = /\brequire(Auth|Role|Admin|Tabulator)\b/
 
+/**
+ * Comments are stripped before looking for a guard. `/setup` documents that it
+ * is "deliberately NOT behind `requireAdmin`" -- prose that would otherwise
+ * make it look guarded and force a permanent exception into these checks for a
+ * page that is correctly public.
+ */
+function code(file: string): string {
+  return readFileSync(file, 'utf8')
+    .replace(/\/\*[\s\S]*?\*\//g, '')
+    .replace(/^[ \t]*\/\/.*$/gm, '')
+}
+
+function guardedPages(): string[] {
+  return pageFiles(APP).filter((file) => GUARDS.test(code(file)))
+}
+
 function pageFiles(dir: string): string[] {
   return readdirSync(dir).flatMap((entry) => {
     const full = join(dir, entry)
@@ -39,11 +55,8 @@ function pageFiles(dir: string): string[] {
 
 describe('signed-in pages are never prerendered', () => {
   it('every guarded page declares force-dynamic', () => {
-    const offenders = pageFiles(APP)
-      .filter((file) => {
-        const source = readFileSync(file, 'utf8')
-        return GUARDS.test(source) && !source.includes("dynamic = 'force-dynamic'")
-      })
+    const offenders = guardedPages()
+      .filter((file) => !readFileSync(file, 'utf8').includes("dynamic = 'force-dynamic'"))
       .map((file) => relative(APP, file))
 
     expect(
@@ -60,7 +73,45 @@ describe('signed-in pages are never prerendered', () => {
    * list silently, and the suite would still be green.
    */
   it('finds the guarded pages it is meant to be checking', () => {
-    const guarded = pageFiles(APP).filter((file) => GUARDS.test(readFileSync(file, 'utf8')))
-    expect(guarded.length).toBeGreaterThanOrEqual(26)
+    expect(guardedPages().length).toBeGreaterThanOrEqual(25)
+  })
+  /**
+   * A page-level `requireAuth` is necessary but not sufficient.
+   *
+   * The root layout streams its shell before the page's guard resolves, so by
+   * the time `redirect()` throws, the response is already committed as 200.
+   * Next then emits the redirect inside the streamed payload: the browser does
+   * leave, but only with JavaScript enabled, and the protected page's HTML has
+   * already gone out over the wire.
+   *
+   * `/scoresheets` and `/account/password` were in exactly that state --
+   * anonymous requests got `200 OK` and the page's own markup, while
+   * `/dashboard` and `/admin` returned a clean `307`. The difference was
+   * entirely the proxy's prefix list, which redirects before any rendering.
+   *
+   * So every guarded page needs a matching prefix there. `/setup` is the one
+   * intentional exception: it has no auth guard precisely because on day zero
+   * there is no admin to sign in as.
+   */
+  it('every guarded page sits behind a proxy prefix', () => {
+    const proxy = readFileSync(join(import.meta.dirname, '..', 'proxy.ts'), 'utf8')
+    const block = proxy.slice(proxy.indexOf('const PROTECTED_PREFIXES'))
+    const prefixes = Array.from(block.slice(0, block.indexOf(']')).matchAll(/'([^']+)'/g)).map(
+      (m) => m[1],
+    )
+    expect(prefixes.length).toBeGreaterThan(0)
+
+    const unguarded = guardedPages()
+      .map((file) => '/' + relative(APP, file).replace(/\/?page\.tsx$/, ''))
+      .filter((route) => !prefixes.some((p) => route === p || route.startsWith(`${p}/`)))
+
+    expect(
+      unguarded,
+      'These pages check for a signed-in user but the proxy lets anonymous ' +
+        `requests reach them: ${unguarded.join(', ')}.\n` +
+        'The page-level redirect fires too late -- the layout has already ' +
+        'streamed a 200 -- so add the prefix to PROTECTED_PREFIXES in ' +
+        'src/proxy.ts, where the redirect happens before any rendering.',
+    ).toEqual([])
   })
 })
