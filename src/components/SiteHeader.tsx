@@ -4,6 +4,7 @@ import Image from 'next/image'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { useEffect, useId, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { Button } from '@/components/ui'
 import { cn } from '@/lib/cn'
 import { SiteHeaderAuth } from '@/components/SiteHeaderAuth'
@@ -40,6 +41,28 @@ export function SiteHeader({ visibility }: { visibility?: SitePageVisibility }) 
   const menuId = useId()
   const panelRef = useRef<HTMLDivElement>(null)
   const triggerRef = useRef<HTMLButtonElement>(null)
+  const headerRef = useRef<HTMLElement>(null)
+
+  /**
+   * How far down the screen the menu overlay starts, in pixels.
+   *
+   * This used to be a hardcoded `top-[61px]`, which was already wrong — the
+   * logo grows from `h-10` to `h-11` at `sm`, so the real header is 65px on a
+   * small phone and 69px on a large one, and the overlay covered part of it.
+   * Measuring is the only way to stay correct as the header's contents change.
+   */
+  const [headerHeight, setHeaderHeight] = useState(61)
+
+  /**
+   * `createPortal` needs a real `document`, which does not exist during the
+   * server render. Rendering the panel only after mount is safe because the
+   * menu can only be opened by a click, which already implies a mounted client.
+   */
+  const [mounted, setMounted] = useState(false)
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setMounted(true)
+  }, [])
 
   // Close the mobile menu whenever the route changes.
   useEffect(() => {
@@ -61,18 +84,111 @@ export function SiteHeader({ visibility }: { visibility?: SitePageVisibility }) 
     document.addEventListener('keydown', handleKeyDown)
     const { overflow } = document.body.style
     document.body.style.overflow = 'hidden'
+    // Measure the header now rather than on every render: it cannot change
+    // height while the menu is open, and reading `offsetHeight` forces layout.
+    const measure = () => {
+      const height = headerRef.current?.offsetHeight
+      if (height) setHeaderHeight(height)
+    }
+    measure()
+    window.addEventListener('resize', measure)
     // Move focus into the panel for keyboard users.
     const firstLink = panelRef.current?.querySelector<HTMLElement>('a, button')
     firstLink?.focus()
 
     return () => {
       document.removeEventListener('keydown', handleKeyDown)
+      window.removeEventListener('resize', measure)
       document.body.style.overflow = overflow
     }
   }, [open])
 
+  /**
+   * The mobile menu, rendered into `document.body` rather than into the header.
+   *
+   * This is not a preference — it is the fix for a real iOS bug. The header
+   * carries `bg-frost-glass`, which sets `backdrop-filter`, and per spec that
+   * makes the header a **containing block for `position: fixed` descendants**
+   * (the same rule `filter` and `transform` follow). Rendered inside the
+   * header, the panel's `fixed inset-0` therefore resolved against the ~65px
+   * header strip instead of the viewport, so on an iPhone the menu appeared
+   * behind the page content instead of over it.
+   *
+   * `backdrop-filter` also makes the header its own stacking context, which
+   * separately capped the panel's `z-index` at the header's own `z-40`.
+   * Portalling to `document.body` escapes both traps at once: the overlay is
+   * measured against the viewport and its `z-50` is compared against the page,
+   * so it sits above the header while staying below toasts (`z-100`) and
+   * confetti (`z-90`), which must remain visible over any open menu.
+   *
+   * React still owns this subtree, so state, context and event bubbling all
+   * work exactly as before — only the DOM parent changes.
+   */
+  const menu =
+    open && mounted
+      ? createPortal(
+          <div
+            className="fixed inset-0 z-50 overflow-y-auto bg-[var(--color-plum)]/30 backdrop-blur-sm xl:hidden"
+            style={{ top: headerHeight }}
+            role="presentation"
+            onClick={() => setOpen(false)}
+          >
+            <div
+              id={menuId}
+              ref={panelRef}
+              role="dialog"
+              aria-modal="true"
+              aria-label="Mobile navigation"
+              className="animate-pop-in mx-4 mt-2 mb-6 rounded-[var(--radius-lg)] bg-white p-3 shadow-[var(--shadow-lift)]"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <nav aria-label="Mobile primary" className="flex flex-col gap-1">
+                {navLinks.map((link) => {
+                  const active = pathname === link.href
+                  return (
+                    <Link
+                      key={link.href}
+                      href={link.href}
+                      aria-current={active ? 'page' : undefined}
+                      className={cn(
+                        'rounded-[var(--radius-md)] px-4 py-2.5 text-base font-semibold font-[family-name:var(--font-heading)]',
+                        active
+                          ? 'bg-[var(--color-brand-pink-light)] text-[var(--color-brand-pink-dark)]'
+                          : 'text-[var(--color-ink-soft)] hover:bg-[var(--color-brand-lilac-light)]/50 hover:text-[var(--color-plum)]'
+                      )}
+                    >
+                      {link.label}
+                    </Link>
+                  )
+                })}
+                {showRegister && (
+                  <Button href="/register" className="mt-2 justify-center">
+                    Register
+                  </Button>
+                )}
+
+                <div
+                  role="separator"
+                  aria-hidden="true"
+                  className="my-2 h-px bg-[var(--color-brand-lilac-light)]"
+                />
+
+                {/* Account controls — the reason a player can reach their own
+                    dashboard from a phone at all. Rendered last so the focus
+                    move-in on open still lands on "Home". */}
+                <SiteHeaderAuth variant="mobile" />
+              </nav>
+            </div>
+          </div>,
+          document.body
+        )
+      : null
+
   return (
-    <header className="sticky top-0 z-40 border-b border-white/60 bg-frost-glass">
+    <header
+      ref={headerRef}
+      className="sticky top-0 z-40 border-b border-white/60 bg-frost-glass"
+    >
       <div className="mx-auto flex max-w-6xl items-center justify-between gap-4 px-4 py-3 sm:px-6">
         <Link
           href="/"
@@ -159,61 +275,7 @@ export function SiteHeader({ visibility }: { visibility?: SitePageVisibility }) 
         </div>
       </div>
 
-      {/* Mobile menu panel */}
-      {open && (
-        <div
-          className="fixed inset-0 top-[61px] z-30 overflow-y-auto bg-[var(--color-plum)]/30 backdrop-blur-sm xl:hidden"
-          role="presentation"
-          onClick={() => setOpen(false)}
-        >
-          <div
-            id={menuId}
-            ref={panelRef}
-            role="dialog"
-            aria-modal="true"
-            aria-label="Mobile navigation"
-            className="animate-pop-in mx-4 mt-2 mb-6 rounded-[var(--radius-lg)] bg-white p-3 shadow-[var(--shadow-lift)]"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <nav aria-label="Mobile primary" className="flex flex-col gap-1">
-              {navLinks.map((link) => {
-                const active = pathname === link.href
-                return (
-                  <Link
-                    key={link.href}
-                    href={link.href}
-                    aria-current={active ? 'page' : undefined}
-                    className={cn(
-                      'rounded-[var(--radius-md)] px-4 py-2.5 text-base font-semibold font-[family-name:var(--font-heading)]',
-                      active
-                        ? 'bg-[var(--color-brand-pink-light)] text-[var(--color-brand-pink-dark)]'
-                        : 'text-[var(--color-ink-soft)] hover:bg-[var(--color-brand-lilac-light)]/50 hover:text-[var(--color-plum)]'
-                    )}
-                  >
-                    {link.label}
-                  </Link>
-                )
-              })}
-              {showRegister && (
-                <Button href="/register" className="mt-2 justify-center">
-                  Register
-                </Button>
-              )}
-
-              <div
-                role="separator"
-                aria-hidden="true"
-                className="my-2 h-px bg-[var(--color-brand-lilac-light)]"
-              />
-
-              {/* Account controls — the reason a player can reach their own
-                  dashboard from a phone at all. Rendered last so the focus
-                  move-in on open still lands on "Home". */}
-              <SiteHeaderAuth variant="mobile" />
-            </nav>
-          </div>
-        </div>
-      )}
+      {menu}
     </header>
   )
 }

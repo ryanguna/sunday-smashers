@@ -105,6 +105,71 @@ test.describe('layout', () => {
   }
 })
 
+test.describe('mobile menu', () => {
+  // Reported from an iPhone: tapping the burger opened the menu *behind* the
+  // page content. The cause was `backdrop-filter` on the header, which makes
+  // the header a containing block for `position: fixed` descendants, so the
+  // panel's `inset-0` measured against the ~65px header strip instead of the
+  // viewport. These assertions fail if the panel ever goes back inside it.
+  test('the burger menu escapes the header, so it can paint over the page', async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 })
+    await page.goto('/')
+    await page.getByRole('button', { name: 'Open menu' }).click()
+
+    const panel = page.getByRole('dialog', { name: 'Mobile navigation' })
+    await expect(panel).toBeVisible()
+
+    // This asserts the *cause*, not the symptom, and deliberately so: headless
+    // Chromium reports `backdrop-filter: none` because it needs GPU
+    // compositing, so it cannot reproduce what an iPhone does. What it can
+    // check is the structural rule that produced the bug — a `fixed` overlay
+    // must not be a descendant of an element that creates a containing block
+    // for fixed positioning. The header does, via `bg-frost-glass`.
+    const escaped = await page.evaluate(() => {
+      const overlay = document.querySelector('[role="presentation"]')
+      const header = document.querySelector('header')
+      if (!overlay || !header) return null
+      return {
+        insideHeader: header.contains(overlay),
+        parentIsBody: overlay.parentElement === document.body,
+        headerHasBackdrop: header.classList.contains('bg-frost-glass'),
+      }
+    })
+
+    // If this ever fails, `bg-frost-glass` moved and the reasoning above needs
+    // rechecking before the test is relaxed.
+    expect(escaped?.headerHasBackdrop, 'header no longer uses bg-frost-glass').toBe(true)
+    expect(escaped?.insideHeader, 'the menu is trapped inside the blurred header').toBe(false)
+    expect(escaped?.parentIsBody).toBe(true)
+
+    // Belt and braces: whatever the finger lands on mid-panel must be the panel.
+    const box = (await panel.boundingBox())!
+    const onTop = await page.evaluate(
+      ([x, y]) => Boolean(document.elementFromPoint(x, y)?.closest('[role="dialog"]')),
+      [box.x + box.width / 2, box.y + box.height / 2] as const,
+    )
+    expect(onTop, 'something is painting over the open mobile menu').toBe(true)
+  })
+
+  test('the menu clears the header instead of hiding under it', async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 })
+    await page.goto('/')
+    await page.getByRole('button', { name: 'Open menu' }).click()
+
+    // The old code hardcoded `top: 61px` while the real header is taller, so
+    // the overlay's blur crept over the logo. Measure both and compare.
+    const { headerBottom, overlayTop } = await page.evaluate(() => {
+      const header = document.querySelector('header')!
+      const overlay = document.querySelector('[role="presentation"]')!
+      return {
+        headerBottom: header.getBoundingClientRect().bottom,
+        overlayTop: overlay.getBoundingClientRect().top,
+      }
+    })
+    expect(Math.abs(overlayTop - headerBottom)).toBeLessThanOrEqual(1)
+  })
+})
+
 test('the courtside TV view stays public', async ({ page }) => {
   // The TV view runs unattended for hours on a monitor with nobody logged in.
   // If it ever starts redirecting to login, match day breaks.
