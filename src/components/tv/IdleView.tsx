@@ -7,6 +7,12 @@ export interface IdleViewProps {
   courtLabel: string
   /** Upcoming matches across the venue, used for the schedule carousel. */
   upcoming: TvUpcomingMatch[]
+  /**
+   * Tournament day, from the organiser's settings. Falls back to the seeded
+   * date so a court left running against an empty config still shows a
+   * countdown rather than "Invalid Date" on a screen nobody is watching.
+   */
+  countdownTarget?: string
 }
 
 /**
@@ -14,7 +20,7 @@ export interface IdleViewProps {
  * next — most notably before the tournament starts. Never a blank screen:
  * always a countdown plus whatever schedule information is available.
  */
-export function IdleView({ courtLabel, upcoming }: IdleViewProps) {
+export function IdleView({ courtLabel, upcoming, countdownTarget }: IdleViewProps) {
   return (
     <div className="relative flex h-full w-full flex-col items-center justify-center gap-[4vh] overflow-hidden bg-gradient-to-br from-[#1c0f2e] via-[#2a1745] to-[#4a1f3d] px-[6vw] text-center text-frost">
       <div aria-hidden="true" className="pointer-events-none absolute inset-0 overflow-hidden opacity-30">
@@ -47,7 +53,7 @@ export function IdleView({ courtLabel, upcoming }: IdleViewProps) {
         </p>
       </div>
 
-      <Countdown target={TOURNAMENT_DATE} className="relative" />
+      <Countdown target={countdownTarget ?? TOURNAMENT_DATE} className="relative" />
 
       {upcoming.length > 0 && (
         <div className="relative w-full max-w-3xl rounded-[var(--radius-xl)] bg-white/8 px-6 py-5 backdrop-blur">

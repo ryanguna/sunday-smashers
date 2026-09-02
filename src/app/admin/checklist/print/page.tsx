@@ -2,7 +2,8 @@ import type { Metadata } from 'next'
 
 import { requireAdmin } from '@/lib/auth'
 import { ChecklistPrintView } from '@/components/checklist'
-import { TOURNAMENT_DATE_LABEL } from '@/lib/tournament'
+import { formatTournamentDateLabel } from '@/lib/tournament'
+import { loadPublicTournamentConfig } from '@/lib/tournament-config'
 import { getChecklistPageData } from '../data'
 
 export const metadata: Metadata = {
@@ -17,6 +18,7 @@ export default async function AdminChecklistPrintPage() {
   await requireAdmin('/admin/checklist/print')
 
   const { items, derived, nowIso } = await getChecklistPageData()
+  const dateLabel = formatTournamentDateLabel((await loadPublicTournamentConfig()).dates.tournamentDate)
 
   return (
     <div className="bg-white">
@@ -39,7 +41,7 @@ export default async function AdminChecklistPrintPage() {
           items={items}
           derived={derived}
           nowIso={nowIso}
-          dateLabel={TOURNAMENT_DATE_LABEL}
+          dateLabel={dateLabel}
         />
       </div>
     </div>

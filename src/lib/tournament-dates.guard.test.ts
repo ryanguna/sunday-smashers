@@ -80,4 +80,36 @@ describe('the tournament dates have exactly one home', () => {
       expect(label).toContain(part)
     }
   })
+
+  /**
+   * Number nine, caught the same way as the first eight — by reading.
+   *
+   * The guard above only stops the date *literals* being copied. It said
+   * nothing about `TOURNAMENT_DATE_LABEL`, which is a pre-formatted string of
+   * the seeded date, and ten shipped files were rendering it straight to the
+   * screen. Every one ignored the date the organiser had actually saved: the
+   * landing hero, the footer on *every* page, the dashboard countdown, the
+   * gallery, announcements, awards and three admin screens would all have kept
+   * saying "13 December 2026" after the tournament moved.
+   *
+   * The label is still legitimately needed as a *fallback* inside
+   * `formatTournamentDateLabel`, so this bans it from rendering code rather
+   * than from the codebase.
+   */
+  it('TOURNAMENT_DATE_LABEL is not rendered directly — use formatTournamentDateLabel', () => {
+    const offenders = sourceFiles(SRC)
+      .filter((file) => file !== OWNER)
+      .filter((file) => !/\.test\.tsx?$/.test(file))
+      .filter((file) => readFileSync(file, 'utf8').includes('TOURNAMENT_DATE_LABEL'))
+      .map((file) => relative(SRC, file))
+
+    expect(
+      offenders,
+      'These files render the seeded date label instead of the organiser\'s saved date: ' +
+        `${offenders.join(', ')}.\n` +
+        'Call formatTournamentDateLabel(dates.tournamentDate) with dates from ' +
+        'loadPublicTournamentConfig() instead — otherwise changing the date in ' +
+        'Settings leaves these screens quoting the old one.',
+    ).toEqual([])
+  })
 })

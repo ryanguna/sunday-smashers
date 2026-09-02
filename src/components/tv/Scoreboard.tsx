@@ -27,6 +27,8 @@ export interface ScoreboardProps {
   venueUpcoming: TvUpcomingMatch[]
   /** Published announcements, for the rotating side panel. Server-fetched. */
   announcements: Announcement[]
+  /** Tournament day from settings, for the idle countdown. Server-fetched. */
+  countdownTarget?: string
 }
 
 /**
@@ -34,7 +36,7 @@ export interface ScoreboardProps {
  * Client component: subscribes to live updates, drives score-change and win
  * animations, and rotates the side panels.
  */
-export function Scoreboard({ initial, venueUpcoming, announcements }: ScoreboardProps) {
+export function Scoreboard({ initial, venueUpcoming, announcements, countdownTarget }: ScoreboardProps) {
   const [rawSnapshot, setRawSnapshot] = useState(initial)
   const [status, setStatus] = useState<TvConnectionStatus>('demo')
   const [celebrate, setCelebrate] = useState(false)
@@ -99,7 +101,13 @@ export function Scoreboard({ initial, venueUpcoming, announcements }: Scoreboard
   }, [upNext, laterOnCourt, standings, bracket, announcements])
 
   if (!live) {
-    return <IdleView courtLabel={courtLabel} upcoming={upNext ? [upNext, ...venueUpcoming] : venueUpcoming} />
+    return (
+      <IdleView
+        courtLabel={courtLabel}
+        upcoming={upNext ? [upNext, ...venueUpcoming] : venueUpcoming}
+        countdownTarget={countdownTarget}
+      />
+    )
   }
 
   const forfeited = live.forfeitedBy ?? null

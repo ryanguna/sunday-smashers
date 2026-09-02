@@ -4,7 +4,8 @@ import { Badge, Card, CardBody, GradientText, SectionHeading, Snowfall } from '@
 import { HollyIcon, ShuttlecockIcon, SnowflakeIcon } from '@/components/icons'
 import { AnnouncementFeed } from '@/components/announcements'
 import { countPinned } from '@/lib/announcements'
-import { TOURNAMENT_DATE_LABEL } from '@/lib/tournament'
+import { formatTournamentDateLabel } from '@/lib/tournament'
+import { loadPublicTournamentConfig } from '@/lib/tournament-config'
 import { PageGate } from '@/components/PageGate'
 
 export const metadata: Metadata = {
@@ -15,6 +16,8 @@ export const metadata: Metadata = {
 
 export default async function AnnouncementsPage() {
   const { now, announcements } = await loadPublicAnnouncementsFeed()
+  const { dates } = await loadPublicTournamentConfig()
+  const dateLabel = formatTournamentDateLabel(dates.tournamentDate)
   const pinnedCount = countPinned(announcements)
 
   return (
@@ -32,7 +35,7 @@ export default async function AnnouncementsPage() {
               </span>
             }
             title={<GradientText as="span">Announcements</GradientText>}
-            description={`Everything the organisers want you to know before the first shuttle goes up on ${TOURNAMENT_DATE_LABEL}.`}
+            description={`Everything the organisers want you to know before the first shuttle goes up on ${dateLabel}.`}
           />
 
           <div className="mt-6 flex flex-wrap items-center justify-center gap-2">

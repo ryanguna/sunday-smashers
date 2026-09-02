@@ -22,8 +22,60 @@ export const REGISTRATION_CLOSES_AT = '2026-12-06T23:59:59+11:00'
 /** Tournament day. */
 export const TOURNAMENT_DATE = '2026-12-13T09:00:00+11:00'
 
-/** Human-friendly, already-formatted version of the tournament date. */
+/** Every date the site says out loud is said in the venue's own time zone. */
+export const SYDNEY_TIME_ZONE = 'Australia/Sydney'
+
+/**
+ * Human-friendly, already-formatted version of the *default* tournament date.
+ *
+ * Prefer `formatTournamentDateLabel(dates.tournamentDate)` in anything a
+ * visitor sees. This constant cannot reflect a date an organiser has since
+ * changed in the admin console, so using it directly silently pins the page
+ * to the seeded date — which is exactly the drift the rest of this module
+ * exists to prevent.
+ */
 export const TOURNAMENT_DATE_LABEL = 'Sunday, 13 December 2026'
+
+/**
+ * Formats a tournament date the way the site says it out loud —
+ * "Sunday, 13 December 2026".
+ *
+ * Always rendered in Sydney time. Without an explicit `timeZone` this would be
+ * formatted in the *server's* zone: a Vercel lambda runs in UTC, so a 9am AEDT
+ * start (10pm UTC the previous day) would render as the 12th and the whole
+ * site would advertise the wrong day.
+ *
+ * Falls back to the seeded label if the value is unparseable, so a malformed
+ * row degrades to a stale date rather than "Invalid Date".
+ */
+export function formatTournamentDateLabel(iso: string | null | undefined): string {
+  if (!iso) return TOURNAMENT_DATE_LABEL
+  const parsed = new Date(iso)
+  if (Number.isNaN(parsed.getTime())) return TOURNAMENT_DATE_LABEL
+  return parsed.toLocaleDateString('en-AU', {
+    timeZone: SYDNEY_TIME_ZONE,
+    weekday: 'long',
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric',
+  })
+}
+
+/**
+ * Formats a date without the weekday — "6 September 2026" — for the places
+ * that read as a sentence ("Pre-registration opens 6 September 2026").
+ */
+export function formatTournamentDate(iso: string | null | undefined): string {
+  if (!iso) return ''
+  const parsed = new Date(iso)
+  if (Number.isNaN(parsed.getTime())) return ''
+  return parsed.toLocaleDateString('en-AU', {
+    timeZone: SYDNEY_TIME_ZONE,
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric',
+  })
+}
 
 /**
  * The three dates the whole site's phase logic turns on.

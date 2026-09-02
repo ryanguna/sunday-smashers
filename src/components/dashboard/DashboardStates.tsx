@@ -2,7 +2,7 @@ import Link from 'next/link'
 import { Button, Card, CardBody, Countdown } from '@/components/ui'
 import { BaubleIcon, GiftIcon, ShuttlecockIcon, TrophyIcon } from '@/components/icons'
 import { cn } from '@/lib/cn'
-import { getTournamentPhase, TOURNAMENT_DATE_LABEL } from '@/lib/tournament'
+import { formatTournamentDateLabel, getTournamentPhase, type TournamentDates } from '@/lib/tournament'
 import type { DashboardStage } from '@/lib/dashboard'
 
 export interface DashboardGreetingProps {
@@ -12,6 +12,13 @@ export interface DashboardGreetingProps {
   demo: boolean
   /** Server-resolved clock, so phase copy never depends on a client Date. */
   now: number
+  /**
+   * The organiser's dates. Optional so existing callers and tests keep
+   * working, but always passed in the app: without it both the countdown
+   * phase and the date beside it silently fall back to the seeded defaults,
+   * so moving the tournament in Settings would leave the dashboard behind.
+   */
+  dates?: TournamentDates
   className?: string
 }
 
@@ -39,9 +46,11 @@ export function DashboardGreeting({
   divisionName,
   demo,
   now,
+  dates,
   className,
 }: DashboardGreetingProps) {
-  const phase = getTournamentPhase(new Date(now))
+  const phase = getTournamentPhase(new Date(now), dates)
+  const dateLabel = formatTournamentDateLabel(dates?.tournamentDate)
   const firstName = name.trim().split(/\s+/)[0] || 'Smasher'
 
   return (
@@ -67,7 +76,7 @@ export function DashboardGreeting({
       {phase.countdownTarget && (
         <div className="mt-4 flex flex-col gap-2">
           <p className="text-sm font-extrabold tracking-wide text-[var(--color-brand-lilac-dark)] uppercase">
-            {phase.countdownLabel} · {TOURNAMENT_DATE_LABEL}
+            {phase.countdownLabel} · {dateLabel}
           </p>
           <Countdown target={phase.countdownTarget} className="justify-start" />
         </div>

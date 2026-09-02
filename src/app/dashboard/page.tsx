@@ -20,6 +20,7 @@ import {
   TeamCard,
 } from '@/components/dashboard'
 import { requireAuth } from '@/lib/auth'
+import { loadPublicTournamentConfig } from '@/lib/tournament-config'
 import { loadDashboardData } from './data'
 
 export const metadata: Metadata = {
@@ -44,6 +45,7 @@ export default async function DashboardPage() {
   await requireAuth('/dashboard')
 
   const { demo, profile, dashboard, announcements, now } = await loadDashboardData()
+  const { dates } = await loadPublicTournamentConfig()
   const {
     stage,
     team,
@@ -88,6 +90,7 @@ export default async function DashboardPage() {
           divisionName={division?.name ?? null}
           demo={demo}
           now={now}
+          dates={dates}
         />
 
         {stage === 'not-registered' && <NotRegisteredPanel />}

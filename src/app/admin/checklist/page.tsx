@@ -3,7 +3,8 @@ import type { Metadata } from 'next'
 import { requireAdmin } from '@/lib/auth'
 import { AdminDataErrorBanner, AdminDemoBanner, AdminPageHeader } from '@/components/admin/AdminUI'
 import { ChecklistBoard } from '@/components/checklist'
-import { TOURNAMENT_DATE_LABEL } from '@/lib/tournament'
+import { formatTournamentDateLabel } from '@/lib/tournament'
+import { loadPublicTournamentConfig } from '@/lib/tournament-config'
 import { getChecklistPageData } from './data'
 
 export const metadata: Metadata = {
@@ -27,6 +28,7 @@ export default async function AdminChecklistPage() {
 
   const { items, derived, nowIso, tournamentId, needsSeeding, isDemo, error } =
     await getChecklistPageData()
+  const dateLabel = formatTournamentDateLabel((await loadPublicTournamentConfig()).dates.tournamentDate)
 
   return (
     <div>
@@ -35,7 +37,7 @@ export default async function AdminChecklistPage() {
       <AdminPageHeader
         eyebrow="Before the whistle"
         title="Loot bags & prizes checklist"
-        description={`Everything that has to be in the hall on ${TOURNAMENT_DATE_LABEL}. Tick as you go, print it for the day.`}
+        description={`Everything that has to be in the hall on ${dateLabel}. Tick as you go, print it for the day.`}
       />
       <ChecklistBoard
         initialItems={items}

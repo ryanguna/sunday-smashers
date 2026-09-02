@@ -30,7 +30,8 @@ import {
   summariseByDivision,
   type CapacityState,
 } from '@/lib/admin'
-import { TOURNAMENT_DATE_LABEL } from '@/lib/tournament'
+import { formatTournamentDateLabel } from '@/lib/tournament'
+import { loadPublicTournamentConfig } from '@/lib/tournament-config'
 
 export const metadata: Metadata = {
   title: 'Dashboard',
@@ -56,6 +57,7 @@ const CAPACITY_COPY: Record<CapacityState, { label: string; className: string }>
 
 export default async function AdminDashboardPage() {
   const { divisions, registrations, pendingInvites, isDemo, error } = await getAdminConsoleData()
+  const dateLabel = formatTournamentDateLabel((await loadPublicTournamentConfig()).dates.tournamentDate)
 
   const statusCounts = countByStatus(registrations)
   const summaries = summariseByDivision(registrations, divisions)
@@ -72,7 +74,7 @@ export default async function AdminDashboardPage() {
         <AdminPageHeader
           eyebrow="Ho ho ho"
           title="Tournament HQ"
-          description={`Everything at a glance for ${TOURNAMENT_DATE_LABEL}.`}
+          description={`Everything at a glance for ${dateLabel}.`}
         />
         {isDemo && <AdminDemoBanner />}
         {error && <AdminDataErrorBanner message={error} />}
@@ -91,7 +93,7 @@ export default async function AdminDashboardPage() {
       <AdminPageHeader
         eyebrow="Ho ho ho"
         title="Tournament HQ"
-        description={`Everything at a glance for ${TOURNAMENT_DATE_LABEL}.`}
+        description={`Everything at a glance for ${dateLabel}.`}
         actions={
           <>
             <Badge status="info">

@@ -4,7 +4,8 @@ import { Badge, Card, CardBody, GradientText, SectionHeading, Snowfall } from '@
 import { GiftIcon, ShuttlecockIcon, SparkleIcon, TrophyIcon } from '@/components/icons'
 import { AwardsCelebration, AwardsPending, WinnersShowcase } from '@/components/awards'
 import { hasAnyWinners, revealStatus } from '@/lib/awards'
-import { TOURNAMENT_DATE, TOURNAMENT_DATE_LABEL } from '@/lib/tournament'
+import { formatTournamentDateLabel } from '@/lib/tournament'
+import { loadPublicTournamentConfig } from '@/lib/tournament-config'
 import { getPublicAwards } from './data'
 import { PageGate } from '@/components/PageGate'
 
@@ -19,13 +20,15 @@ export const dynamic = 'force-dynamic'
 
 export default async function AwardsPage() {
   const { views, publishedCount, isDemo } = await getPublicAwards()
+  const { dates } = await loadPublicTournamentConfig()
+  const dateLabel = formatTournamentDateLabel(dates.tournamentDate)
 
   // The clock is resolved here, in the server component, and handed to the
   // pure helper — never read inside a rendered component.
   const status = revealStatus({
     now: new Date(),
-    tournamentDate: TOURNAMENT_DATE,
-    tournamentDateLabel: TOURNAMENT_DATE_LABEL,
+    tournamentDate: dates.tournamentDate,
+    tournamentDateLabel: dateLabel,
     publishedCount,
   })
 
@@ -68,7 +71,7 @@ export default async function AwardsPage() {
           {showWinners ? (
             <WinnersShowcase divisions={views} variant="full" />
           ) : (
-            <AwardsPending status={status} countdownTarget={TOURNAMENT_DATE} />
+            <AwardsPending status={status} countdownTarget={dates.tournamentDate} />
           )}
         </section>
 
@@ -119,7 +122,7 @@ export default async function AwardsPage() {
               </p>
               <p className="mt-2 flex items-center gap-2 text-xs text-[var(--color-ink-muted)]">
                 <ShuttlecockIcon size={14} aria-hidden="true" />
-                {TOURNAMENT_DATE_LABEL}
+                {dateLabel}
               </p>
             </CardBody>
           </Card>

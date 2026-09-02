@@ -2,7 +2,8 @@ import type { ReactNode } from 'react'
 import { Snowfall } from '@/components/ui'
 import { BaubleIcon, HollyIcon, ShuttlecockIcon, SnowflakeIcon } from '@/components/icons'
 import { cn } from '@/lib/cn'
-import { TOURNAMENT_DATE_LABEL } from '@/lib/tournament'
+import { formatTournamentDateLabel } from '@/lib/tournament'
+import { loadPublicTournamentConfig } from '@/lib/tournament-config'
 
 export interface RegistrationShellProps {
   eyebrow?: string
@@ -22,7 +23,7 @@ export interface RegistrationShellProps {
  * and client markup match byte-for-byte, and every animation is switched
  * off by the `prefers-reduced-motion` block in `globals.css`.
  */
-export function RegistrationShell({
+export async function RegistrationShell({
   eyebrow,
   title,
   description,
@@ -30,6 +31,8 @@ export function RegistrationShell({
   aside,
   className,
 }: RegistrationShellProps) {
+  const { dates } = await loadPublicTournamentConfig()
+  const dateLabel = formatTournamentDateLabel(dates.tournamentDate)
   return (
     <main className="relative overflow-hidden px-4 pt-10 pb-20 sm:pt-14">
       <Snowfall />
@@ -64,7 +67,7 @@ export function RegistrationShell({
           </h1>
           <p className="mt-3 inline-flex flex-wrap items-center justify-center gap-2 rounded-[var(--radius-pill)] bg-white/80 px-4 py-1.5 text-sm font-semibold text-[var(--color-plum)] shadow-[var(--shadow-soft)]">
             <SnowflakeIcon size={16} className="text-[var(--color-brand-sky-dark)]" aria-hidden="true" />
-            <span>{TOURNAMENT_DATE_LABEL}</span>
+            <span>{dateLabel}</span>
             <span>
               <span className="text-[var(--color-brand-lilac-dark)]" aria-hidden="true">
                 ·{' '}

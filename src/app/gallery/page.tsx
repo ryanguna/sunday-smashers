@@ -3,7 +3,8 @@ import { Badge, Card, CardBody, GradientText, SectionHeading, Snowfall } from '@
 import { BaubleIcon, HollyIcon, ShuttlecockIcon } from '@/components/icons'
 import { GalleryExplorer } from '@/components/gallery'
 import { loadGalleryPage } from '@/components/gallery/data'
-import { TOURNAMENT_DATE_LABEL } from '@/lib/tournament'
+import { formatTournamentDateLabel } from '@/lib/tournament'
+import { loadPublicTournamentConfig } from '@/lib/tournament-config'
 import { PageGate } from '@/components/PageGate'
 
 export const metadata: Metadata = {
@@ -17,6 +18,8 @@ export const revalidate = 60
 
 export default async function GalleryPage() {
   const { photos, tournamentId, isDemo } = await loadGalleryPage()
+  const { dates } = await loadPublicTournamentConfig()
+  const dateLabel = formatTournamentDateLabel(dates.tournamentDate)
   const featuredCount = photos.filter((photo) => photo.isFeatured).length
 
   return (
@@ -34,7 +37,7 @@ export default async function GalleryPage() {
               </span>
             }
             title={<GradientText as="span">Photo gallery</GradientText>}
-            description={`Every rally, wobble and medal grin from ${TOURNAMENT_DATE_LABEL} — pegged up like polaroids on a string of fairy lights.`}
+            description={`Every rally, wobble and medal grin from ${dateLabel} — pegged up like polaroids on a string of fairy lights.`}
           />
 
           <div className="mt-6 flex flex-wrap items-center justify-center gap-2">

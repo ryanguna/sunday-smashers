@@ -1,6 +1,7 @@
 import Link from 'next/link'
 import { ShuttlecockIcon, HollyIcon } from '@/components/icons'
-import { TOURNAMENT_DATE_LABEL } from '@/lib/tournament'
+import { formatTournamentDateLabel } from '@/lib/tournament'
+import { loadPublicTournamentConfig } from '@/lib/tournament-config'
 import { FOOTER_LINKS } from '@/components/site-nav'
 import { visibleNavLinks, type SitePageVisibility } from '@/lib/site-pages'
 
@@ -9,9 +10,16 @@ import { visibleNavLinks, type SitePageVisibility } from '@/lib/site-pages'
  * the footer and the header are guaranteed to be reading the same answer — a
  * page hidden from one but not the other is exactly the drift `site-nav.ts`
  * exists to prevent.
+ *
+ * The date is fetched here instead of threaded through, because the header
+ * doesn't show one so there is no pair to keep in agreement.
+ * `loadPublicTournamentConfig` is cached and reads no cookies, so awaiting it
+ * in the footer does not push every route into dynamic rendering.
  */
-export function SiteFooter({ visibility }: { visibility?: SitePageVisibility }) {
+export async function SiteFooter({ visibility }: { visibility?: SitePageVisibility }) {
   const footerLinks = visibleNavLinks(FOOTER_LINKS, visibility)
+  const { dates } = await loadPublicTournamentConfig()
+  const dateLabel = formatTournamentDateLabel(dates.tournamentDate)
   return (
     <footer className="relative z-10 mt-16 border-t border-white/60 bg-frost-glass">
       <div className="mx-auto flex max-w-6xl flex-col gap-8 px-4 py-10 sm:px-6 md:flex-row md:justify-between">
@@ -28,7 +36,7 @@ export function SiteFooter({ visibility }: { visibility?: SitePageVisibility }) 
             </span>
           </div>
           <p className="mt-3 text-sm text-[var(--color-ink-muted)]">
-            The Christmas Mini Tournament — {TOURNAMENT_DATE_LABEL}. Smash. Compete. Celebrate.
+            The Christmas Mini Tournament — {dateLabel}. Smash. Compete. Celebrate.
           </p>
         </div>
 

@@ -19,7 +19,7 @@ import { WinnersShowcase } from '@/components/awards'
 import { loadPublicAnnouncementsFeed } from '@/lib/announcements-server'
 import { hasAnyWinners } from '@/lib/awards'
 import { getPublicAwards } from './awards/data'
-import { PRE_REGISTRATION_OPENS_AT, TOURNAMENT_DATE_LABEL } from '@/lib/tournament'
+import { formatTournamentDate, formatTournamentDateLabel } from '@/lib/tournament'
 
 export const metadata: Metadata = {
   title: 'Home',
@@ -95,6 +95,10 @@ export default async function HomePage() {
     loadPublicTournamentConfig(),
   ])
   const showWinners = hasAnyWinners(awardViews)
+  // Derived from the tournament row, never from the seeded constant: an
+  // organiser who moves the date in Settings must see the hero move with it.
+  const dateLabel = formatTournamentDateLabel(tournament.dates.tournamentDate)
+  const opensLabel = formatTournamentDate(tournament.dates.preRegistrationOpensAt)
 
   return (
     <main className="relative overflow-hidden">
@@ -125,7 +129,7 @@ export default async function HomePage() {
         <div className="mt-6 inline-flex flex-wrap items-center justify-center gap-2 rounded-[var(--radius-pill)] bg-white/80 px-5 py-2.5 shadow-[var(--shadow-soft)]">
           <ShuttlecockIcon size={18} className="text-[var(--color-brand-pink-dark)]" aria-hidden="true" />
           <span className="font-[family-name:var(--font-heading)] font-bold text-[var(--color-plum)]">
-            {TOURNAMENT_DATE_LABEL}
+            {dateLabel}
           </span>
         </div>
 
@@ -265,12 +269,8 @@ export default async function HomePage() {
           <Card variant="outline">
             <CardBody>
               <h3 className="font-extrabold text-[var(--color-plum)]">📅 Date</h3>
-              <p className="mt-2 text-sm">{TOURNAMENT_DATE_LABEL}. Pre-registration opens{' '}
-                {new Date(PRE_REGISTRATION_OPENS_AT).toLocaleDateString('en-AU', {
-                  day: 'numeric',
-                  month: 'long',
-                  year: 'numeric',
-                })}.
+              <p className="mt-2 text-sm">{dateLabel}. Pre-registration opens{' '}
+                {opensLabel}.
               </p>
             </CardBody>
           </Card>
