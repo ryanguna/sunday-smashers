@@ -39,6 +39,9 @@ export function InvitesPanel() {
   const [loading, setLoading] = useState(true)
   const [busyId, setBusyId] = useState<string | null>(null)
   const [message, setMessage] = useState<{ tone: 'success' | 'danger'; text: string } | null>(null)
+  // Accepting an invite pairs you but does not enter you, so the panel has to
+  // offer the way to finish rather than only mentioning it in a sentence.
+  const [needsRegistration, setNeedsRegistration] = useState(false)
   const [celebrate, setCelebrate] = useState(false)
 
   const refresh = useCallback(async () => {
@@ -69,6 +72,7 @@ export function InvitesPanel() {
     const result = await respondToInvite(invite.id, accept)
     setBusyId(null)
     setMessage({ tone: result.ok ? 'success' : 'danger', text: result.message })
+    setNeedsRegistration(Boolean(result.ok && accept && result.needsRegistration))
 
     if (result.ok) {
       if (accept) {
@@ -106,6 +110,21 @@ export function InvitesPanel() {
 
       {!configured && <DemoModeNotice what="Responding to partner invites" />}
       {message && <AlertBanner variant={message.tone === 'success' ? 'success' : 'danger'}>{message.text}</AlertBanner>}
+
+      {needsRegistration && (
+        <Card variant="default" className="border-2 border-[var(--color-brand-gold-dark)] bg-[var(--color-brand-gold-light)]/30">
+          <h3 className="text-lg font-bold text-[var(--color-plum)]">Finish your own entry</h3>
+          <p className="mt-2 text-[var(--color-ink-soft)]">
+            You’re paired up, but the committee still needs your details — emergency contact, the code of
+            conduct and your entry fee. It only takes a minute.
+          </p>
+          <div className="mt-4">
+            <Button href="/register" size="lg">
+              Complete my registration
+            </Button>
+          </div>
+        </Card>
+      )}
 
       <section>
         <h2 className="mb-3 flex items-center gap-2 text-xl font-bold text-[var(--color-plum)]">

@@ -516,6 +516,13 @@ export interface RespondToInviteResult {
   ok: boolean
   /** True when the `teams` + `team_members` rows were created. */
   teamCreated: boolean
+  /**
+   * True when the player is now on a team but still has no `registrations`
+   * row. Accepting an invite pairs you; it does not enter you. Without this,
+   * half of every pair could reach match day never having given the committee
+   * an emergency contact or paid an entry fee.
+   */
+  needsRegistration?: boolean
   message: string
 }
 
@@ -593,9 +600,30 @@ export async function respondToInvite(inviteId: string, accept: boolean): Promis
     }
   }
 
+  // Being on a team is not the same as having entered. `accept_partner_invite`
+  // writes `teams` and both `team_members` rows, but no `registrations` row —
+  // so an invitee who only ever tapped "accept" has no emergency contact, has
+  // not accepted the code of conduct, owes no entry fee the committee can see,
+  // and reads "Not registered yet" on their own dashboard, all while appearing
+  // in the draw. The old message ("You're a pair!") told them they were done.
+  const { data: existing, error: registrationError } = await supabase
+    .from('registrations')
+    .select('id')
+    .eq('division_id', invite.division_id)
+    .eq('player_id', user.id)
+    .maybeSingle()
+
+  // On a failed read, prompt anyway: sending an already-registered player to a
+  // wizard that tells them so is a far smaller harm than letting an
+  // unregistered one believe they are finished.
+  const needsRegistration = registrationError ? true : !existing
+
   return {
     ok: true,
     teamCreated: true,
-    message: 'You’re a pair! Your team is off to the committee for approval 🎉',
+    needsRegistration,
+    message: needsRegistration
+      ? 'You’re a pair! One thing left — finish your own entry so the committee has your details.'
+      : 'You’re a pair! Your team is off to the committee for approval 🎉',
   }
 }
