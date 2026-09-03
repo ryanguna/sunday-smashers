@@ -72,7 +72,9 @@ export function ConfirmationPanel({
         <p className="mx-auto mt-3 max-w-lg text-[var(--color-ink-soft)]">{copy.message}</p>
 
         <div className="mt-5 flex flex-wrap items-center justify-center gap-2">
-          <Badge status={status === 'waitlisted' ? 'pending' : 'pending'}>
+          {/* Same mapping the admin queue uses, so the player and the
+              committee see the same colour for the same row. */}
+          <Badge status={status === 'waitlisted' ? 'info' : 'pending'}>
             {status === 'waitlisted' ? 'Waitlisted' : 'Pending admin approval'}
           </Badge>
           {divisionName && <Badge status="info">{divisionName}</Badge>}

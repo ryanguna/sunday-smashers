@@ -113,6 +113,9 @@ export function RegisterExperience({ info, preview = null }: RegisterExperienceP
         window={info.window}
         onSubmitted={(result) => {
           const params = new URLSearchParams({ status: result.status })
+          // Lets the confirmation page re-read the row that was actually
+          // saved rather than believing `status` above.
+          if (result.divisionId) params.set('divisionId', result.divisionId)
           const division = divisions.find((item) => item.id === result.divisionId)
           if (division) params.set('division', division.name)
           if (result.invitedPartner) params.set('partner', 'invited')

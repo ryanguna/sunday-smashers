@@ -294,9 +294,11 @@ export async function submitRegistration(input: SubmitRegistrationInput): Promis
       tournament_id: context.tournamentId,
       division_id: values.divisionId,
       player_id: context.userId,
-      // Players may only ever write `pending` (RLS); a waitlist entry is
-      // flagged in `notes` and moved to `waitlisted` by an admin.
-      status: 'pending',
+      // Migration 0014 lets a player write 'waitlisted' as well as 'pending'.
+      // Clamp rather than trust: `status` arrives from the client, and the two
+      // values are the only ones RLS will accept anyway — this makes the
+      // rejection a validation, not a database error the player has to read.
+      status: status === 'waitlisted' ? 'waitlisted' : 'pending',
       notes,
     } as never)
     .select('id')
