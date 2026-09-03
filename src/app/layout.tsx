@@ -6,6 +6,8 @@ import { SiteHeader } from '@/components/SiteHeader'
 import { SiteFooter } from '@/components/SiteFooter'
 import { loadSitePageVisibility } from '@/lib/site-pages-server'
 import { SITE_URL } from '@/lib/site'
+import { loadPublicTournamentConfig } from '@/lib/tournament-config'
+import { formatTournamentDateLabel } from '@/lib/tournament'
 import './globals.css'
 
 // Heavy geometric sans for headings — bold, rounded, friendly.
@@ -37,19 +39,32 @@ const pacifico = Pacifico({
 // crops into an unreadable slice of the artwork.
 const OG_IMAGE = '/brand/og-card.png'
 
-export const metadata: Metadata = {
+/**
+ * Dynamic because the description and the Open Graph card both name the
+ * tournament date, and that card is what people see when the link is pasted
+ * into a group chat. Hardcoded, it would keep advertising the seeded date
+ * after an organiser moved the tournament in Settings.
+ *
+ * `loadPublicTournamentConfig` is cached and tag-revalidated, so this does not
+ * add a database round trip per request.
+ */
+export async function generateMetadata(): Promise<Metadata> {
+  const { dates } = await loadPublicTournamentConfig()
+  const label = formatTournamentDateLabel(dates.tournamentDate)
+
+  return {
   metadataBase: new URL(SITE_URL),
   title: {
     default: 'Sunday Smashers — Christmas Mini Tournament',
     template: '%s · Sunday Smashers',
   },
   description:
-    'Smash. Compete. Celebrate. The Sunday Smashers Christmas Mini Tournament — Sunday 13 December 2026. Men\u2019s & Women\u2019s Doubles, cash prizes, trophies & medals, and loot bags for everyone.',
+    `Smash. Compete. Celebrate. The Sunday Smashers Christmas Mini Tournament — ${label}. Men\u2019s & Women\u2019s Doubles, cash prizes, trophies & medals, and loot bags for everyone.`,
   applicationName: 'Sunday Smashers',
   openGraph: {
     title: 'Sunday Smashers — Christmas Mini Tournament',
     description:
-      'Something BIG is smashing this Christmas. Sunday 13 December 2026 — Men\u2019s & Women\u2019s Doubles, cash prizes, trophies & medals, loot bags for everyone.',
+      `Something BIG is smashing this Christmas. ${label} — Men\u2019s & Women\u2019s Doubles, cash prizes, trophies & medals, loot bags for everyone.`,
     url: SITE_URL,
     siteName: 'Sunday Smashers',
     images: [{ url: OG_IMAGE, width: 1200, height: 630, alt: 'Sunday Smashers Christmas Mini Tournament' }],
@@ -59,7 +74,7 @@ export const metadata: Metadata = {
   twitter: {
     card: 'summary_large_image',
     title: 'Sunday Smashers — Christmas Mini Tournament',
-    description: 'Smash. Compete. Celebrate. Sunday 13 December 2026.',
+    description: `Smash. Compete. Celebrate. ${label}.`,
     images: [OG_IMAGE],
   },
   icons: {
@@ -72,6 +87,7 @@ export const metadata: Metadata = {
     // points at the same opaque-background artwork used for Android maskables.
     apple: '/brand/icon-maskable-512.png',
   },
+}
 }
 
 /**

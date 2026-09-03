@@ -1,11 +1,18 @@
 import type { MetadataRoute } from 'next'
+import { loadPublicTournamentConfig } from '@/lib/tournament-config'
+import { formatTournamentDateLabel } from '@/lib/tournament'
 
-export default function manifest(): MetadataRoute.Manifest {
+// Async so the installed-app description follows the organiser's saved date.
+// A PWA manifest is cached hard by the OS, so a stale date here outlives a
+// deploy on anyone who has added the site to their home screen.
+export default async function manifest(): Promise<MetadataRoute.Manifest> {
+  const { dates } = await loadPublicTournamentConfig()
+
   return {
     name: 'Sunday Smashers — Christmas Mini Tournament',
     short_name: 'Sunday Smashers',
     description:
-      'Smash. Compete. Celebrate. The Sunday Smashers Christmas Mini Tournament — Sunday 13 December 2026.',
+      `Smash. Compete. Celebrate. The Sunday Smashers Christmas Mini Tournament — ${formatTournamentDateLabel(dates.tournamentDate)}.`,
     start_url: '/',
     display: 'standalone',
     background_color: '#fbfbff',

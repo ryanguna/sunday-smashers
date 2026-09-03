@@ -3,6 +3,8 @@ import { Badge, Card, CardBody, SectionHeading, Snowfall } from '@/components/ui
 import { Markdown } from '@/components/Markdown'
 import { loadSiteContent } from '@/lib/site-content'
 import { PageGate } from '@/components/PageGate'
+import { loadPublicTournamentConfig } from '@/lib/tournament-config'
+import { formatTournamentDateLabel } from '@/lib/tournament'
 
 export const metadata: Metadata = {
   title: 'Rules & Info',
@@ -54,9 +56,10 @@ const FALLBACK_FAQ_MARKDOWN = `
 `.trim()
 
 export default async function RulesPage() {
-  const [rulesRow, faqRow] = await Promise.all([
+  const [rulesRow, faqRow, { dates }] = await Promise.all([
     loadSiteContent('draft-rules-v1'),
     loadSiteContent('faq'),
+    loadPublicTournamentConfig(),
   ])
 
   const rulesMarkdown = rulesRow?.body_markdown ?? FALLBACK_RULES_MARKDOWN
@@ -83,7 +86,8 @@ export default async function RulesPage() {
             <Badge status="pending">Draft — not yet final</Badge>
             <p className="text-sm text-[var(--color-ink-soft)]">
               These rules are a working draft from the organising committee and may still change
-              before tournament day. Check back closer to 13 December 2026 for the confirmed version.
+              before tournament day. Check back closer to {formatTournamentDateLabel(dates.tournamentDate)}{' '}
+              for the confirmed version.
             </p>
           </div>
         </section>

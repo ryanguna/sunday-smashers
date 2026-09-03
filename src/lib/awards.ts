@@ -26,6 +26,7 @@
  */
 
 import type { FinalPlacings, TeamId } from './draw'
+import { formatTournamentDayMonth } from './tournament'
 import type { AwardType } from './supabase/types'
 
 // ---------------------------------------------------------------------------
@@ -614,7 +615,7 @@ export function revealStatus(input: {
 
   return {
     state: 'countdown',
-    heading: 'To be crowned on 13 December',
+    heading: `To be crowned on ${formatTournamentDayMonth(input.tournamentDate)}`,
     blurb: `Trophies polished, medals counted, loot bags stuffed. The roll of honour fills in on ${input.tournamentDateLabel}.`,
     celebrate: false,
   }

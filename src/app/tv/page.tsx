@@ -3,6 +3,8 @@ import { getAllCourtOverviews } from '@/lib/tv/data'
 import { CourtTile } from '@/components/tv/CourtTile'
 import { ShuttlecockIcon, SnowflakeIcon } from '@/components/icons'
 import { PageGate } from '@/components/PageGate'
+import { loadPublicTournamentConfig } from '@/lib/tournament-config'
+import { formatTournamentDateLabel } from '@/lib/tournament'
 
 export const metadata: Metadata = {
   title: 'Court Overview — Courtside TV',
@@ -16,7 +18,12 @@ export const dynamic = 'force-dynamic'
  * throw up on the main monitor via `/tv/[court]`.
  */
 export default async function TvOverviewPage() {
-  const courts = await getAllCourtOverviews()
+  // The lobby screen runs unattended all day, so it must show the date the
+  // organiser actually saved rather than the one that was seeded.
+  const [courts, { dates }] = await Promise.all([
+    getAllCourtOverviews(),
+    loadPublicTournamentConfig(),
+  ])
 
   return (
     <PageGate pageKey="tv">
@@ -47,7 +54,9 @@ export default async function TvOverviewPage() {
               >
                 Sunday Smashers · Courtside TV
               </h1>
-              <p className="text-frost/60">Christmas Mini Tournament · 13 December 2026</p>
+              <p className="text-frost/60">
+                Christmas Mini Tournament · {formatTournamentDateLabel(dates.tournamentDate)}
+              </p>
             </div>
           </div>
         </header>

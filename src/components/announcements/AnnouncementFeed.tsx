@@ -25,7 +25,10 @@ export function AnnouncementFeed({
   now,
   showStatus = false,
   emptyTitle = 'Quiet on the court — no announcements yet 🎄',
-  emptyDescription = 'When the organisers post match-day news, parking tips or draw updates, they will land right here. Check back closer to 13 December.',
+  // Deliberately says "tournament day" rather than naming a date: this is a
+  // default on a shared component with many callers, and a hardcoded date
+  // would go stale the moment an organiser moves the tournament in Settings.
+  emptyDescription = 'When the organisers post match-day news, parking tips or draw updates, they will land right here. Check back closer to tournament day.',
   className,
 }: AnnouncementFeedProps) {
   const sorted = sortAnnouncements(announcements)

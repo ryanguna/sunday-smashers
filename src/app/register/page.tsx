@@ -2,16 +2,23 @@ import type { Metadata } from 'next'
 import { isSupabaseConfigured } from '@/lib/supabase/config'
 import { getRegistrationWindow } from '@/lib/registration'
 import { loadPublicTournamentConfig } from '@/lib/tournament-config'
-import { PRE_REGISTRATION_OPENS_AT, REGISTRATION_CLOSES_AT } from '@/lib/tournament'
+import { PRE_REGISTRATION_OPENS_AT, REGISTRATION_CLOSES_AT, formatTournamentDateLabel } from '@/lib/tournament'
 import { Countdown } from '@/components/ui'
 import { RegistrationShell } from '@/components/registration/RegistrationShell'
 import { RegisterExperience, type RegisterPreview } from '@/components/registration/RegisterExperience'
 import { PageGate } from '@/components/PageGate'
 
-export const metadata: Metadata = {
-  title: 'Register',
-  description:
-    'Register for the Sunday Smashers Christmas Mini Tournament — Sunday 13 December 2026. Men’s and Women’s Doubles, loot bags for every player.',
+// The register link is the one most likely to be pasted into a group chat,
+// so its description must name the date the organiser actually saved.
+export async function generateMetadata(): Promise<Metadata> {
+  const { dates } = await loadPublicTournamentConfig()
+
+  return {
+    title: 'Register',
+    description: `Register for the Sunday Smashers Christmas Mini Tournament — ${formatTournamentDateLabel(
+      dates.tournamentDate,
+    )}. Men’s and Women’s Doubles, loot bags for every player.`,
+  }
 }
 
 const PREVIEWS: RegisterPreview[] = ['open', 'closed', 'full']

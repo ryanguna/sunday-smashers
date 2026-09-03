@@ -13,6 +13,12 @@ export interface ConfirmationPanelProps {
   invitedPartner?: boolean
   /** True when the player joined the free-agent pool instead. */
   freeAgent?: boolean
+  /**
+   * The organiser's saved tournament date in day-and-month form, from
+   * `formatTournamentDayMonth`. Empty degrades the waitlist advice to
+   * "tournament day" rather than quoting a stale date.
+   */
+  tournamentDayMonth?: string
 }
 
 /**
@@ -28,9 +34,10 @@ export function ConfirmationPanel({
   divisionName,
   invitedPartner = false,
   freeAgent = false,
+  tournamentDayMonth = '',
 }: ConfirmationPanelProps) {
   const [celebrate, setCelebrate] = useState(false)
-  const copy = confirmationCopy(status)
+  const copy = confirmationCopy(status, tournamentDayMonth)
 
   useEffect(() => {
     // Intentional: the burst is a client-only flourish, started after mount.

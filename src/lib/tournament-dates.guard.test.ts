@@ -142,4 +142,46 @@ describe('the tournament dates have exactly one home', () => {
         'the dashboard ignores the date the organiser saved in Settings.',
     ).toBe(true)
   })
+
+  /**
+   * Number eleven, and the one the previous ten all walked past.
+   *
+   * Every guard above polices a *symbol* — the ISO literal, the label
+   * constant, a missing argument. None of them notice the date simply typed
+   * into a sentence. And it was, in eight shipped files: the courtside TV
+   * index, the draft banner on the rules page, the awards countdown heading,
+   * the waitlist advice, the announcements empty state and three lots of
+   * SEO/OG metadata. An organiser moving the tournament in Settings would
+   * have changed the countdown and left all of that quoting December.
+   *
+   * The awards one is the clearest proof this was invisible to review: that
+   * function already receives `tournamentDateLabel` and uses it correctly in
+   * the very next line — the heading above it was still hardcoded.
+   *
+   * Matching is on the day-and-month prose rather than the full label so
+   * "13 December", "13 December 2026" and "Sunday 13 December 2026" are all
+   * caught.
+   */
+  it('the tournament date is not written into prose', () => {
+    const dayMonth = new Date(TOURNAMENT_DATE).toLocaleDateString('en-AU', {
+      timeZone: 'Australia/Sydney',
+      day: 'numeric',
+      month: 'long',
+    })
+
+    const offenders = sourceFiles(SRC)
+      .filter((file) => file !== OWNER)
+      .filter((file) => !/\.test\.tsx?$/.test(file))
+      .filter((file) => readFileSync(file, 'utf8').includes(dayMonth))
+      .map((file) => relative(SRC, file))
+
+    expect(
+      offenders,
+      `"${dayMonth}" is typed into copy in: ${offenders.join(', ')}.\n` +
+        'Format the organiser\'s saved date instead — formatTournamentDayMonth, ' +
+        'formatTournamentDate or formatTournamentDateLabel from "@/lib/tournament", ' +
+        'fed from loadPublicTournamentConfig(). Hardcoded prose survives a date ' +
+        'change in Settings and quietly advertises the wrong day.',
+    ).toEqual([])
+  })
 })

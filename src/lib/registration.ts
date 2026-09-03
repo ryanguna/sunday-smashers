@@ -626,8 +626,17 @@ export function canRespondToInvite(invite: { status: PartnerInviteStatus }): boo
 /**
  * Copy for the confirmation screen, driven by the persisted status so the
  * waitlist path never claims the player is in the draw.
+ *
+ * `tournamentDayMonth` is the organiser's saved date already formatted in
+ * day-and-month form. It used to be typed straight in here, which
+ * meant moving the tournament in Settings left this screen telling players to
+ * watch their phone in the wrong week. Empty falls back to "tournament day",
+ * which is vaguer but never wrong.
  */
-export function confirmationCopy(status: RegistrationStatus): {
+export function confirmationCopy(
+  status: RegistrationStatus,
+  tournamentDayMonth = '',
+): {
   eyebrow: string
   title: string
   message: string
@@ -641,7 +650,7 @@ export function confirmationCopy(status: RegistrationStatus): {
         'The division is full (or registration has closed), so we’ve saved your details at the top of the waitlist.',
       nextSteps: [
         'We’ll email you the moment a spot opens up.',
-        'Keep your phone handy in the week before 13 December.',
+        `Keep your phone handy in the week before ${tournamentDayMonth || 'tournament day'}.`,
         'Your partner invite (if you sent one) still stands.',
       ],
     }

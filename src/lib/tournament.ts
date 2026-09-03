@@ -78,6 +78,25 @@ export function formatTournamentDate(iso: string | null | undefined): string {
 }
 
 /**
+ * Day and month only — "13 December" — for headings and running prose where
+ * the year is already obvious from context.
+ *
+ * Exists so those places can stop hardcoding the seeded date. Returns an empty
+ * string for a missing or unparseable value so callers can drop the clause
+ * entirely rather than print "Invalid Date" at a visitor.
+ */
+export function formatTournamentDayMonth(iso: string | null | undefined): string {
+  if (!iso) return ''
+  const parsed = new Date(iso)
+  if (Number.isNaN(parsed.getTime())) return ''
+  return parsed.toLocaleDateString('en-AU', {
+    timeZone: SYDNEY_TIME_ZONE,
+    day: 'numeric',
+    month: 'long',
+  })
+}
+
+/**
  * The three dates the whole site's phase logic turns on.
  *
  * These used to be readable ONLY as the module constants below, which meant
