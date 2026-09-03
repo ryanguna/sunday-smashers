@@ -125,14 +125,30 @@ async function writeAudit(
   })
 }
 
-/** Read-modify-write of the JSON blob in `site_content` (no columns exist yet). */
+/**
+ * Read-modify-write of the JSON blob in `site_content` (no columns exist yet).
+ *
+ * The read's `error` is checked, and that is the whole point of this function
+ * returning a result. It used to destructure `data` only: a transient failure
+ * read as "no row yet", `current` fell back to `{}`, and the upsert then wrote
+ * the mutated subset over the top — silently discarding every other extra in
+ * the blob (entry fees, prize configuration). An empty read and a failed read
+ * are not the same thing, and here the difference is data loss.
+ */
 async function mergeExtras(
   supabase: SupabaseLike,
   slug: string,
   title: string,
   mutate: (current: Record<string, unknown>) => Record<string, unknown>,
-): Promise<void> {
-  const { data } = await supabase.from('site_content').select('*').eq('slug', slug).maybeSingle()
+): Promise<ActionResult | null> {
+  const { data, error } = await supabase.from('site_content').select('*').eq('slug', slug).maybeSingle()
+  if (error) {
+    return {
+      ok: false,
+      message: 'We couldn’t read the current settings, so nothing was saved — trying again would have wiped the rest. Give it another go.',
+    }
+  }
+
   let current: Record<string, unknown> = {}
   const body = (data as SiteContentRow | null)?.body_markdown
   if (body) {
@@ -143,18 +159,23 @@ async function mergeExtras(
     }
   }
 
-  await supabase.from('site_content').upsert({
+  const { error: writeError } = await supabase.from('site_content').upsert({
     slug,
     title,
     body_markdown: JSON.stringify(mutate(current), null, 2),
     is_published: false,
   })
 
+  if (writeError) {
+    return { ok: false, message: `We couldn’t save that: ${writeError.message}` }
+  }
+
   // The rules page reads published `site_content` through a shared cache.
   // These extras blobs are unpublished, so they can't leak — but the same tag
   // covers both, and invalidating it costs one refetch.
   updateTag(SITE_CONTENT_TAG)
   revalidateTag(SITE_CONTENT_TAG, 'max')
+  return null
 }
 
 // ---------------------------------------------------------------------------
@@ -210,10 +231,11 @@ async function createTournamentFromDetails(
     return { ok: false, message: `Could not create the tournament: ${error.message}` }
   }
 
-  await mergeExtras(supabase, SETTINGS_EXTRAS_SLUG, 'Tournament settings extras', (blob) => ({
+  const mergeFailed = await mergeExtras(supabase, SETTINGS_EXTRAS_SLUG, 'Tournament settings extras', (blob) => ({
     ...blob,
     details: { registrationCloseConfirmed: details.registrationCloseConfirmed },
   }))
+  if (mergeFailed) return mergeFailed
 
   await writeAudit(
     supabase,
@@ -298,13 +320,14 @@ export async function saveTournamentDetailsAction(details: TournamentDetails): P
 
   if (error) return { ok: false, message: `Could not save: ${error.message}` }
 
-  await mergeExtras(supabase, SETTINGS_EXTRAS_SLUG, 'Tournament settings extras', (blob) => ({
+  const mergeFailed = await mergeExtras(supabase, SETTINGS_EXTRAS_SLUG, 'Tournament settings extras', (blob) => ({
     ...blob,
     details: {
       // Only the fields with no column of their own live on here now.
       registrationCloseConfirmed: details.registrationCloseConfirmed,
     },
   }))
+  if (mergeFailed) return mergeFailed
 
   await writeAudit(
     supabase,
@@ -384,10 +407,11 @@ async function saveDivisions(
     }
   }
 
-  await mergeExtras(supabase, SETTINGS_EXTRAS_SLUG, 'Tournament settings extras', (blob) => ({
+  const mergeFailed = await mergeExtras(supabase, SETTINGS_EXTRAS_SLUG, 'Tournament settings extras', (blob) => ({
     ...blob,
     divisions: Object.fromEntries(divisions.map((division) => [division.id, divisionExtras(division)])),
   }))
+  if (mergeFailed) return mergeFailed
 
   await writeAudit(supabase, user.id, buildAuditEntry(action, 'division', current.tournamentId, changes))
 
@@ -513,9 +537,10 @@ export async function savePrizesAction(prizes: PrizeSettings): Promise<ActionRes
   const supabase = await createClient()
   const user = await requireAdmin(SETTINGS_PATH)
 
-  await mergeExtras(supabase, PRIZES_SLUG, 'Prizes and loot bag configuration', () => ({
+  const mergeFailed = await mergeExtras(supabase, PRIZES_SLUG, 'Prizes and loot bag configuration', () => ({
     ...prizes,
   }))
+  if (mergeFailed) return mergeFailed
 
   // The config blob above stays unpublished (it carries internal notes), so
   // the landing page reads this narrower, display-safe row instead. Writing

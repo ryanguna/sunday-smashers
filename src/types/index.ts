@@ -33,6 +33,7 @@ import type {
   TournamentRow,
   UserRole,
 } from '@/lib/supabase/types'
+import { DECIDED_MATCH_STATUSES } from '@/lib/supabase/types'
 import type { PlayedMatch, StageRules, StandingRow } from '@/lib/draw'
 
 // ---------------------------------------------------------------------------
@@ -123,11 +124,25 @@ export function toPlayedMatch(row: MatchRow): PlayedMatch | null {
     pointsA: row.score_a,
     pointsB: row.score_b,
     forfeitedBy: row.forfeited_by_team_id ?? null,
+    // Required for a retirement: play stopped early, so the recorded score is
+    // short of `pointsToWin` and cannot decide the match on its own. Omitting
+    // this dropped every retirement from the public standings — and from the
+    // win count that picks the top four — while `dashboard.ts` counted them,
+    // so a player's own dashboard disagreed with the public table.
+    winner: row.winner_team_id ?? null,
   }
 }
 
+/**
+ * Derived from `DECIDED_MATCH_STATUSES` rather than restating the list.
+ *
+ * This function used to hold its own copy that omitted `'retired'`, so the
+ * public standings quietly disagreed with both the shared constant and the
+ * player dashboard. The constant is the single home for "has this match
+ * produced a result"; adding a status there now reaches every caller.
+ */
 function isDecided(status: MatchStatus): boolean {
-  return status === 'completed' || status === 'forfeited' || status === 'walkover'
+  return (DECIDED_MATCH_STATUSES as readonly MatchStatus[]).includes(status)
 }
 
 /** Builds the `StageRules` a division uses for its elims (round robin) stage. */

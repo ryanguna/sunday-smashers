@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import { computeStandings, matchWinner } from '@/lib/draw'
 import type { MatchRow } from '@/lib/supabase/types'
+import { DECIDED_MATCH_STATUSES, MATCH_STATUSES } from '@/lib/supabase/types'
+import { isMatchDecided } from '@/lib/public-data'
 import {
   divisionElimsRules,
   divisionFinalsRules,
@@ -72,6 +74,10 @@ describe('toPlayedMatch', () => {
       pointsA: 15,
       pointsB: 9,
       forfeitedBy: null,
+      // Carried through for every status, not just retirements: the recorded
+      // winner is what lets a match that stopped short of the target decide
+      // itself. For a completed match it simply agrees with the score.
+      winner: 'team-a',
     })
   })
 
@@ -96,6 +102,45 @@ describe('toPlayedMatch', () => {
   it('treats a walkover as decided', () => {
     const row = makeMatchRow({ status: 'walkover', winner_team_id: 'team-a' })
     expect(toPlayedMatch(row)).not.toBeNull()
+  })
+
+  it('treats a retirement as decided', () => {
+    // An injury retirement stops play early, so the score is short of the
+    // target. This used to be dropped: `isDecided` here held its own copy of
+    // the status list that omitted 'retired', while DECIDED_MATCH_STATUSES
+    // and the player dashboard both included it. The result was a win missing
+    // from the public standings — and therefore the wrong top four.
+    const row = makeMatchRow({ status: 'retired', score_a: 8, score_b: 11, winner_team_id: 'team-a' })
+    expect(toPlayedMatch(row)).not.toBeNull()
+  })
+
+  it('carries the recorded winner through, so a retirement can decide itself', () => {
+    // Without `winner`, a retirement scoring 8-11 looks unfinished to
+    // `matchWinner` and is skipped even once it survives the status check.
+    const row = makeMatchRow({ status: 'retired', score_a: 8, score_b: 11, winner_team_id: 'team-a' })
+    expect(toPlayedMatch(row)?.winner).toBe('team-a')
+  })
+
+  it('agrees with the shared decided-status list for every status', () => {
+    // The bug was two definitions of "decided" drifting apart. This pins them
+    // together: whatever the constant says, `toPlayedMatch` must honour.
+    for (const status of MATCH_STATUSES) {
+      const decided = (DECIDED_MATCH_STATUSES as readonly string[]).includes(status)
+      const row = makeMatchRow({ status, winner_team_id: 'team-a' })
+      expect(toPlayedMatch(row) !== null, `status '${status}' should be decided=${decided}`).toBe(decided)
+    }
+  })
+
+  it('is consistent with the public standings predicate', () => {
+    // `isMatchDecided` (public-data) was a third copy of the same list.
+    // `PublicMatchStatus` has no 'cancelled' — cancelled matches never reach
+    // the public pages — so it is the only status excluded here.
+    for (const status of MATCH_STATUSES) {
+      if (status === 'cancelled') continue
+      expect(isMatchDecided(status), `status '${status}'`).toBe(
+        (DECIDED_MATCH_STATUSES as readonly string[]).includes(status),
+      )
+    }
   })
 
   it('feeds real match rows through the draw engine end to end', () => {

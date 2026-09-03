@@ -37,7 +37,8 @@ psql < "$DIR/02_harness.sql"
 out=$(docker exec -i "$CT" psql -U postgres -d postgres -q < "$DIR/03_rls_attacks.sql" 2>&1
       docker exec -i "$CT" psql -U postgres -d postgres -q < "$DIR/04_rls_public.sql" 2>&1
       docker exec -i "$CT" psql -U postgres -d postgres -q < "$DIR/05_rls_golive.sql" 2>&1
-      docker exec -i "$CT" psql -U postgres -d postgres -q < "$DIR/06_rls_roles.sql" 2>&1)
+      docker exec -i "$CT" psql -U postgres -d postgres -q < "$DIR/06_rls_roles.sql" 2>&1
+      docker exec -i "$CT" psql -U postgres -d postgres -q < "$DIR/07_rls_payments.sql" 2>&1)
 echo "$out" | grep -vE '^\s*$' | sed 's/^NOTICE:  //'
 
 if echo "$out" | grep -q 'FAIL'; then

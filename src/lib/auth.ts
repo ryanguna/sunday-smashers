@@ -41,23 +41,42 @@ export async function getSession() {
   return session
 }
 
-/** Fetches the signed-in user's `profiles` row, or `null` if signed out / not found. */
+/**
+ * Fetches the signed-in user's `profiles` row, or `null` if signed out / not found.
+ *
+ * Throws when the read itself fails. "No row yet" (a new account that hasn't
+ * been through onboarding) and "the database didn't answer" are different
+ * facts, and `maybeSingle()` reports the first as `data: null, error: null`.
+ * Collapsing them would send a player with an existing profile back through
+ * onboarding on a transient blip.
+ */
 export async function getProfile(): Promise<ProfileRow | null> {
   if (!isSupabaseConfigured()) return null
   const supabase = await createClient()
   const user = await getCurrentUser()
   if (!user) return null
-  const { data } = await supabase.from('profiles').select('*').eq('id', user.id).maybeSingle()
+  const { data, error } = await supabase.from('profiles').select('*').eq('id', user.id).maybeSingle()
+  if (error) throw new Error(`Could not load your profile: ${error.message}`)
   return data
 }
 
-/** All roles granted to the signed-in user (empty array if signed out / demo mode). */
+/**
+ * All roles granted to the signed-in user (empty array if signed out / demo mode).
+ *
+ * Throws when the read fails, rather than returning `[]`. An empty array means
+ * "this user holds no roles", and every caller treats it as a denial — so a
+ * Supabase blip used to log an organiser out of their own console mid-event by
+ * bouncing them to `/403` with no way to tell it apart from a real denial.
+ * Throwing fails closed (the guard still refuses) but surfaces a retry instead
+ * of a lie.
+ */
 export async function getUserRoles(): Promise<UserRole[]> {
   if (!isSupabaseConfigured()) return []
   const supabase = await createClient()
   const user = await getCurrentUser()
   if (!user) return []
-  const { data } = await supabase.from('user_roles').select('role').eq('user_id', user.id)
+  const { data, error } = await supabase.from('user_roles').select('role').eq('user_id', user.id)
+  if (error) throw new Error(`Could not check your access: ${error.message}`)
   return ((data ?? []) as Pick<UserRoleRow, 'role'>[]).map((row) => row.role)
 }
 

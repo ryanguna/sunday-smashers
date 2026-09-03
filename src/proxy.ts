@@ -24,11 +24,17 @@ import { isSupabaseConfigured, supabaseAnonKey, supabaseUrl } from '@/lib/supaba
  *
  * `/setup` is deliberately absent: on day zero there is no admin to
  * authenticate as, so it has to stay reachable.
+ *
+ * `/onboarding` guards itself in a client `useEffect`, which means the page
+ * streams to a signed-out visitor before the redirect fires — a flash of the
+ * profile form and an extra round trip. Listing it here makes the redirect
+ * happen at the edge instead; the client check stays as the backstop.
  */
 const PROTECTED_PREFIXES = [
   '/account',
   '/admin',
   '/dashboard',
+  '/onboarding',
   '/scoresheets',
   '/scoring',
   '/tabulator',

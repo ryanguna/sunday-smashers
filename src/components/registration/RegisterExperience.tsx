@@ -117,6 +117,7 @@ export function RegisterExperience({ info, preview = null }: RegisterExperienceP
           if (division) params.set('division', division.name)
           if (result.invitedPartner) params.set('partner', 'invited')
           if (result.freeAgent) params.set('partner', 'solo')
+          if (result.partnerWarning) params.set('partnerWarning', result.partnerWarning)
           router.push(`/register/success?${params.toString()}`)
         }}
       />

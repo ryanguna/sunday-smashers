@@ -4,6 +4,7 @@ import { ConfirmationPanel } from '@/components/registration/ConfirmationPanel'
 import type { RegistrationStatus } from '@/lib/supabase/types'
 import { loadPublicTournamentConfig } from '@/lib/tournament-config'
 import { formatTournamentDayMonth } from '@/lib/tournament'
+import { describePartnerWarning } from '@/lib/registration'
 
 export const metadata: Metadata = {
   title: 'Registration received',
@@ -30,6 +31,9 @@ export default async function RegistrationSuccessPage({
   // Read for the waitlist advice, which names the week to watch out for.
   const { dates } = await loadPublicTournamentConfig()
   const partner = readString(params.partner)
+  // Resolved through a whitelist: the code arrives in the URL, so the copy
+  // must never be taken from it directly.
+  const partnerWarning = describePartnerWarning(readString(params.partnerWarning))
 
   return (
     <RegistrationShell
@@ -42,6 +46,7 @@ export default async function RegistrationSuccessPage({
         invitedPartner={partner === 'invited'}
         freeAgent={partner === 'solo'}
         tournamentDayMonth={formatTournamentDayMonth(dates.tournamentDate)}
+        partnerWarning={partnerWarning}
       />
     </RegistrationShell>
   )

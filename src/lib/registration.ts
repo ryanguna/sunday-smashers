@@ -372,6 +372,44 @@ const HANDLE_PATTERN = /^[a-z0-9][a-z0-9._-]{1,29}$/
  * optionally `@`-prefixed). Emails are lower-cased, handles stripped of the
  * leading `@` and lower-cased.
  */
+/**
+ * Why a partner invite did not go out, even though the entry itself saved.
+ *
+ * Codes, not sentences, because this travels through the URL to the
+ * confirmation screen. `describePartnerWarning` is the only place the copy
+ * lives, so an unrecognised value from a hand-edited link renders nothing.
+ */
+export type PartnerWarningCode = 'handle-not-found' | 'handle-ambiguous' | 'lookup-failed' | 'invite-failed'
+
+const PARTNER_WARNING_COPY: Record<PartnerWarningCode, string> = {
+  'handle-not-found':
+    'We saved your entry, but nobody is using that handle yet. Ask your partner to sign up, then send the invite again from your dashboard.',
+  'handle-ambiguous':
+    'We saved your entry, but more than one player uses that handle. Invite your partner by email instead so it reaches the right person.',
+  'lookup-failed':
+    'We saved your entry, but we couldn’t look your partner up just then. Send the invite again from your dashboard.',
+  'invite-failed':
+    'We saved your entry, but the partner invite didn’t send. Try again from your dashboard — your spot is safe either way.',
+}
+
+/** Returns the player-facing copy, or `null` for anything not on the whitelist. */
+export function describePartnerWarning(code: string | null | undefined): string | null {
+  if (!code) return null
+  return PARTNER_WARNING_COPY[code as PartnerWarningCode] ?? null
+}
+
+/**
+ * Escapes the SQL `LIKE` wildcards so a handle is matched literally.
+ *
+ * `HANDLE_PATTERN` allows `_`, which `LIKE`/`ILIKE` reads as "any single
+ * character" — without this, the handle `holly_smash` also matches
+ * `hollyxsmash`, which either invites the wrong player or trips the
+ * ambiguity check. `\` is escaped first so it cannot double-escape.
+ */
+export function escapeLikePattern(value: string): string {
+  return value.replace(/[\\%_]/g, (match) => `\\${match}`)
+}
+
 export function parsePartnerIdentifier(raw: string): PartnerIdentifier {
   const trimmed = (raw ?? '').trim()
   if (!trimmed) return { kind: 'empty' }

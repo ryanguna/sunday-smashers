@@ -182,9 +182,18 @@ export async function updatePaymentAction(input: PaymentUpdateInput): Promise<Ac
     recorded_by: actor?.id ?? null,
   }
 
+  // Upsert on the registration, not a bare insert. `uq_payments_registration`
+  // (migration 0013) allows one payment record per entry; without the
+  // `onConflict` the second admin to save would simply get a constraint
+  // error, and before that constraint existed they silently created a second
+  // row that double-counted the money in the reconciliation totals.
   const { data: saved, error } = input.paymentId
     ? await supabase.from('payments').update(payload).eq('id', input.paymentId).select('id').maybeSingle()
-    : await supabase.from('payments').insert(payload).select('id').maybeSingle()
+    : await supabase
+        .from('payments')
+        .upsert(payload, { onConflict: 'registration_id' })
+        .select('id')
+        .maybeSingle()
 
   if (error) return { ok: false, message: `Could not save the payment: ${error.message}` }
 

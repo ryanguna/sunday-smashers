@@ -19,6 +19,7 @@
  * only `id`, `full_name` and `nickname`. Never widen these selects.
  */
 
+import { DECIDED_MATCH_STATUSES } from '@/lib/supabase/types'
 import { isSupabaseConfigured } from '@/lib/supabase/config'
 import { createClient } from '@/lib/supabase/client'
 import type { BadgeStatus } from '@/components/ui'
@@ -849,12 +850,10 @@ export function statusLabel(status: PublicMatchStatus): string {
  * statuses, under-counting played matches and hiding scores that exist.
  */
 export function isMatchDecided(status: PublicMatchStatus): boolean {
-  return (
-    status === 'completed' ||
-    status === 'forfeited' ||
-    status === 'walkover' ||
-    status === 'retired'
-  )
+  // Derived from the shared constant rather than restating the list. Three
+  // separate copies of this predicate existed and one of them had drifted,
+  // dropping retirements from the public standings.
+  return (DECIDED_MATCH_STATUSES as readonly string[]).includes(status)
 }
 
 /**

@@ -19,6 +19,12 @@ export interface ConfirmationPanelProps {
    * "tournament day" rather than quoting a stale date.
    */
   tournamentDayMonth?: string
+  /**
+   * Player-facing copy explaining why the partner invite did not go out, when
+   * the entry itself saved. Already resolved from a whitelisted code by
+   * `describePartnerWarning`, so it is never raw text from the URL.
+   */
+  partnerWarning?: string | null
 }
 
 /**
@@ -35,6 +41,7 @@ export function ConfirmationPanel({
   invitedPartner = false,
   freeAgent = false,
   tournamentDayMonth = '',
+  partnerWarning = null,
 }: ConfirmationPanelProps) {
   const [celebrate, setCelebrate] = useState(false)
   const copy = confirmationCopy(status, tournamentDayMonth)
@@ -73,6 +80,21 @@ export function ConfirmationPanel({
           {freeAgent && <Badge status="info">Free-agent pool</Badge>}
         </div>
       </Card>
+
+      {partnerWarning && (
+        <Card variant="default" className="mt-5 border-2 border-[var(--color-brand-gold-dark)] bg-[var(--color-brand-gold-light)]/30">
+          <h3 className="flex items-center gap-2 text-lg font-bold text-[var(--color-plum)]">
+            <span aria-hidden="true">🎯</span>
+            Your partner hasn’t been invited yet
+          </h3>
+          <p className="mt-2 text-[var(--color-ink-soft)]">{partnerWarning}</p>
+          <div className="mt-4">
+            <Button href="/register/invites" variant="secondary">
+              Manage partner invites
+            </Button>
+          </div>
+        </Card>
+      )}
 
       <Card variant="default" className="mt-5">
         <h3 className="mb-3 flex items-center gap-2 text-xl font-bold text-[var(--color-plum)]">

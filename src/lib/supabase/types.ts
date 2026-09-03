@@ -24,17 +24,27 @@ export type PaymentStatus = 'unpaid' | 'partial' | 'paid'
 export type DivisionGender = 'mens' | 'womens' | 'mixed' | 'open'
 /** Mirrors `MatchStage` in src/lib/draw.ts exactly. */
 export type MatchStageEnum = 'elims' | 'semi' | 'third_place' | 'final'
-export type MatchStatus =
-  | 'scheduled'
-  | 'in_progress'
-  | 'completed'
+/**
+ * Every match status, as a runtime list so tests can iterate them exhaustively.
+ *
+ * `MatchStatus` is derived from this rather than the other way round: a status
+ * added to the union alone would be invisible to the exhaustiveness checks
+ * that keep `DECIDED_MATCH_STATUSES` and its callers honest.
+ */
+export const MATCH_STATUSES = [
+  'scheduled',
+  'in_progress',
+  'completed',
   /** Did not play: no-show, ineligible. Normalised to points_to_win-0. */
-  | 'forfeited'
+  'forfeited',
   /** Opponent withdrew before play started. Normalised to points_to_win-0. */
-  | 'walkover'
-  | 'cancelled'
+  'walkover',
+  'cancelled',
   /** Started and stopped mid-game (injury). Keeps the score actually played. */
-  | 'retired'
+  'retired',
+] as const
+
+export type MatchStatus = (typeof MATCH_STATUSES)[number]
 
 /**
  * Every `MatchStatus` that represents a played-out result, as opposed to a
