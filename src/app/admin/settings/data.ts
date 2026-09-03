@@ -229,6 +229,35 @@ export const loadSettingsPageData = cache(async function loadSettingsPageData():
   return { ...data, isDemo, error }
 })
 
+/**
+ * Builds the People & roles list from the two tables it spans.
+ *
+ * Extracted so the day-zero branch and the normal path cannot disagree about
+ * it. Neither table is tournament-scoped, so this is valid before a
+ * tournament exists.
+ */
+function toManagedUsers(
+  profileRows: ProfileRow[] | null,
+  roleRows: UserRoleRow[] | null,
+): ManagedUser[] {
+  const rolesByUser = new Map<string, AssignableRole[]>()
+  for (const row of roleRows ?? []) {
+    if (!isAssignableRole(row.role)) continue
+    const list = rolesByUser.get(row.user_id) ?? []
+    list.push(row.role)
+    rolesByUser.set(row.user_id, list)
+  }
+
+  return (profileRows ?? []).map((profile) => ({
+    id: profile.id,
+    fullName: profile.full_name,
+    nickname: profile.nickname,
+    // Email lives in `auth.users`, which the anon key cannot read.
+    email: null,
+    roles: rolesByUser.get(profile.id) ?? [],
+  }))
+}
+
 async function loadLive(): Promise<SettingsPageRows> {
   const supabase = await createClient()
   const {
@@ -244,18 +273,29 @@ async function loadLive(): Promise<SettingsPageRows> {
   ) as TournamentRow[]
 
   const tournament = tournamentRows[0] ?? null
+
+  // Accounts and roles are not tournament-scoped — `profiles` and `user_roles`
+  // carry no `tournament_id` — so they are loaded before the day-zero branch
+  // below. They used to sit in the batch *after* it, which meant People &
+  // roles reported "no users" until a tournament existed, at the exact moment
+  // an organiser needs it most: promoting a second admin is a prerequisite for
+  // the admin toggles, which refuse while you are the only one.
+  const [profilesRes, rolesRes] = await Promise.all([
+    supabase.from('profiles').select('*').order('full_name'),
+    supabase.from('user_roles').select('*'),
+  ])
+  const users = toManagedUsers(profilesRes.data as ProfileRow[] | null, rolesRes.data as UserRoleRow[] | null)
+
   // Day zero: no tournament row yet. Offer the built-in defaults to edit
   // rather than a demo committee the volunteer cannot save over.
-  if (!tournament) return { ...emptyRows(), currentUserId: user?.id ?? null }
+  if (!tournament) return { ...emptyRows(), users, currentUserId: user?.id ?? null }
 
-  const [divisionsRes, courtsRes, slotsRes, extrasRes, prizesRes, profilesRes, rolesRes] = await Promise.all([
+  const [divisionsRes, courtsRes, slotsRes, extrasRes, prizesRes] = await Promise.all([
     supabase.from('divisions').select('*').eq('tournament_id', tournament.id),
     supabase.from('courts').select('*').eq('tournament_id', tournament.id).order('sort_order'),
     supabase.from('time_slots').select('*').eq('tournament_id', tournament.id).order('starts_at'),
     supabase.from('site_content').select('*').eq('slug', SETTINGS_EXTRAS_SLUG).maybeSingle(),
     supabase.from('site_content').select('*').eq('slug', PRIZES_SLUG).maybeSingle(),
-    supabase.from('profiles').select('*').order('full_name'),
-    supabase.from('user_roles').select('*'),
   ])
 
   const fallback = defaultTournamentSettings()
@@ -271,16 +311,6 @@ async function loadLive(): Promise<SettingsPageRows> {
 
   const courtRows = (courtsRes.data as CourtRow[] | null) ?? []
   const slotRows = (slotsRes.data as TimeSlotRow[] | null) ?? []
-
-  const profiles = (profilesRes.data as ProfileRow[] | null) ?? []
-  const roleRows = (rolesRes.data as UserRoleRow[] | null) ?? []
-  const rolesByUser = new Map<string, AssignableRole[]>()
-  for (const row of roleRows) {
-    if (!isAssignableRole(row.role)) continue
-    const list = rolesByUser.get(row.user_id) ?? []
-    list.push(row.role)
-    rolesByUser.set(row.user_id, list)
-  }
 
   const divisionIds = divisionRows.map((row) => row.id)
   const drawState = divisionIds.length ? await loadDrawState(supabase, divisionIds) : EMPTY_DRAW_STATE
@@ -332,14 +362,7 @@ async function loadLive(): Promise<SettingsPageRows> {
         : fallback.timeSlots,
       prizes,
     },
-    users: profiles.map((profile) => ({
-      id: profile.id,
-      fullName: profile.full_name,
-      nickname: profile.nickname,
-      // Email lives in `auth.users`, which the anon key cannot read.
-      email: null,
-      roles: rolesByUser.get(profile.id) ?? [],
-    })),
+    users,
     drawState,
     entryCounts,
     tournamentId: tournament.id,
