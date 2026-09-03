@@ -19,11 +19,17 @@ repeats them:
 | | |
 | --- | --- |
 | Supabase project | `xkxsjafexqexnnkyujou` (region `ap-southeast-1`) |
-| Migrations | `0001`–`0012` applied; tracked in `supabase_migrations.schema_migrations` |
-| Security | 51/51 RLS attacks replayed **against this database** and rolled back |
+| Migrations | every file in `supabase/migrations/` applied; tracked in `supabase_migrations.schema_migrations` |
+| Security | the whole RLS attack suite replayed **against this database** and rolled back (`supabase/tests/run.sh`) |
 | Storage | all three buckets and ten policies created by migration 0001 |
 | Vercel | `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SITE_URL` and `NEXT_PUBLIC_SUPABASE_ANON_KEY` all set |
 | Site | https://sunday-smashers.vercel.app — **connected to the real database, no longer in demo mode** |
+
+> **Migrations added since that snapshot have not been pushed.** Compare
+> `supabase/migrations/` against `supabase_migrations.schema_migrations` and
+> run step 1 again if they differ. The app degrades quietly rather than
+> crashing when it is behind — an unapplied `division_occupancy` view simply
+> reports every division as empty — so nothing will tell you. Check.
 
 The bootstrap sequence in step 4 has also been rehearsed against this exact
 database and rolled back, so it is known to work rather than merely intended
@@ -64,7 +70,7 @@ From the repository root, with the Supabase CLI logged in and linked:
 ```bash
 supabase login            # only once per machine
 supabase link --project-ref <your-project-ref>
-supabase db push          # applies supabase/migrations/0001 … 0012
+supabase db push          # applies every file in supabase/migrations/
 ```
 
 **Do not run `supabase/seed.sql` against the real project.** It inserts 44
