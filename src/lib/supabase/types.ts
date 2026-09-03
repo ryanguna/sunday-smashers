@@ -396,6 +396,20 @@ export type PlayerDirectoryRow = {
   avatar_url: string | null
 }
 
+/**
+ * A division's cap and how much of it is taken (migration 0015).
+ *
+ * `registered_players` counts 'pending' and 'approved' entries only.
+ * Waitlisted rows are excluded on purpose: counting the queue against the cap
+ * would let the first waitlisted player permanently block the place they are
+ * queued for.
+ */
+export type DivisionOccupancyRow = {
+  division_id: string
+  max_teams: number | null
+  registered_players: number
+}
+
 export type ChecklistItemRow = {
   id: string
   tournament_id: string
@@ -582,6 +596,20 @@ export type Database = {
        */
       tournament_public: {
         Row: TournamentPublicRow
+        Relationships: []
+      }
+      /**
+       * Per-division entry counts (migration 0015). The registration form
+       * cannot count `registrations` itself — that table is owner-only under
+       * RLS — and counting `teams` instead reported every division as empty
+       * until partners started accepting invites.
+       *
+       * Aggregates only. Never add a column that identifies a player: this
+       * view is deliberately `security_invoker = off` so the public form can
+       * read it, the same trade as `player_directory`.
+       */
+      division_occupancy: {
+        Row: DivisionOccupancyRow
         Relationships: []
       }
     }

@@ -107,3 +107,57 @@ describe('the waitlist badge matches the admin queue', () => {
     expect(admin).toMatch(/waitlisted: 'info'/)
   })
 })
+
+/**
+ * Division capacity had the same shape of defect one layer down.
+ *
+ * `loadRegistrationBundle` measured occupancy from `teams`, but a team row
+ * only exists once a partner accepts an invite, so through the whole
+ * pre-registration period every division reported itself empty and
+ * `divisionFull` never became true. Even a correct count could not have
+ * settled two players submitting at once, so migration 0015 moved the cap
+ * into a trigger and published the count as `division_occupancy`.
+ */
+describe('the registration form counts entries, not confirmed pairs', () => {
+  const source = read('components', 'registration', 'data.ts')
+
+  it('reads the published occupancy view', () => {
+    expect(source).toContain("from('division_occupancy')")
+  })
+
+  it('no longer counts team rows to decide whether a division is full', () => {
+    // The old measure: `.from('teams').select('id', { count: 'exact' ... })`
+    // inside the division map.
+    expect(source).not.toMatch(/count: 'exact', head: true[\s\S]{0,80}PLAYERS_PER_TEAM/)
+  })
+})
+
+describe('the capacity trigger waitlists rather than refuses', () => {
+  const migration = readFileSync(
+    join(process.cwd(), 'supabase', 'migrations', '0015_division_capacity.sql'),
+    'utf8',
+  )
+
+  it('downgrades the over-cap entry instead of raising', () => {
+    expect(migration).toContain("new.status := 'waitlisted'")
+    expect(migration).not.toMatch(/raise exception/i)
+  })
+
+  it('serialises entries per division so the last place cannot be taken twice', () => {
+    expect(migration).toContain('pg_advisory_xact_lock')
+  })
+
+  it('exempts admins, who override caps deliberately', () => {
+    expect(migration).toMatch(/if public\.is_admin\(\) then\s+return new;/)
+  })
+
+  it('keeps the occupancy view free of anything identifying a player', () => {
+    const view = migration.slice(
+      migration.indexOf('create or replace view public.division_occupancy'),
+      migration.indexOf('comment on view'),
+    )
+    for (const column of ['player_id', 'full_name', 'nickname', 'phone', 'email']) {
+      expect(view).not.toContain(column)
+    }
+  })
+})

@@ -140,25 +140,27 @@ export async function loadRegistrationContext(): Promise<RegistrationContext> {
     .order('name', { ascending: true })
   const divisionRows = (divisionData ?? []) as DivisionRow[]
 
-  // Occupancy: `registrations` is owner-only under RLS, but `teams` is
-  // readable for published divisions — so confirmed pairs give us a
-  // conservative, always-readable measure of how full a division is.
-  const occupancy = await Promise.all(
-    divisionRows.map(async (division) => {
-      const { count } = await supabase
-        .from('teams')
-        .select('id', { count: 'exact', head: true })
-        .eq('division_id', division.id)
-      return (count ?? 0) * PLAYERS_PER_TEAM
-    })
+  // Occupancy: `registrations` is owner-only under RLS, so this used to count
+  // `teams` instead — but a team row only exists once a partner *accepts* an
+  // invite, so through pre-registration it is approximately zero and every
+  // division reads as empty. `division_occupancy` (migration 0015) publishes
+  // the entry count itself, aggregates only, readable by anyone.
+  const { data: occupancyRows } = await supabase
+    .from('division_occupancy')
+    .select('division_id, registered_players')
+  const occupancyByDivision = new Map(
+    ((occupancyRows ?? []) as { division_id: string; registered_players: number }[]).map((row) => [
+      row.division_id,
+      row.registered_players,
+    ]),
   )
 
-  const divisions: DivisionSummary[] = divisionRows.map((division, index) => ({
+  const divisions: DivisionSummary[] = divisionRows.map((division) => ({
     id: division.id,
     name: division.name,
     gender: division.gender,
     maxTeams: division.max_teams,
-    registeredPlayers: occupancy[index] ?? 0,
+    registeredPlayers: occupancyByDivision.get(division.id) ?? 0,
   }))
 
   if (!user) {
