@@ -687,7 +687,9 @@ export function confirmationCopy(
       message:
         'The division is full (or registration has closed), so we’ve saved your details at the top of the waitlist.',
       nextSteps: [
-        'We’ll email you the moment a spot opens up.',
+        // There is no mailer in this project, so the waitlist cannot be
+        // announced by email. The dashboard is the honest channel.
+        'Watch your dashboard — your status changes there the moment a spot opens.',
         `Keep your phone handy in the week before ${tournamentDayMonth || 'tournament day'}.`,
         'Your partner invite (if you sent one) still stands.',
       ],

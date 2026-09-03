@@ -607,7 +607,9 @@ export function registrationStatusView(status: RegistrationStatus | null): Statu
         tone: 'pending',
         label: 'Pending review',
         message: 'The committee has your entry and is checking it over.',
-        nudge: 'Nothing to do — we’ll email you the moment it’s approved.',
+        // No mailer exists, so nothing here may promise one. This page is
+        // where the answer appears.
+        nudge: 'Nothing to do — this card updates as soon as the committee decides.',
         href: '/register',
         actionLabel: 'Review your entry',
       }
@@ -616,7 +618,7 @@ export function registrationStatusView(status: RegistrationStatus | null): Statu
         tone: 'warn',
         label: 'Waitlisted',
         message: 'Your division filled up, so you’re first in line if a spot opens.',
-        nudge: 'Keep your Sunday free — waitlist spots often come good.',
+        nudge: 'Keep your Sunday free and check back here — waitlist spots often come good.',
         href: '/register',
         actionLabel: 'Check your entry',
       }
@@ -625,9 +627,13 @@ export function registrationStatusView(status: RegistrationStatus | null): Statu
         tone: 'danger',
         label: 'Not accepted',
         message: 'This entry wasn’t accepted. Have a chat with the organisers.',
-        nudge: 'Contact the committee or enter the other division.',
-        href: '/register',
-        actionLabel: 'Try again',
+        // "Try again" pointed at /register, where `unique (division_id,
+        // player_id)` refuses a second entry and the submit button is
+        // permanently disabled. Only the committee can reopen the existing
+        // row, so send the player to the people who can actually do it.
+        nudge: 'Only the committee can reopen this entry — a fresh one for the same division is refused.',
+        href: '/#contact',
+        actionLabel: 'Contact the committee',
       }
     default:
       return {

@@ -403,6 +403,16 @@ describe('confirmationCopy', () => {
     expect(pending.eyebrow).toMatch(/Ho ho ho/)
     expect(pending.nextSteps.some((step) => step.includes('committee'))).toBe(true)
   })
+
+  it('promises no email it cannot send', () => {
+    // There is no mailer in this project, so a player told "we'll email you"
+    // waits for a message that never arrives and misses their spot.
+    for (const status of ['pending', 'waitlisted'] as const) {
+      const copy = confirmationCopy(status)
+      const text = [copy.eyebrow, copy.title, copy.message, ...copy.nextSteps].join(' ')
+      expect(text).not.toMatch(/email/i)
+    }
+  })
 })
 
 describe('the organiser switch overrides the calendar (audit B4)', () => {

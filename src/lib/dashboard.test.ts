@@ -647,11 +647,28 @@ describe('registration and payment status', () => {
     expect(view.nudge).toBeNull()
   })
 
-  it('nudges every other state towards /register', () => {
-    for (const status of ['pending', 'waitlisted', 'rejected', null] as const) {
+  it('nudges the states a player can still act on towards /register', () => {
+    for (const status of ['pending', 'waitlisted', null] as const) {
       const view = registrationStatusView(status)
       expect(view.href).toBe('/register')
       expect(view.nudge).not.toBeNull()
+    }
+  })
+
+  it('sends a rejected player to the committee, not back to a form that refuses them', () => {
+    // `unique (division_id, player_id)` blocks a second entry, so the old
+    // "Try again" button led to a permanently disabled submit.
+    const view = registrationStatusView('rejected')
+    expect(view.href).not.toBe('/register')
+    expect(view.href).toBe('/#contact')
+    expect(view.actionLabel).toBe('Contact the committee')
+  })
+
+  it('promises no email it cannot send', () => {
+    // There is no mailer in this project.
+    for (const status of ['pending', 'waitlisted', 'rejected', 'approved', null] as const) {
+      const view = registrationStatusView(status)
+      expect(`${view.message} ${view.nudge ?? ''}`).not.toMatch(/email/i)
     }
   })
 

@@ -478,7 +478,10 @@ export default async function HomePage() {
         </div>
 
         {(tournament.contactName || tournament.contactPhone || tournament.contactEmail) && (
-          <p className="mt-6 text-center text-sm text-[var(--color-ink-muted)]">
+          <p
+            id="contact"
+            className="mt-6 scroll-mt-24 text-center text-sm text-[var(--color-ink-muted)]"
+          >
             Questions? Ask{' '}
             <span className="font-semibold text-[var(--color-plum)]">
               {tournament.contactName ?? 'the committee'}
