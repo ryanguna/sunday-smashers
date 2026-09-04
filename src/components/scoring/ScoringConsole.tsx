@@ -1,6 +1,6 @@
 'use client'
 
-import { useMemo, useReducer, useRef, useState, useSyncExternalStore } from 'react'
+import { useEffect, useMemo, useReducer, useRef, useState, useSyncExternalStore } from 'react'
 
 import { Badge, Button, Confetti } from '@/components/ui'
 import { TrophyIcon } from '@/components/icons'
@@ -28,6 +28,7 @@ import {
   type ScoringState,
   scoringReducer,
   sideName,
+  unsentRallies,
 } from '@/lib/scoring'
 
 import { EndMatchDialog } from './EndMatchDialog'
@@ -168,6 +169,35 @@ export function ScoringConsole({
       inFlight.current = false
     }
   }
+
+  /**
+   * Send whatever this phone is holding as soon as the browser reconnects.
+   *
+   * `push` gives up when `navigator.onLine` is false, which is correct — there
+   * is no point burning a request — but nothing then retried. The points sat
+   * in localStorage until the umpire happened to tap another one, while the
+   * banner told them the score "will send itself when the wifi returns". In a
+   * gym with patchy wifi the last point of a game is exactly the one nobody
+   * taps past, so the scoreboard could stay wrong until someone noticed.
+   *
+   * Refs, not deps: the listener is registered once, and must always see the
+   * newest state rather than the render it was created in.
+   */
+  const latest = useRef({ state, tracker, push })
+  useEffect(() => {
+    latest.current = { state, tracker, push }
+  })
+
+  useEffect(() => {
+    if (demo) return
+    function flush() {
+      const { state: current, tracker: seen, push: send } = latest.current
+      if (unsentRallies(seen) === 0) return
+      void send(current)
+    }
+    window.addEventListener('online', flush)
+    return () => window.removeEventListener('online', flush)
+  }, [demo])
 
   /**
    * One entry point for every change: reduce, persist, then push. The reducer

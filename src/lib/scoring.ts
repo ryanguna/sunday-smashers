@@ -1121,9 +1121,21 @@ export interface SyncBannerView {
   retryable: boolean
 }
 
+/**
+ * Rallies recorded on this phone that the server has not acknowledged.
+ *
+ * Exported because the reconnect flush in `ScoringConsole` and the banner
+ * below must agree on what "behind" means: the banner tells the umpire the
+ * points "will send themselves when the wifi returns", and the flush is what
+ * keeps that promise.
+ */
+export function unsentRallies(tracker: SyncTracker): number {
+  return Math.max(0, tracker.localRallies - tracker.syncedRallies)
+}
+
 /** What the umpire sees about the connection. Never silent about a failure. */
 export function describeSync(tracker: SyncTracker): SyncBannerView {
-  const behind = Math.max(0, tracker.localRallies - tracker.syncedRallies)
+  const behind = unsentRallies(tracker)
   const points = `${behind} point${behind === 1 ? '' : 's'}`
 
   switch (tracker.status) {
