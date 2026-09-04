@@ -83,3 +83,24 @@ describe('the duty roster is never more than one slide away', () => {
     expect(slidesBlock()).toContain('announcements.length > 0')
   })
 })
+
+/**
+ * The court grid is built from the published schedule, so from the moment the
+ * monitor is switched on until the draw goes out there are no courts to show.
+ * A bare header over an empty grid, with "Select a court" beneath it pointing
+ * at nothing, reads as a broken screen to a hall full of people.
+ */
+describe('the court overview says what it is waiting for', () => {
+  const source = readFileSync(path.resolve(__dirname, 'page.tsx'), 'utf8')
+
+  it('renders an empty state instead of an empty grid', () => {
+    expect(source).toContain('courts.length === 0')
+  })
+
+  it('does not invite a tap on courts that are not there', () => {
+    const prompt = source.indexOf('Select a court')
+    const guard = source.indexOf('courts.length === 0')
+    expect(guard).toBeGreaterThan(-1)
+    expect(prompt, 'the "Select a court" hint escaped the populated branch').toBeGreaterThan(guard)
+  })
+})

@@ -61,15 +61,35 @@ export default async function TvOverviewPage() {
           </div>
         </header>
 
-        <div className="relative grid grid-cols-1 gap-[2vw] sm:grid-cols-2 xl:grid-cols-3">
-          {courts.map((court) => (
-            <CourtTile key={court.court} initial={court} />
-          ))}
-        </div>
+        {courts.length === 0 ? (
+          /*
+           * Courts come from the published schedule, so this screen is blank
+           * from the moment it is switched on until the draw goes out. It is
+           * hanging in a hall in front of people, so it says what it is
+           * waiting for rather than showing an empty grid.
+           */
+          <div className="relative flex min-h-[40vh] flex-col items-center justify-center rounded-[2vw] border border-frost/15 bg-white/5 px-[4vw] py-[6vh] text-center">
+            <p className="text-[3vw] leading-tight font-black text-frost sm:text-[2.4vw]">
+              The shuttles are still warming up
+            </p>
+            <p className="mt-[2vh] max-w-[46ch] text-[1.4vw] text-frost/75 sm:text-[1.1vw]">
+              Court scoreboards appear here as soon as the match schedule is
+              published. Until then, enjoy the tinsel.
+            </p>
+          </div>
+        ) : (
+          <>
+            <div className="relative grid grid-cols-1 gap-[2vw] sm:grid-cols-2 xl:grid-cols-3">
+              {courts.map((court) => (
+                <CourtTile key={court.court} initial={court} />
+              ))}
+            </div>
 
-        <p className="relative mt-[3vh] text-center text-sm text-frost/75">
-          Select a court to open its full-screen scoreboard for the monitor.
-        </p>
+            <p className="relative mt-[3vh] text-center text-sm text-frost/75">
+              Select a court to open its full-screen scoreboard for the monitor.
+            </p>
+          </>
+        )}
       </main>
     </PageGate>
   )
