@@ -38,6 +38,8 @@ interface Scenario {
 
 let scenario: Scenario
 const updates: { guard: string | null }[] = []
+/** Every write, in the order the action issued it: `"table.op"`. */
+const writes: string[] = []
 
 /**
  * A chainable stand-in for the PostgREST builder. Each call records itself and
@@ -69,6 +71,7 @@ function resolve(
   filters: Record<string, unknown>,
   single: boolean,
 ) {
+  if (op !== 'select') writes.push(`${table}.${op}`)
   if (table === 'matches' && op === 'update') {
     const guard = (filters.updated_at as string | undefined) ?? null
     updates.push({ guard })
@@ -78,7 +81,7 @@ function resolve(
     return { data: [{ id: 'match-1', updated_at: NEXT_REVISION }], error: null }
   }
   if (table === 'matches' && op === 'select') {
-    const row = scenario.readable ? { id: 'match-1' } : null
+    const row = scenario.readable ? { id: 'match-1', updated_at: scenario.revision } : null
     return single ? { data: row, error: null } : { data: row ? [row] : [], error: null }
   }
   if (table === 'score_events' && op === 'select') {
@@ -96,7 +99,10 @@ const fake = {
       update: () => builder(table, 'update'),
       select: () => builder(table, 'select'),
       delete: () => builder(table, 'delete'),
-      insert: async () => ({ data: [], error: null }),
+      insert: async () => {
+        writes.push(`${table}.insert`)
+        return { data: [], error: null }
+      },
     }
   },
 }
@@ -132,6 +138,7 @@ async function save(knownRevision: string | null) {
 describe('saveScore guards against two officials scoring one match', () => {
   beforeEach(() => {
     updates.length = 0
+    writes.length = 0
     scenario = { revision: REVISION, lastAuthor: ME, readable: true }
   })
 
@@ -184,5 +191,65 @@ describe('saveScore guards against two officials scoring one match', () => {
     expect(result.ok).toBe(false)
     expect(result.conflict).toBeUndefined()
     expect(result.message).toMatch(/duty roster/i)
+  })
+
+  it('leaves the rally log alone when the save is refused as a conflict', async () => {
+    scenario.revision = NEXT_REVISION
+    scenario.lastAuthor = OTHER
+
+    const result = await save(REVISION)
+    expect(result.conflict).toBe(true)
+    expect(
+      writes.filter((w) => w.startsWith('score_events')),
+      'a losing save wiped the other official’s rally log on its way out',
+    ).toEqual([])
+  })
+})
+
+/**
+ * Both `score_events` policies require the parent match to be `in_progress`,
+ * but `matchScorePatch()` flips `matches.status` to `completed` on the rally
+ * that decides the match. Writing the match row first therefore had RLS refuse
+ * the rally log for the winning point of every single match — silently, since
+ * the delete had already gone through. The `matches` row kept the right score
+ * so standings survived, but the point-by-point log was permanently short and
+ * the console threw at match point.
+ */
+describe('saveScore writes the rally log before the match row', () => {
+  beforeEach(() => {
+    updates.length = 0
+    writes.length = 0
+    scenario = { revision: REVISION, lastAuthor: ME, readable: true }
+  })
+
+  it('replaces score_events before updating matches', async () => {
+    const result = await save(REVISION)
+    expect(result.ok).toBe(true)
+
+    const events = writes.indexOf('score_events.insert')
+    const match = writes.indexOf('matches.update')
+    expect(writes).toContain('score_events.delete')
+    expect(events, 'no rally log was written at all').toBeGreaterThanOrEqual(0)
+    expect(
+      events,
+      'the match row was written first, so RLS refuses the rally log once the match completes',
+    ).toBeLessThan(match)
+    expect(writes.indexOf('score_events.delete')).toBeLessThan(match)
+  })
+
+  it('does the same on the rally that completes the match', async () => {
+    const { saveScore } = await import('./actions')
+    const decider = payload(REVISION)
+    // 15 straight points to side A: the last one completes the match, which is
+    // exactly the write the old ordering lost.
+    decider.snapshot.rallies = Array.from({ length: 15 }, (_, i) => ({
+      seq: i + 1,
+      side: 'a' as const,
+      at: i + 1,
+    }))
+
+    const result = await saveScore(decider)
+    expect(result.ok).toBe(true)
+    expect(writes.indexOf('score_events.insert')).toBeLessThan(writes.indexOf('matches.update'))
   })
 })

@@ -33,6 +33,16 @@ import { DivisionPicker } from './DivisionPicker'
 import { WizardGarland } from './WizardGarland'
 import { submitRegistration, type RegistrationContext, type SubmitRegistrationResult } from './data'
 
+/**
+ * The radio in each option card is `sr-only`, so the global `:focus-visible`
+ * outline lands on a clipped 1×1 box and a keyboard or switch user sees no
+ * focus indicator at all on the two busiest steps of registration. `peer` on
+ * the input plus this on the label moves the ring onto the card people can
+ * actually see. WCAG 2.4.7.
+ */
+const FOCUS_RING =
+  ' peer-focus-visible:outline-3 peer-focus-visible:outline-offset-2 peer-focus-visible:outline-[var(--color-brand-lilac-dark)]'
+
 export interface RegistrationWizardProps {
   context: RegistrationContext
   window: RegistrationWindow
@@ -360,7 +370,8 @@ function StepFields({
               <label
                 key={option.mode}
                 className={cn(
-                  'hover-lift flex cursor-pointer flex-col gap-1 rounded-[var(--radius-lg)] border-2 bg-white p-4 shadow-[var(--shadow-soft)] transition',
+                  'hover-lift flex cursor-pointer flex-col gap-1 rounded-[var(--radius-lg)] border-2 bg-white p-4 shadow-[var(--shadow-soft)] transition' +
+                    FOCUS_RING,
                   selected
                     ? 'border-[var(--color-brand-mint-dark)] shadow-[var(--shadow-glow-mint)]'
                     : 'border-[var(--color-brand-lilac-light)]'
@@ -369,7 +380,7 @@ function StepFields({
                 <input
                   type="radio"
                   name="partner-mode"
-                  className="sr-only"
+                  className="peer sr-only"
                   value={option.mode}
                   checked={selected}
                   onChange={() => update('partnerMode', option.mode)}
@@ -417,7 +428,8 @@ function StepFields({
               <label
                 key={level.value}
                 className={cn(
-                  'flex cursor-pointer items-center gap-3 rounded-[var(--radius-lg)] border-2 bg-white p-3.5 shadow-[var(--shadow-soft)] transition',
+                  'flex cursor-pointer items-center gap-3 rounded-[var(--radius-lg)] border-2 bg-white p-3.5 shadow-[var(--shadow-soft)] transition' +
+                    FOCUS_RING,
                   selected
                     ? 'border-[var(--color-brand-mint-dark)] shadow-[var(--shadow-glow-mint)]'
                     : 'border-[var(--color-brand-lilac-light)]'
@@ -426,7 +438,7 @@ function StepFields({
                 <input
                   type="radio"
                   name="skill-level"
-                  className="sr-only"
+                  className="peer sr-only"
                   value={level.value}
                   checked={selected}
                   onChange={() => update('skillLevel', level.value)}
@@ -476,6 +488,7 @@ function StepFields({
             label="Emergency contact name"
             required
             autoFocus
+            autoComplete="name"
             value={values.emergencyContactName}
             onChange={(event) => update('emergencyContactName', event.target.value)}
             error={errors.emergencyContactName}
@@ -485,6 +498,7 @@ function StepFields({
             label="Emergency contact phone"
             type="tel"
             required
+            autoComplete="tel"
             value={values.emergencyContactPhone}
             onChange={(event) => update('emergencyContactPhone', event.target.value)}
             error={errors.emergencyContactPhone}

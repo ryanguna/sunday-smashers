@@ -47,9 +47,38 @@ export function LiveScores({ initial, divisionNames }: LiveScoresProps) {
 
   const isLive = status === 'live'
 
+  /**
+   * Screen-reader announcement for the live board.
+   *
+   * Scores arrive over Realtime and re-render the cards silently, so a
+   * screen-reader user had no way of knowing a point had been scored or that
+   * the connection had dropped — `/tv` and the scoring console both announce
+   * their changes, this page did not. One terse summary line beats making
+   * every card a live region, which would read the whole board out on every
+   * point.
+   */
+  const announcement = useMemo(
+    () =>
+      matches
+        .map((m) => {
+          const where = m.court ?? divisionNames[m.division] ?? m.division
+          const a = m.teamA?.name ?? m.sourceA ?? 'TBC'
+          const b = m.teamB?.name ?? m.sourceB ?? 'TBC'
+          return `${where}: ${a} ${m.scoreA}, ${b} ${m.scoreB}.`
+        })
+        .join(' '),
+    [matches, divisionNames],
+  )
+
   return (
     <div className="flex flex-col gap-6">
-      <div className="flex items-center justify-center gap-2 text-xs font-semibold text-[var(--color-ink-muted)]">
+      <p aria-live="polite" aria-atomic="true" className="sr-only">
+        {matches.length === 0 ? 'No matches are live right now.' : announcement}
+      </p>
+      <div
+        role="status"
+        className="flex items-center justify-center gap-2 text-xs font-semibold text-[var(--color-ink-muted)]"
+      >
         <span
           className={
             isLive

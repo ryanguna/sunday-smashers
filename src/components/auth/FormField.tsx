@@ -2,7 +2,7 @@ import type { InputHTMLAttributes, LabelHTMLAttributes, ReactNode, SelectHTMLAtt
 import { cn } from '@/lib/cn'
 
 const fieldBaseClasses =
-  'w-full rounded-[var(--radius-md)] border border-[var(--color-brand-lilac-light)] bg-white px-4 py-2.5 text-[var(--color-plum)] placeholder:text-[var(--color-ink-soft)]/60 shadow-[var(--shadow-soft)] transition focus:border-[var(--color-brand-pink)] focus:outline-none focus:ring-2 focus:ring-[var(--color-brand-pink-light)] disabled:cursor-not-allowed disabled:opacity-60'
+  'w-full rounded-[var(--radius-md)] border border-[var(--color-brand-lilac-light)] bg-white px-4 py-2.5 text-[var(--color-plum)] placeholder:text-[var(--color-ink-muted)] shadow-[var(--shadow-soft)] transition focus:border-[var(--color-brand-pink)] focus:outline-none focus:ring-2 focus:ring-[var(--color-brand-pink-light)] disabled:cursor-not-allowed disabled:opacity-60'
 
 export interface FieldWrapperProps {
   label: string

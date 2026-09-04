@@ -152,10 +152,35 @@ describe('formats the database cannot store are refused before the save', () => 
     }
   })
 
+  /**
+   * `generateKnockout()` will happily build a bracket for 6 or 8: M1 seeds
+   * rank 1 against the lowest qualifier and M2 seeds rank 2 against the next
+   * one up. There is no quarter-final round, so with 6 qualifiers ranks 3 and
+   * 4 qualify and then never play a single match. That used to be a *warning*,
+   * which an admin could save straight past and only discover on match day.
+   */
+  it.each([6, 8])('refuses %i qualifiers, which the bracket cannot seat', (places) => {
+    const rules = defaultRulesConfig()
+    rules.qualifyingPlaces = places
+    const issues = validateRules('r', rules).filter((i) => i.path === 'r.qualifyingPlaces')
+    expect(issues.map((i) => i.severity)).toContain('error')
+  })
+
+  it.each([3, 5, 7, 9, 12])('refuses %i qualifiers', (places) => {
+    const rules = defaultRulesConfig()
+    rules.qualifyingPlaces = places
+    const issues = validateRules('r', rules).filter(
+      (i) => i.path === 'r.qualifyingPlaces' && i.severity === 'error',
+    )
+    expect(issues.length).toBeGreaterThan(0)
+  })
+
   it('does not offer an unstorable value in the rules editor', () => {
     const source = readFileSync('src/components/settings/RulesEditor.tsx', 'utf8')
     const field = source.slice(source.indexOf('Pairs advancing to the knockout'))
     expect(field).toMatch(/min=\{2\}/)
+    // 6 and 8 seat only four pairs, so the editor must not offer them.
+    expect(field).toMatch(/max=\{4\}/)
     expect(field).not.toMatch(/0 for no knockout/)
   })
 })

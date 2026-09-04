@@ -54,7 +54,7 @@ export default async function TvOverviewPage() {
               >
                 Sunday Smashers · Courtside TV
               </h1>
-              <p className="text-frost/60">
+              <p className="text-frost/75">
                 Christmas Mini Tournament · {formatTournamentDateLabel(dates.tournamentDate)}
               </p>
             </div>
@@ -67,7 +67,7 @@ export default async function TvOverviewPage() {
           ))}
         </div>
 
-        <p className="relative mt-[3vh] text-center text-sm text-frost/50">
+        <p className="relative mt-[3vh] text-center text-sm text-frost/75">
           Select a court to open its full-screen scoreboard for the monitor.
         </p>
       </main>

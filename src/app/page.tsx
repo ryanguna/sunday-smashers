@@ -320,9 +320,14 @@ export default async function HomePage() {
           ))}
         </div>
 
+        {/* `overflow-hidden` used to clip this table instead of scrolling it: on
+            a 320px phone the four columns squeeze to a couple of characters each
+            and anything wider than the box simply disappeared. The mobile e2e
+            guard only asserts the *document* does not scroll sideways, so the
+            clipping passed CI while hiding the prize money. */}
         {prizeBoard && prizeBoard.divisionPrizes.length > 0 && (
-          <div className="mt-8 overflow-hidden rounded-[var(--radius-lg)] border border-[var(--color-line)] bg-white/70">
-            <table className="w-full border-collapse text-left text-sm">
+          <div className="mt-8 min-w-0 overflow-x-auto rounded-[var(--radius-lg)] border border-[var(--color-line)] bg-white/70">
+            <table className="w-full min-w-[30rem] border-collapse text-left text-sm">
               <caption className="sr-only">Prize money by division and placing</caption>
               <thead>
                 <tr className="bg-[var(--color-brand-gold-light)]/40">

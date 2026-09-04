@@ -308,6 +308,10 @@ export async function submitRegistration(input: SubmitRegistrationInput): Promis
 
   if (registrationError) {
     const duplicate = registrationError.code === '23505'
+    // 23514 is `enforce_registration_window` (migration 0016) refusing an entry
+    // outside the window. Its messages are written for players, so pass them
+    // through rather than burying them under a generic prefix.
+    const outsideWindow = registrationError.code === '23514'
     return {
       ok: false,
       status,
@@ -316,7 +320,9 @@ export async function submitRegistration(input: SubmitRegistrationInput): Promis
       freeAgent: false,
       error: duplicate
         ? 'You’re already on the list for this division — one entry per player, even at Christmas 🎄'
-        : `We couldn’t save your registration: ${registrationError.message}`,
+        : outsideWindow
+          ? registrationError.message
+          : `We couldn’t save your registration: ${registrationError.message}`,
     }
   }
 

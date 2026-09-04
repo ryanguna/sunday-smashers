@@ -184,7 +184,10 @@ export async function saveDutyRosterAction(
   }
 
   // Re-run the invariant server-side: a stale tab must never be able to
-  // roster someone onto a match they are playing in.
+  // roster someone onto a match they are playing in, or onto two courts at
+  // once. `duties` carries the whole proposed roster so the second seat is
+  // caught against the first.
+  const proposed = input.rows.map((r) => ({ matchId: r.match_id, playerId: r.player_id }))
   for (const row of input.rows) {
     const verdict = canAssignOfficial({
       matchId: row.match_id,
@@ -194,6 +197,7 @@ export async function saveDutyRosterAction(
       courts: context.courts,
       slots: context.slots,
       teams: context.teams,
+      duties: proposed,
     })
     if (!verdict.allowed) {
       return { ok: false, message: `Blocked: ${verdict.reason}` }

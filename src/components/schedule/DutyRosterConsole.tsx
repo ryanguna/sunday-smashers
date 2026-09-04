@@ -120,6 +120,10 @@ export function DutyRosterConsole({
       courts,
       slots,
       teams,
+      // The roster as it currently stands, so seating someone who is already
+      // officiating another court in this slot is refused here rather than
+      // only by the server action on save.
+      duties: rows.map((r) => ({ matchId: r.match_id, playerId: r.player_id })),
     })
     if (!verdict.allowed) {
       setBlocked(verdict.reason)

@@ -617,6 +617,58 @@ describe('canAssignOfficial', () => {
   it('refuses an unknown match', () => {
     expect(canAssignOfficial({ ...base, matchId: 'nope', playerId: 't3-p1' }).allowed).toBe(false)
   })
+
+  /**
+   * `buildDutyRoster()` has always tracked who is already officiating in a
+   * slot and refused to seat them twice. The manual editor did not: it only
+   * knew about *playing* clashes, so the same volunteer could be made umpire
+   * on Court 1 and line judge on Court 2 in the same slot and the roster
+   * saved without complaint.
+   */
+  it('hard-blocks a player already officiating another court in the same slot', () => {
+    const rows = [
+      match('m1', 't1', 't2', { round: 1 }),
+      match('m2', 't3', 't4', { round: 1 }),
+    ]
+    const placements: PlacementMap = {
+      m1: { courtId: 'court-1', slotId: 'slot-1' },
+      m2: { courtId: 'court-2', slotId: 'slot-1' },
+    }
+    const args = {
+      matches: rows,
+      placements,
+      courts: courts(2),
+      slots: slots(2),
+      teams: teams(4),
+      // 't5-p1' plays in neither match, so the only thing that can stop them
+      // is the seat they already hold on m2.
+      duties: [{ matchId: 'm2', playerId: 't5-p1' }],
+    }
+
+    const verdict = canAssignOfficial({ ...args, matchId: 'm1', playerId: 't5-p1' })
+    expect(verdict.allowed, 'the same volunteer was seated on two courts at once').toBe(false)
+    expect(verdict.reason).toMatch(/already officiating/i)
+  })
+
+  it('does not count the seat a player already holds on this very match', () => {
+    const verdict = canAssignOfficial({
+      ...base,
+      matchId: 'm1',
+      playerId: 't3-p1',
+      duties: [{ matchId: 'm1', playerId: 't3-p1' }],
+    })
+    expect(verdict.allowed).toBe(true)
+  })
+
+  it('still allows a free player when a roster is supplied', () => {
+    const verdict = canAssignOfficial({
+      ...base,
+      matchId: 'm1',
+      playerId: 't3-p1',
+      duties: [{ matchId: 'm2', playerId: 't4-p1' }],
+    })
+    expect(verdict.allowed).toBe(true)
+  })
 })
 
 describe('eligibleOfficials', () => {

@@ -60,6 +60,11 @@
      six `-light` tints — `-muted` is the tight one at 4.66:1, which is why it
      is darker than a naive step down the ramp would give. */
   --color-ink: #2e2a57;
+  /* Hairline rules and input borders. Four components referenced
+     `--color-line` before it existed; an undefined custom property is
+     invalid-at-computed-value-time, so `border-color` fell all the way back to
+     `currentColor` and painted heavy navy rules on the pastel landing page. */
+  --color-line: #e3d9f7;
   --color-ink-soft: #494475;
   --color-ink-muted: #5f5a8d;
   --color-plum: #241f45;

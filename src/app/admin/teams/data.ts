@@ -1,6 +1,7 @@
 import { cache } from 'react'
 
-import { DEFAULT_ENTRY_FEE_CENTS, derivePaymentStatus, type AdminDivision } from '@/lib/admin'
+import { derivePaymentStatus, type AdminDivision } from '@/lib/admin'
+import { loadEntryFeeResolver } from '@/lib/entry-fee'
 import { createClient } from '@/lib/supabase/server'
 import type {
   DivisionRow,
@@ -77,6 +78,8 @@ async function loadLive(): Promise<TeamsAdminRows> {
     supabase.from('payments').select('*'),
   ])
 
+  const entryFee = await loadEntryFeeResolver(supabase)
+
   const divisionList = rowsOrThrow(divisionResult) as DivisionRow[]
   const registrations = rowsOrThrow(registrationResult) as RegistrationRow[]
   const profiles = rowsOrThrow(profileResult) as ProfileRow[]
@@ -103,7 +106,7 @@ async function loadLive(): Promise<TeamsAdminRows> {
   for (const row of registrations) {
     const profile = profileById.get(row.player_id)
     const payment = paymentByRegistration.get(row.id)
-    const amountCents = payment?.amount_cents ?? DEFAULT_ENTRY_FEE_CENTS
+    const amountCents = payment?.amount_cents ?? entryFee(row.division_id)
     const amountPaidCents = payment?.amount_paid_cents ?? 0
     playerToTeamPlayer.set(row.player_id, {
       registrationId: row.id,

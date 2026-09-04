@@ -282,7 +282,7 @@ export function RulesEditor({
                   label="Pairs advancing to the knockout"
                   type="number"
                   min={2}
-                  max={8}
+                  max={4}
                   step={2}
                   value={division.rules.qualifyingPlaces}
                   onChange={(event) =>

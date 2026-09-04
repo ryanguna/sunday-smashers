@@ -1,5 +1,7 @@
 import type { Metadata } from 'next'
 
+import { requireAdmin } from '@/lib/auth'
+
 import {
   AdminDataErrorBanner,
   AdminDemoBanner,
@@ -16,12 +18,22 @@ export const metadata: Metadata = {
 }
 
 /**
+ * Signed-in-only, so it must never be prerendered: the guard would run once
+ * at build time with no session and the result served to everyone.
+ */
+export const dynamic = 'force-dynamic'
+
+/**
  * The pairing bench. Solo registrations land in the free-agent pool and can
  * never reach the draw until an admin puts them in a team — this page is that
  * step, plus seeding and the validation that stops a broken pair reaching the
  * court.
  */
 export default async function AdminTeamsPage() {
+  // Belt and braces with `admin/layout.tsx`. This page renders admin-only
+  // PII, so it does not rely on a parent layout alone for its guard.
+  await requireAdmin('/admin/teams')
+
   const { divisions, teams, freeAgents, isDemo, error } = await getTeamsAdminData()
 
   return (

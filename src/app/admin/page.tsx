@@ -1,4 +1,6 @@
 import type { Metadata } from 'next'
+
+import { requireAdmin } from '@/lib/auth'
 import Link from 'next/link'
 import { Badge, Card } from '@/components/ui'
 import {
@@ -38,6 +40,12 @@ export const metadata: Metadata = {
   robots: { index: false, follow: false },
 }
 
+/**
+ * Signed-in-only, so it must never be prerendered: the guard would run once
+ * at build time with no session and the result served to everyone.
+ */
+export const dynamic = 'force-dynamic'
+
 const CAPACITY_COPY: Record<CapacityState, { label: string; className: string }> = {
   open: {
     label: 'Plenty of room',
@@ -56,6 +64,10 @@ const CAPACITY_COPY: Record<CapacityState, { label: string; className: string }>
 }
 
 export default async function AdminDashboardPage() {
+  // Belt and braces with `admin/layout.tsx`. This page renders admin-only
+  // PII, so it does not rely on a parent layout alone for its guard.
+  await requireAdmin('/admin')
+
   const { divisions, registrations, pendingInvites, isDemo, error } = await getAdminConsoleData()
   const dateLabel = formatTournamentDateLabel((await loadPublicTournamentConfig()).dates.tournamentDate)
 

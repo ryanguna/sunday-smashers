@@ -43,7 +43,10 @@ import {
  */
 
 /** `site_content.slug` used as a JSON settings blob. */
-export const SETTINGS_EXTRAS_SLUG = 'settings-extras'
+// Re-exported so the slug has one home: `@/lib/entry-fee` also reads this
+// blob to answer "what does an entry cost?" outside the settings form.
+import { SETTINGS_EXTRAS_SLUG } from '@/lib/entry-fee'
+export { SETTINGS_EXTRAS_SLUG }
 export const PRIZES_SLUG = 'prize-config'
 
 interface SettingsPageRows {

@@ -799,7 +799,8 @@ export interface DutyEligibility {
 
 /**
  * The hard rule: **nobody officiates a match they are playing in**, and
- * nobody officiates while they are on court somewhere else in that same slot.
+ * nobody officiates while they are on court — or already holding another duty
+ * seat — somewhere else in that same slot.
  * Clearing a seat (empty `playerId`) is always allowed.
  */
 export function canAssignOfficial(input: {
@@ -810,8 +811,16 @@ export function canAssignOfficial(input: {
   courts: readonly ScheduleCourt[]
   slots: readonly ScheduleSlot[]
   teams: readonly ScheduleTeam[]
+  /**
+   * Seats already taken on the roster being built. Without this the check knew
+   * only about *playing* clashes, so the same volunteer could be seated as
+   * umpire on court 1 and line judge on court 2 in the same slot — two places
+   * at once, which `buildDutyRoster()` in `schedule.ts` has always refused to
+   * generate but the manual editor happily saved.
+   */
+  duties?: readonly { matchId: string; playerId: string }[]
 }): DutyEligibility {
-  const { matchId, playerId, matches, placements, courts, slots, teams } = input
+  const { matchId, playerId, matches, placements, courts, slots, teams, duties } = input
   if (!playerId) return { allowed: true, reason: 'Leaves this seat open for a volunteer.' }
 
   const target = matches.find((m) => m.id === matchId)
@@ -836,14 +845,23 @@ export function canAssignOfficial(input: {
   }
 
   const courtById = new Map(courts.map((c) => [c.id, c]))
+  const dutyMatchIds = new Set(
+    (duties ?? []).filter((d) => d.playerId === playerId && d.matchId !== matchId).map((d) => d.matchId),
+  )
   for (const other of matches) {
     if (other.id === matchId) continue
     const otherPlacement = placements[other.id]
     if (!otherPlacement) continue
     if (slotById.get(otherPlacement.slotId)?.index !== slotIndex) continue
+    const courtName = courtById.get(otherPlacement.courtId)?.name ?? 'another court'
+    if (dutyMatchIds.has(other.id)) {
+      return {
+        allowed: false,
+        reason: `They are already officiating on ${courtName} in this same slot — one seat each, please. 🏸`,
+      }
+    }
     if (!team) continue
     if (other.teamAId === team.id || other.teamBId === team.id) {
-      const courtName = courtById.get(otherPlacement.courtId)?.name ?? 'another court'
       return {
         allowed: false,
         reason: `They are on ${courtName} at the same time — one shuttlecock each, please. 🏸`,

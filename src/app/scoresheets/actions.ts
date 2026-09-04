@@ -263,6 +263,28 @@ async function isMatchComplete(supabase: ServerClient, matchId: string): Promise
 }
 
 /**
+ * The `scoresheets` columns this action owns, derived from a sheet state.
+ * Signatures live in their own table and are deliberately absent.
+ */
+function sheetRow(matchId: string, state: SheetState) {
+  return {
+    match_id: matchId,
+    status: state.status,
+    dispute_reason: state.disputeReason,
+    submitted_by: state.submittedBy,
+    submitted_at: state.submittedAt ? new Date(state.submittedAt).toISOString() : null,
+    verified_by: state.verifiedBy,
+    verified_at: state.verifiedAt ? new Date(state.verifiedAt).toISOString() : null,
+  }
+}
+
+type SheetRow = ReturnType<typeof sheetRow>
+
+function rowChanged(before: SheetRow, after: SheetRow): boolean {
+  return (Object.keys(after) as (keyof SheetRow)[]).some((key) => before[key] !== after[key])
+}
+
+/**
  * Writes the new state. Returns an error message, or `null` on success.
  *
  * Every write here asks for the affected rows back and checks that some came
@@ -280,26 +302,36 @@ async function persist(
   command: ScoresheetCommand,
   actor: Actor,
 ): Promise<string | null> {
-  const patch = {
-    match_id: matchId,
-    status: state.status,
-    dispute_reason: state.disputeReason,
-    submitted_by: state.submittedBy,
-    submitted_at: state.submittedAt ? new Date(state.submittedAt).toISOString() : null,
-    verified_by: state.verifiedBy,
-    verified_at: state.verifiedAt ? new Date(state.verifiedAt).toISOString() : null,
-  }
+  const patch = sheetRow(matchId, state)
 
   let id = sheetId
-  if (id) {
-    const { data, error } = await supabase.from('scoresheets').update(patch).eq('id', id).select('id')
-    if (error) return friendlyError(error.message)
-    if (!data || data.length === 0) return REFUSED_UPDATE
-  } else {
-    const { data, error } = await supabase.from('scoresheets').insert(patch).select('id')
+  if (!id) {
+    // Create the row in `draft` and let the update below carry it to wherever
+    // the command actually landed. The INSERT policy only lets a duty official
+    // create a sheet with `status = 'draft'` (migration 0009, H6 — so nobody
+    // can file a sheet pre-marked 'verified'), but the very first command is
+    // always `open`, which leaves the state at 'awaiting_signature'. Inserting
+    // `state.status` directly therefore had RLS refuse the first write for
+    // every match unless an admin made it.
+    const { data, error } = await supabase
+      .from('scoresheets')
+      .insert({ match_id: matchId, status: 'draft' as ScoresheetStatus })
+      .select('id')
     if (error) return friendlyError(error.message)
     if (!data || data.length === 0) return REFUSED_UPDATE
     id = data[0].id
+  }
+
+  // Only touch `scoresheets` when a column actually changes. `sign` and
+  // `withdraw_signature` write nothing here — they only add or remove a
+  // signature row — and the players doing the signing are never the duty
+  // officials for their own match (the officials come from the *next* match on
+  // that court), so the UPDATE policy refuses them. Firing a no-op UPDATE and
+  // treating "0 rows" as fatal meant no sheet could ever reach two signatures.
+  if (rowChanged(sheetRow(matchId, previous), patch)) {
+    const { data, error } = await supabase.from('scoresheets').update(patch).eq('id', id).select('id')
+    if (error) return friendlyError(error.message)
+    if (!data || data.length === 0) return REFUSED_UPDATE
   }
 
   if (command.kind === 'sign') {

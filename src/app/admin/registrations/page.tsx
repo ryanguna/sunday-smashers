@@ -1,4 +1,6 @@
 import type { Metadata } from 'next'
+
+import { requireAdmin } from '@/lib/auth'
 import {
   AdminDataErrorBanner,
   AdminDemoBanner,
@@ -15,6 +17,12 @@ export const metadata: Metadata = {
   robots: { index: false, follow: false },
 }
 
+/**
+ * Signed-in-only, so it must never be prerendered: the guard would run once
+ * at build time with no session and the result served to everyone.
+ */
+export const dynamic = 'force-dynamic'
+
 function isStatus(value: string | undefined): value is RegistrationStatus {
   return !!value && (REGISTRATION_STATUSES as readonly string[]).includes(value)
 }
@@ -28,6 +36,10 @@ export default async function AdminRegistrationsPage({
 }: {
   searchParams: Promise<Record<string, string | string[] | undefined>>
 }) {
+  // Belt and braces with `admin/layout.tsx`. This page renders admin-only
+  // PII, so it does not rely on a parent layout alone for its guard.
+  await requireAdmin('/admin/registrations')
+
   const params = await searchParams
   const { divisions, registrations, isDemo, error } = await getAdminConsoleData()
 

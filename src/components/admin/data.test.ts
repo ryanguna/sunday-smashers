@@ -18,6 +18,10 @@ function fakeClient(result: QueryResult) {
     eq: () => query,
     order: () => query,
     limit: () => query,
+    // `loadEntryFeeResolver` reads the tournament fee and the settings extras
+    // blob as single rows; without this the fee lookup threw and the whole
+    // page reported "we couldn't reach the database".
+    maybeSingle: () => Promise.resolve({ data: null, error: null }),
     then: (resolve: (value: QueryResult) => unknown) => Promise.resolve(resolve(result)),
   }
   return { from: () => query }

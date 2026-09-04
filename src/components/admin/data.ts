@@ -11,13 +11,13 @@ import type {
   TeamRow,
 } from '@/lib/supabase/types'
 import {
-  DEFAULT_ENTRY_FEE_CENTS,
   derivePaymentStatus,
   type AdminDivision,
   type AdminPartnerInvite,
   type AdminRegistration,
   type PaymentMethod,
 } from '@/lib/admin'
+import { loadEntryFeeResolver } from '@/lib/entry-fee'
 import { loadLiveOrDemo, rowsOrThrow } from '@/lib/demo-mode'
 import { DEMO_ADMIN_DIVISIONS, DEMO_ADMIN_INVITES, DEMO_ADMIN_REGISTRATIONS } from './demo'
 
@@ -101,6 +101,8 @@ async function loadLive(): Promise<AdminConsoleRows> {
     supabase.from('partner_invites').select('*').eq('status', 'pending'),
   ])
 
+  const entryFee = await loadEntryFeeResolver(supabase)
+
   const divisions = rowsOrThrow(divisionResult) as DivisionRow[]
   const registrations = rowsOrThrow(registrationResult) as RegistrationRow[]
   const profiles = rowsOrThrow(profileResult) as ProfileRow[]
@@ -131,7 +133,7 @@ async function loadLive(): Promise<AdminConsoleRows> {
       ? (playersByTeam.get(teamId) ?? []).find((id) => id !== row.player_id)
       : undefined
     const payment = paymentByRegistration.get(row.id)
-    const amountCents = payment?.amount_cents ?? DEFAULT_ENTRY_FEE_CENTS
+    const amountCents = payment?.amount_cents ?? entryFee(row.division_id)
     const amountPaidCents = payment?.amount_paid_cents ?? 0
 
     return {

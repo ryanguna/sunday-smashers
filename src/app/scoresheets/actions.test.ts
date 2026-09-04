@@ -313,11 +313,79 @@ describe('withdrawSignature — a withdrawn signature actually disappears', () =
 
   it('reports a scoresheet update the database refused', async () => {
     await openForSignature()
+    await signSheet({ matchId: MATCH, side: 'a', playerId: 'a1', playerName: 'Ay One' })
+    currentUser = { id: 'b1', email: 'b1@example.com' }
+    await signSheet({ matchId: MATCH, side: 'b', playerId: 'b1', playerName: 'Bee One' })
+
+    // `submit` genuinely moves the sheet's status, so it is a real UPDATE.
     db.deny = { scoresheets: (_row, op) => op === 'update' }
 
-    const result = await signSheet({ matchId: MATCH, side: 'a', playerId: 'a1', playerName: 'Ay One' })
+    const result = await submitSheet(MATCH)
     expect(result.ok).toBe(false)
     expect(result.message).toContain('refused that change')
+  })
+})
+
+describe('persist — writes only what RLS actually permits', () => {
+  /**
+   * The sheet is created by a duty official, but the INSERT policy
+   * (`scoresheets_insert_duty_or_admin`, migration 0009) only lets them create
+   * it with `status = 'draft'`. The first-ever command is `open`, which lands
+   * on 'awaiting_signature' — so inserting the post-command status meant the
+   * first write for every match was refused, and nothing could be signed.
+   */
+  it('creates the row as a draft, then moves it forward', async () => {
+    const inserted: Row[] = []
+    const real = db.from.bind(db)
+    vi.spyOn(db, 'from').mockImplementation((table: string) => {
+      const query = real(table)
+      if (table !== 'scoresheets') return query
+      const insert = query.insert.bind(query)
+      query.insert = (payload: Row) => {
+        inserted.push(payload)
+        return insert(payload)
+      }
+      return query
+    })
+
+    const result = await openSheet(MATCH)
+    vi.mocked(db.from).mockRestore()
+
+    expect(result).toMatchObject({ ok: true, status: 'awaiting_signature' })
+    expect(inserted).toHaveLength(1)
+    expect(inserted[0].status).toBe('draft')
+    expect(db.rows('scoresheets')[0].status).toBe('awaiting_signature')
+  })
+
+  /**
+   * Signing changes no `scoresheets` column — it only adds a signature row.
+   * The UPDATE policy allows admins, tabulators and the match's duty officials,
+   * and by design the officials come from the *next* match on that court, so a
+   * signing player is never one. Firing a no-op UPDATE anyway and treating its
+   * zero rows as fatal meant no sheet could ever collect two signatures, and
+   * nothing ever reached the tabulator.
+   */
+  it('does not update the sheet row when a player signs', async () => {
+    await openForSignature()
+    db.deny = { scoresheets: (_row, op) => op === 'update' }
+
+    const first = await signSheet({ matchId: MATCH, side: 'a', playerId: 'a1', playerName: 'Ay One' })
+    expect(first).toMatchObject({ ok: true })
+
+    currentUser = { id: 'b1', email: 'b1@example.com' }
+    const second = await signSheet({ matchId: MATCH, side: 'b', playerId: 'b1', playerName: 'Bee One' })
+    expect(second).toMatchObject({ ok: true })
+
+    expect(signatures()).toHaveLength(2)
+  })
+
+  it('does not update the sheet row when a signature is taken back', async () => {
+    await openForSignature()
+    await signSheet({ matchId: MATCH, side: 'a', playerId: 'a1', playerName: 'Ay One' })
+    db.deny = { scoresheets: (_row, op) => op === 'update' }
+
+    const result = await withdrawSignature(MATCH, 'a')
+    expect(result).toMatchObject({ ok: true })
     expect(signatures()).toHaveLength(0)
   })
 })

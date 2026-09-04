@@ -685,17 +685,17 @@ export function validateRules(path: string, rules: RulesConfig): SettingsIssue[]
         'Every division needs a knockout — use 2 for a straight final, or 4 for semis.',
       ),
     )
-  } else if (places === 3) {
+  } else if (places !== 2 && places !== 4) {
+    // `generateKnockout()` (src/lib/draw.ts) builds exactly one final for 2
+    // qualifiers and exactly four fixtures — two semis, a 3rd-place playoff and
+    // the championship — for 4. It has no quarter-final round, so anything
+    // between 5 and 8 qualifiers silently seeded ranks 5-8 into a bracket that
+    // was never built for them: they qualified and then never played. This was
+    // only a warning, which let an admin save it and find out on match day.
     issues.push(
-      err(`${path}.qualifyingPlaces`, 'A knockout needs 2 or an even number of qualifiers — 4 is the draft rule.'),
-    )
-  } else if (places > 8) {
-    issues.push(err(`${path}.qualifyingPlaces`, 'The bracket engine supports at most 8 qualifiers.'))
-  } else if (places > 4) {
-    issues.push(
-      warn(
+      err(
         `${path}.qualifyingPlaces`,
-        'More than 4 qualifiers needs extra knockout rounds the draw engine does not build yet.',
+        'The draw engine builds a straight final (2 qualifiers) or semis plus a 3rd-place playoff (4). Pick 2 or 4.',
       ),
     )
   }

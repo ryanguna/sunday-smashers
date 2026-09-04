@@ -124,7 +124,7 @@ export function Modal({ open, onClose, title, description, children, className }
             type="button"
             onClick={onClose}
             aria-label="Close dialog"
-            className="rounded-full p-1.5 text-[var(--color-ink-muted)] hover:bg-[var(--color-brand-lilac-light)]/50 hover:text-[var(--color-plum)]"
+            className="flex min-h-11 min-w-11 items-center justify-center rounded-full text-[var(--color-ink-muted)] hover:bg-[var(--color-brand-lilac-light)]/50 hover:text-[var(--color-plum)]"
           >
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true">
               <path
