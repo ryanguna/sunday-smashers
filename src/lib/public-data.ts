@@ -119,6 +119,15 @@ export interface PublicMatch {
   court: string | null
   slotIndex: number | null
   slotLabel: string | null
+  /**
+   * The slot's real `starts_at`, when the match is scheduled against one.
+   *
+   * `slotIndex`/`slotLabel` describe *where* in the order a match sits, not
+   * when it begins. Without this, `matchStartIso` had to reconstruct the time
+   * from a 15-minute-slots-from-9am assumption, so moving the first slot or
+   * changing its length quoted every player the wrong time.
+   */
+  slotStartsAt: string | null
   teamA: PublicTeam | null
   teamB: PublicTeam | null
   /** Human placeholder source when a knockout team isn't decided yet, e.g. "Winner of M1". */
@@ -197,6 +206,9 @@ function demoMatchToPublic(match: DemoMatch, teamsById: Map<TeamId, PublicTeam>)
     court: match.court,
     slotIndex: match.slotIndex,
     slotLabel: match.slotLabel,
+    // Demo fixtures have no time_slots rows, so the slotIndex heuristic in
+    // `matchStartIso` stays the fallback for them.
+    slotStartsAt: null,
     teamA: match.teamA ? (teamsById.get(match.teamA) ?? null) : null,
     teamB: match.teamB ? (teamsById.get(match.teamB) ?? null) : null,
     sourceA: match.sourceA,
@@ -512,6 +524,7 @@ function matchRowToPublic(
     court: m.court_id ? (courtNameById.get(m.court_id) ?? null) : null,
     slotIndex: null,
     slotLabel: slot?.label ?? (slot ? new Date(slot.starts_at).toLocaleTimeString() : null),
+    slotStartsAt: slot?.starts_at ?? null,
     teamA: m.team_a_id ? (teamsById.get(m.team_a_id) ?? null) : null,
     teamB: m.team_b_id ? (teamsById.get(m.team_b_id) ?? null) : null,
     sourceA: null,

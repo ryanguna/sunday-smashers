@@ -891,6 +891,7 @@ describe('officiating assignments', () => {
       court: 'Court 5',
       slotIndex: 1,
       slotLabel: '9:15am',
+      slotStartsAt: null,
       teamA,
       teamB,
       sourceA: null,

@@ -79,6 +79,7 @@ function match(partial: Partial<PublicMatch> & { id: string; slotIndex: number }
     stage: 'elims',
     court: 'Court 4',
     slotLabel: slotLabel(partial.slotIndex),
+    slotStartsAt: null,
     teamA: null,
     teamB: null,
     sourceA: null,
@@ -509,16 +510,32 @@ describe('time helpers', () => {
 
   it('turns a slot index into a real moment on tournament day', () => {
     const base = new Date(TOURNAMENT_DATE).getTime()
-    expect(matchStartIso({ slotIndex: 0, slotLabel: '9:00am' })).toBe(new Date(base).toISOString())
-    expect(matchStartIso({ slotIndex: 4, slotLabel: '10:00am' })).toBe(new Date(base + 60 * 60_000).toISOString())
+    expect(matchStartIso({ slotIndex: 0, slotLabel: '9:00am', slotStartsAt: null })).toBe(new Date(base).toISOString())
+    expect(matchStartIso({ slotIndex: 4, slotLabel: '10:00am', slotStartsAt: null })).toBe(new Date(base + 60 * 60_000).toISOString())
   })
 
-  it('falls back to the slot label when there is no index', () => {
+  it('prefers the schedule\'s real slot time over the 15-minute guess', () => {
+    // An organiser who starts at 8:00am with 30-minute slots: the third slot
+    // really begins at 9:00am, while slotIndex 2 read as 15-minute steps from
+    // 9:00am says 9:30am. The player must be told the time on the schedule.
+    const realStart = '2026-12-13T09:00:00.000Z'
+    expect(
+      matchStartIso({ slotIndex: 2, slotLabel: '9:30am', slotStartsAt: realStart }),
+    ).toBe(realStart)
+  })
+
+  it('ignores an unparseable slot time rather than reporting an invalid date', () => {
     const base = new Date(TOURNAMENT_DATE).getTime()
-    expect(matchStartIso({ slotIndex: null, slotLabel: '2:15pm' })).toBe(
+    expect(
+      matchStartIso({ slotIndex: 4, slotLabel: null, slotStartsAt: 'not a date' }),
+    ).toBe(new Date(base + 60 * 60_000).toISOString())
+  })
+
+  it('falls back to the slot label when there is no index', () => {    const base = new Date(TOURNAMENT_DATE).getTime()
+    expect(matchStartIso({ slotIndex: null, slotLabel: '2:15pm', slotStartsAt: null })).toBe(
       new Date(base + 5.25 * 60 * 60_000).toISOString(),
     )
-    expect(matchStartIso({ slotIndex: null, slotLabel: null })).toBeNull()
+    expect(matchStartIso({ slotIndex: null, slotLabel: null, slotStartsAt: null })).toBeNull()
   })
 
   it('formats countdowns at every scale', () => {
@@ -540,10 +557,10 @@ describe('time helpers', () => {
 
   it('builds a countdown for a fixture', () => {
     const now = new Date(TOURNAMENT_DATE).getTime()
-    const view = fixtureCountdown({ slotIndex: 4, slotLabel: '10:00am' }, now)
+    const view = fixtureCountdown({ slotIndex: 4, slotLabel: '10:00am', slotStartsAt: null }, now)
     expect(view?.msUntil).toBe(3600_000)
     expect(view?.text).toBe('1h 0m')
-    expect(fixtureCountdown({ slotIndex: null, slotLabel: null }, now)).toBeNull()
+    expect(fixtureCountdown({ slotIndex: null, slotLabel: null, slotStartsAt: null }, now)).toBeNull()
   })
 })
 
@@ -751,7 +768,7 @@ describe('rewindSchedule / demoClock', () => {
 
   it('produces a clock that sits inside the cursor slot', () => {
     const now = demoClock(2)
-    const start = new Date(matchStartIso({ slotIndex: 2, slotLabel: null })!).getTime()
+    const start = new Date(matchStartIso({ slotIndex: 2, slotLabel: null, slotStartsAt: null })!).getTime()
     expect(now - start).toBe(8 * 60_000)
   })
 })

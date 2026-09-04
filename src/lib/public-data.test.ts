@@ -66,6 +66,7 @@ function makeMatch(overrides: Partial<PublicMatch>): PublicMatch {
     court: 'Court 1',
     slotIndex: 0,
     slotLabel: '9:00am',
+    slotStartsAt: null,
     teamA,
     teamB,
     sourceA: null,

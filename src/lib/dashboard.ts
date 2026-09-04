@@ -348,14 +348,24 @@ export function parseSlotLabel(label: string | null): number | null {
 }
 
 /**
- * Resolves a match's start moment on tournament day. Slot indexes are
- * 15-minute steps from 9:00am; where only a label is known ("2:15pm") it is
- * converted to the same offset, so both data sources land on one timeline.
+ * Resolves a match's start moment on tournament day.
+ *
+ * `slotStartsAt` is the real `time_slots.starts_at` and is used whenever the
+ * match is scheduled against a slot. The two branches below are fallbacks for
+ * data that has no slot row — demo fixtures, and matches carrying only a label.
+ * They assume 15-minute slots from 9:00am, which is a guess: it was once the
+ * only path, so changing the slot length or the first slot in
+ * `/admin/schedule` quoted every player a time the schedule disagreed with.
  */
 export function matchStartIso(
-  match: Pick<PublicMatch, 'slotIndex' | 'slotLabel'>,
+  match: Pick<PublicMatch, 'slotIndex' | 'slotLabel' | 'slotStartsAt'>,
   tournamentDateIso: string = TOURNAMENT_DATE,
 ): string | null {
+  if (match.slotStartsAt) {
+    const real = new Date(match.slotStartsAt)
+    if (!Number.isNaN(real.getTime())) return real.toISOString()
+  }
+
   const base = new Date(tournamentDateIso)
   if (Number.isNaN(base.getTime())) return null
 
@@ -406,7 +416,7 @@ export function formatCountdown(msUntil: number): CountdownView {
 
 /** Countdown to a fixture, resolved against tournament day. */
 export function fixtureCountdown(
-  match: Pick<PublicMatch, 'slotIndex' | 'slotLabel'>,
+  match: Pick<PublicMatch, 'slotIndex' | 'slotLabel' | 'slotStartsAt'>,
   now: number,
   tournamentDateIso: string = TOURNAMENT_DATE,
 ): (CountdownView & { targetIso: string }) | null {

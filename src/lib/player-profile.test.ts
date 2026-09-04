@@ -46,6 +46,7 @@ function match(overrides: Partial<PublicMatch> & Pick<PublicMatch, 'id'>): Publi
     court: 'Court 1',
     slotIndex: 0,
     slotLabel: '9:00am',
+    slotStartsAt: null,
     teamA: tinsel,
     teamB: sleigh,
     sourceA: null,
