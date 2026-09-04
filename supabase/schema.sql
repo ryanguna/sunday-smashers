@@ -276,7 +276,10 @@ create table if not exists public.tournaments (
   venue_address text,
   status public.tournament_status not null default 'draft',
   is_published boolean not null default false,
-  is_registration_open boolean not null default false,
+  -- Nullable on purpose: null means "follow the dates above", which is the
+  -- default answer. true forces the sheet open, false forces it shut. See
+  -- migration 0018.
+  is_registration_open boolean default null,
   description text,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),

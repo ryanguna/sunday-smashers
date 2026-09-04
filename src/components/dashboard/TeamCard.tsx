@@ -11,7 +11,7 @@ export interface TeamCardProps {
   className?: string
 }
 
-/** Your pair: partner, team name, division and seed — or a warm free-agent note. */
+/** Your pair: partner, team name, division and seed — or a note that the committee is still pairing. */
 export function TeamCard({ team, division, partnerNames, className }: TeamCardProps) {
   return (
     <Card variant="frosted" className={cn('h-full', className)}>
@@ -61,18 +61,21 @@ export function TeamCard({ team, division, partnerNames, className }: TeamCardPr
         ) : (
           <>
             <p className="font-[family-name:var(--font-heading)] text-xl font-extrabold text-[var(--color-brand-lilac-dark)]">
-              You&rsquo;re a free agent 🎁
+              Waiting on your pair 🎁
             </p>
             <p className="flex items-start gap-2 text-sm text-[var(--color-ink-soft)]">
               <SnowflakeIcon size={16} className="mt-0.5 shrink-0 text-[var(--color-brand-sky-dark)]" />
-              No partner on file yet — and that&rsquo;s completely fine. Plenty of smashers arrive solo and the
-              committee happily matches free agents into a pair before the draw.
+              No partner on file yet — and that&rsquo;s completely fine. The committee pairs every player once
+              entries close, and yours will appear here the moment they do.
             </p>
+            {/* Not a link to /register: the wizard stopped asking about
+                partners, and sending an already-registered player back
+                through it is the dead end they'd click expecting a fix. */}
             <Link
-              href="/register"
+              href="/players"
               className="mt-auto text-sm font-extrabold text-[var(--color-brand-pink-dark)] inline-flex min-h-[24px] items-center underline-offset-4 hover:underline"
             >
-              Add a partner or join the free-agent list →
+              See who else is playing →
             </Link>
           </>
         )}

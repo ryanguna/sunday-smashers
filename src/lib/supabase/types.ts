@@ -131,7 +131,8 @@ export type TournamentRow = {
   venue_address: string | null
   status: TournamentStatus
   is_published: boolean
-  is_registration_open: boolean
+  /** `null` means "follow the registration dates" — see migration 0018. */
+  is_registration_open: boolean | null
   description: string | null
   /** Entry fee per player, in cents (migration 0010). Single source of truth. */
   entry_fee_cents: number | null

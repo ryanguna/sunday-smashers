@@ -860,7 +860,7 @@ describe('summariseStage', () => {
 describe('live status (going live)', () => {
   const status = (over: Partial<LiveStatus> = {}): LiveStatus => ({
     isPublished: false,
-    isRegistrationOpen: false,
+    isRegistrationOpen: null,
     ...over,
   })
 
@@ -881,10 +881,37 @@ describe('live status (going live)', () => {
 
   it('describes what each state actually means for a player', () => {
     expect(describeLiveStatus(status())).toContain('Not published')
-    expect(describeLiveStatus(status({ isPublished: true }))).toContain('follows the calendar')
     expect(describeLiveStatus(status({ isPublished: true, isRegistrationOpen: true }))).toContain(
       'regardless of the calendar',
     )
+  })
+
+  // The three answers must read as three answers. The switch used to be a
+  // boolean, and `false` was described to the committee as "registration
+  // follows the calendar dates below" while `getRegistrationWindow` treated it
+  // as "keep it shut" -- so the opening date could pass with the sheet closed
+  // and the console still insisting the date was in charge.
+  it('never tells the committee the dates are in charge when they are overridden', () => {
+    const deferring = describeLiveStatus(status({ isPublished: true, isRegistrationOpen: null }))
+    expect(deferring).toContain('dates below')
+
+    const shut = describeLiveStatus(status({ isPublished: true, isRegistrationOpen: false }))
+    expect(shut).toContain('ignored')
+    expect(shut).not.toBe(deferring)
+  })
+
+  it('lets the organiser hold the sheet shut without that being an error', () => {
+    expect(validateLiveStatus(status({ isPublished: true, isRegistrationOpen: false }))).toEqual([])
+    expect(validateLiveStatus(status({ isRegistrationOpen: false }))).toEqual([])
+  })
+
+  it('distinguishes deferring from forcing in the change log', () => {
+    const changes = diffLiveStatus(
+      status({ isPublished: true, isRegistrationOpen: null }),
+      status({ isPublished: true, isRegistrationOpen: false }),
+    )
+    expect(changes).toHaveLength(1)
+    expect(changes[0]).toMatchObject({ before: 'following the dates', after: 'held shut' })
   })
 
   it('reports only the switches that actually moved', () => {

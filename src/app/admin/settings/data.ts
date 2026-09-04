@@ -142,7 +142,7 @@ function demoRows(): SettingsPageRows {
     entryCounts,
     tournamentId: null,
     currentUserId: 'demo-user-1',
-    liveStatus: { isPublished: false, isRegistrationOpen: false },
+    liveStatus: { isPublished: false, isRegistrationOpen: null },
   }
 }
 
@@ -158,7 +158,7 @@ function emptyRows(): SettingsPageRows {
     entryCounts: {},
     tournamentId: null,
     currentUserId: null,
-    liveStatus: { isPublished: false, isRegistrationOpen: false },
+    liveStatus: { isPublished: false, isRegistrationOpen: null },
   }
 }
 
@@ -372,7 +372,9 @@ async function loadLive(): Promise<SettingsPageRows> {
     currentUserId: user?.id ?? null,
     liveStatus: {
       isPublished: tournament.is_published === true,
-      isRegistrationOpen: tournament.is_registration_open === true,
+      // Passed through, not coerced: `null` is the third answer
+      // ("follow the dates"), not a missing `false`.
+      isRegistrationOpen: tournament.is_registration_open ?? null,
     },
   }
 }

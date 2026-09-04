@@ -48,8 +48,10 @@ export function GoLiveCard({ initial, save, readOnly = false }: GoLiveCardProps)
         const next = { ...current, [key]: value }
         // Unpublishing must take registration down with it, otherwise the
         // saved state is one the validator rejects and the committee is stuck
-        // looking at an error they did not cause.
-        if (key === 'isPublished' && value === false) next.isRegistrationOpen = false
+        // looking at an error they did not cause. Back to "follow the dates"
+        // rather than "held shut": unpublishing says nothing about what should
+        // happen once the tournament is published again.
+        if (key === 'isPublished' && value === false) next.isRegistrationOpen = null
         return next
       })
     },
@@ -71,13 +73,41 @@ export function GoLiveCard({ initial, save, readOnly = false }: GoLiveCardProps)
           disabled={readOnly}
           onChange={(next) => set('isPublished', next)}
         />
-        <SwitchRow
-          label="Open the registration sheet now"
-          description="Overrides the calendar so players can register straight away — useful for a test run. Turning it off puts registration back on the dates below."
-          checked={draft.isRegistrationOpen}
-          disabled={readOnly || !draft.isPublished}
-          onChange={(next) => set('isRegistrationOpen', next)}
-        />
+
+        {/* Three answers, not two. The old switch offered "open now" and
+            "off", and described "off" as putting registration back on the
+            dates — but the window treats an explicit `false` as "keep it
+            shut", so the dates were never reached. A committee could set an
+            opening date, be told it was in force, and watch the day pass with
+            the sheet still closed. */}
+        <div className="rounded-2xl border border-[var(--color-brand-lilac-light)] bg-white/60 px-4 py-3">
+          <label
+            htmlFor="registration-override"
+            className="block text-sm font-semibold text-[var(--color-plum)]"
+          >
+            The registration sheet
+          </label>
+          <p className="mt-1 text-sm text-[var(--color-ink-soft)]">
+            Normally the dates below decide. Override them for a test run, or to shut the sheet the
+            moment the draw is built.
+          </p>
+          <select
+            id="registration-override"
+            value={draft.isRegistrationOpen === null ? 'dates' : draft.isRegistrationOpen ? 'open' : 'shut'}
+            disabled={readOnly || !draft.isPublished}
+            onChange={(event) =>
+              set(
+                'isRegistrationOpen',
+                event.target.value === 'dates' ? null : event.target.value === 'open',
+              )
+            }
+            className="mt-3 w-full rounded-[var(--radius-md)] border border-[var(--color-brand-lilac-light)] bg-white px-4 py-2.5 text-[var(--color-plum)] shadow-[var(--shadow-soft)] focus:border-[var(--color-brand-pink)] focus:ring-2 focus:ring-[var(--color-brand-pink-light)] focus:outline-none disabled:opacity-60"
+          >
+            <option value="dates">Follow the dates below</option>
+            <option value="open">Open it now, whatever the dates say</option>
+            <option value="shut">Keep it shut, whatever the dates say</option>
+          </select>
+        </div>
 
         <p className="rounded-2xl bg-[var(--color-mint)]/25 px-4 py-3 text-sm text-[var(--color-ink-soft)]">
           <span className="font-semibold text-[var(--color-ink)]">Right now: </span>

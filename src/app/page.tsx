@@ -41,7 +41,7 @@ const DEFAULT_DIVISIONS = [
   {
     name: "Women's Doubles",
     icon: ShuttlecockIcon,
-    description: 'Bring your best partner and smash your way to the podium.',
+    description: 'Smash your way to the podium with the partner we pair you with.',
   },
 ] as const
 
@@ -54,10 +54,10 @@ const DIVISION_BLURBS: Record<DivisionGender, { icon: typeof RacketIcon; descrip
   mens: { icon: RacketIcon, description: 'Pair up and battle it out on court for Christmas glory.' },
   womens: {
     icon: ShuttlecockIcon,
-    description: 'Bring your best partner and smash your way to the podium.',
+    description: 'Smash your way to the podium with the partner we pair you with.',
   },
   mixed: { icon: ShuttlecockIcon, description: 'One of each — mixed doubles, maximum chaos.' },
-  open: { icon: RacketIcon, description: 'Open to all comers. Bring a partner and bring your best.' },
+  open: { icon: RacketIcon, description: 'Open to all comers. Just bring your best.' },
 }
 
 const COUNT_WORDS = ['no', 'one', 'two', 'three', 'four', 'five', 'six'] as const
@@ -227,7 +227,7 @@ export default async function HomePage() {
 
         <div className="mt-8 flex flex-wrap items-center justify-center gap-3">
           <Button href="/register" size="lg">
-            Register your pair
+            Register to play
           </Button>
           <Button href="/rules" variant="secondary" size="lg">
             Read the rules
@@ -543,11 +543,11 @@ export default async function HomePage() {
               Let the Christmas smashes begin!
             </h2>
             <p className="mx-auto mt-2 max-w-md text-[var(--color-ink-soft)]">
-              Grab a partner and register your pair before the draw fills up.
+              Enter on your own — the committee pairs everyone up before the draw.
             </p>
             <div className="mt-6 flex flex-wrap items-center justify-center gap-3">
               <Button href="/register" variant="festive" size="lg">
-                Register your pair
+                Register to play
               </Button>
             </div>
           </CardBody>

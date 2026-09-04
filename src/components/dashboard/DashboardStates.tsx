@@ -98,8 +98,7 @@ export function NotRegisteredPanel({ className }: { className?: string }) {
         </h2>
         <p className="max-w-md text-[var(--color-ink-soft)]">
           Men&rsquo;s and Women&rsquo;s Doubles, a single round robin where you play every other pair, semis for
-          the top 4 — plus a loot bag for every player. Grab a partner (or come as a free agent) and we&rsquo;ll
-          do the rest.
+          the top 4 — plus a loot bag for every player. Enter on your own; the committee sorts out the pairs.
         </p>
         <Button href="/register" variant="primary" size="lg">
           Register to play

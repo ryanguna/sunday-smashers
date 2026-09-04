@@ -1681,8 +1681,15 @@ export interface LiveStatus {
   /** Publishes the tournament: until this is on, `tournament_public` is empty
    *  and the site falls back to built-in defaults. */
   isPublished: boolean
-  /** Opens the registration sheet regardless of the calendar. */
-  isRegistrationOpen: boolean
+  /**
+   * Organiser override for the registration sheet.
+   *
+   * `null` — and this is the default — means "follow the registration dates".
+   * `true` forces it open, `false` forces it shut. The third answer had to be
+   * expressible: while the column was `not null default false` every
+   * tournament permanently forced it shut, and the dates were never consulted.
+   */
+  isRegistrationOpen: boolean | null
 }
 
 /**
@@ -1694,7 +1701,7 @@ export interface LiveStatus {
  */
 export function validateLiveStatus(status: LiveStatus): SettingsIssue[] {
   const issues: SettingsIssue[] = []
-  if (status.isRegistrationOpen && !status.isPublished) {
+  if (status.isRegistrationOpen === true && !status.isPublished) {
     issues.push({
       path: 'tournament.is_registration_open',
       severity: 'error',
@@ -1710,9 +1717,13 @@ export function describeLiveStatus(status: LiveStatus): string {
   if (!status.isPublished) {
     return 'Not published. The public site is showing built-in placeholder details and nobody can register.'
   }
-  return status.isRegistrationOpen
-    ? 'Published, and the registration sheet is open regardless of the calendar.'
-    : 'Published. Registration follows the calendar dates below.'
+  if (status.isRegistrationOpen === true) {
+    return 'Published, and the registration sheet is open regardless of the calendar.'
+  }
+  if (status.isRegistrationOpen === false) {
+    return 'Published, and the registration sheet is held shut — the dates below are ignored until you switch this back to “Follow the dates”.'
+  }
+  return 'Published. Registration opens and closes on the dates below, with no help from you.'
 }
 
 export function diffLiveStatus(before: LiveStatus, after: LiveStatus): SettingsChange[] {
@@ -1727,11 +1738,13 @@ export function diffLiveStatus(before: LiveStatus, after: LiveStatus): SettingsC
     })
   }
   if (before.isRegistrationOpen !== after.isRegistrationOpen) {
+    const sayOverride = (value: boolean | null) =>
+      value === true ? 'forced open' : value === false ? 'held shut' : 'following the dates'
     changes.push({
       path: 'tournament.is_registration_open',
-      label: 'Registration open',
-      before: say(before.isRegistrationOpen),
-      after: say(after.isRegistrationOpen),
+      label: 'Registration sheet',
+      before: sayOverride(before.isRegistrationOpen),
+      after: sayOverride(after.isRegistrationOpen),
     })
   }
   return changes

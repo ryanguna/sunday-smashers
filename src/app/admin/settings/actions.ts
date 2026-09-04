@@ -216,7 +216,8 @@ async function createTournamentFromDetails(
       payment_instructions: details.paymentInstructions.trim() || null,
       status: 'draft',
       is_published: false,
-      is_registration_open: false,
+      // A brand-new tournament has no opinion yet; the dates decide.
+      is_registration_open: null,
     })
     .select('id')
     .single()

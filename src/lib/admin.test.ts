@@ -303,6 +303,17 @@ describe('buildAlerts', () => {
     expect(buildAlerts([], DIVISIONS, 3).some((a) => a.id === 'pending-invites')).toBe(true)
   })
 
+  it('leads with the dead sign-up form when there are no divisions', () => {
+    const alerts = buildAlerts([], [])
+    expect(alerts[0].id).toBe('no-divisions')
+    expect(alerts[0].tone).toBe('danger')
+    expect(alerts[0].href).toBe('/admin/settings/divisions')
+  })
+
+  it('stays quiet about divisions once at least one exists', () => {
+    expect(buildAlerts([], DIVISIONS).some((a) => a.id === 'no-divisions')).toBe(false)
+  })
+
   it('returns a friendly all-clear when there is nothing to do', () => {
     const alerts = buildAlerts([], DIVISIONS)
     expect(alerts).toHaveLength(1)

@@ -420,8 +420,9 @@ export interface AdminAlert {
 
 /**
  * The dashboard's "what needs my attention" list, in priority order:
- * money owed by approved players, divisions running out of room, the
- * pending review queue, unpaired free agents and outstanding invites.
+ * a tournament nobody can enter, money owed by approved players, divisions
+ * running out of room, the pending review queue, unpaired free agents and
+ * outstanding invites.
  */
 export function buildAlerts(
   rows: readonly AdminRegistration[],
@@ -429,6 +430,20 @@ export function buildAlerts(
   pendingInvites = 0
 ): AdminAlert[] {
   const alerts: AdminAlert[] = []
+
+  // Nothing else on this page matters if there is no division to enter:
+  // `/register` can only apologise, and it does so quietly enough that the
+  // committee would never learn the sign-up link was dead.
+  if (divisions.length === 0) {
+    alerts.push({
+      id: 'no-divisions',
+      tone: 'danger',
+      title: 'Nobody can register yet',
+      detail:
+        'This tournament has no divisions, so the sign-up form has nothing to offer. Add Men\u2019s and Women\u2019s Doubles before pre-registration opens.',
+      href: '/admin/settings/divisions',
+    })
+  }
 
   const unpaidApproved = rows.filter(
     (row) =>

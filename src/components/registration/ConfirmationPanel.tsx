@@ -83,7 +83,10 @@ export function ConfirmationPanel({
               and waits for the partner to sign up; the prompt below is what
               actually gets it to them. */}
           {invitedPartner && <Badge status="info">Partner invite saved</Badge>}
-          {freeAgent && <Badge status="info">Free-agent pool</Badge>}
+          {/* Every entry is a free agent now that the committee does the
+              pairing, so this badge no longer *distinguishes* anyone — it
+              just answers "where's my partner?" before the player asks. */}
+          {freeAgent && <Badge status="info">Partner assigned by the committee</Badge>}
         </div>
       </Card>
 
