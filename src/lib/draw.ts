@@ -480,19 +480,52 @@ export function qualifiers(
 }
 
 /**
- * Builds the semi final and final fixtures.
+ * Builds the knockout fixtures for a division that qualifies `places` pairs.
  *
- * M1 = Rank 1 v Rank 4, M2 = Rank 2 v Rank 3. The losers meet in the Battle
- * for 3rd and the winners in the Championship. Pass `results` as semis are
- * played to fill in the final and third-place fixtures.
+ * Two shapes, and the choice belongs to the division's `qualifyingPlaces`
+ * setting rather than to this function:
+ *
+ *  - **`places === 2`** — a straight Championship between Rank 1 and Rank 2.
+ *    There are no semi finals to lose, so there is no Battle for 3rd either.
+ *  - **`places >= 4`** — M1 = Rank 1 v Rank `places`, M2 = Rank 2 v Rank
+ *    `places - 1`. The losers meet in the Battle for 3rd and the winners in
+ *    the Championship.
+ *
+ * This used to ignore `places` entirely and always build the four-pair
+ * bracket, so a division set to a straight final was published with two semis
+ * — putting pairs who had been told they did not qualify onto court, and
+ * leaving the top two without a Championship between them. `knockoutGameCount`
+ * and `describeDivisionFormat` in `settings.ts` have always described the
+ * behaviour above; this function was the only piece that disagreed.
+ *
+ * Pass `results` as the semis are played to fill in the Final and the Battle
+ * for 3rd. They are ignored for a straight final, whose teams come straight
+ * from the ranking.
  */
 export function generateKnockout(
   standings: readonly StandingRow[],
   results?: { m1?: PlayedMatch; m2?: PlayedMatch },
   rules: StageRules = DEFAULT_FINALS_RULES,
+  places: number = QUALIFYING_PLACES,
 ): KnockoutFixture[] {
-  const top = qualifiers(standings)
+  const top = qualifiers(standings, places)
   const at = (i: number): TeamId | null => top[i]?.teamId ?? null
+
+  if (places < 2) return []
+
+  if (places === 2) {
+    return [
+      {
+        key: 'FINAL',
+        stage: 'final',
+        label: 'Championship',
+        teamA: at(0),
+        teamB: at(1),
+        sourceA: 'Rank 1',
+        sourceB: 'Rank 2',
+      },
+    ]
+  }
 
   const m1Winner = results?.m1 ? matchWinner(results.m1, rules) : null
   const m2Winner = results?.m2 ? matchWinner(results.m2, rules) : null
@@ -507,18 +540,18 @@ export function generateKnockout(
       stage: 'semi',
       label: 'Semi Final 1',
       teamA: at(0),
-      teamB: at(3),
+      teamB: at(places - 1),
       sourceA: 'Rank 1',
-      sourceB: 'Rank 4',
+      sourceB: `Rank ${places}`,
     },
     {
       key: 'M2',
       stage: 'semi',
       label: 'Semi Final 2',
       teamA: at(1),
-      teamB: at(2),
+      teamB: at(places - 2),
       sourceA: 'Rank 2',
-      sourceB: 'Rank 3',
+      sourceB: `Rank ${places - 1}`,
     },
     {
       key: 'THIRD',

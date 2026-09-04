@@ -674,9 +674,20 @@ export function validateRules(path: string, rules: RulesConfig): SettingsIssue[]
   const places = rules.qualifyingPlaces
   if (!Number.isInteger(places) || places < 0) {
     issues.push(err(`${path}.qualifyingPlaces`, 'Qualifiers must be a whole number of pairs.'))
-  } else if (places === 1 || places === 3) {
+  } else if (places < 2) {
+    // `divisions.qualifying_places` carries `check (qualifying_places >= 2)`
+    // since migration 0001, so "no knockout stage" cannot be saved at all —
+    // the write fails on the constraint. Say so here instead of letting the
+    // admin pick it, press save and get a database error.
     issues.push(
-      err(`${path}.qualifyingPlaces`, 'A knockout needs 0, 2 or an even number of qualifiers — 4 is the draft rule.'),
+      err(
+        `${path}.qualifyingPlaces`,
+        'Every division needs a knockout — use 2 for a straight final, or 4 for semis.',
+      ),
+    )
+  } else if (places === 3) {
+    issues.push(
+      err(`${path}.qualifyingPlaces`, 'A knockout needs 2 or an even number of qualifiers — 4 is the draft rule.'),
     )
   } else if (places > 8) {
     issues.push(err(`${path}.qualifyingPlaces`, 'The bracket engine supports at most 8 qualifiers.'))

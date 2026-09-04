@@ -38,6 +38,7 @@ import {
 import {
   divisionElimsRules,
   divisionFinalsRules,
+  divisionQualifyingPlaces,
   matchStageRules,
   toPlayedMatch,
   type DivisionRow,
@@ -418,6 +419,7 @@ function buildRealDivisionBundle(
   const matchRows = allMatches.filter((m) => m.division_id === division.id)
   const elimsRules = divisionElimsRules(division)
   const finalsRules = divisionFinalsRules(division)
+  const qualifyingPlaces = divisionQualifyingPlaces(division)
 
   const playedElims: PlayedMatch[] = matchRows
     .filter((m) => m.stage === 'elims')
@@ -437,7 +439,7 @@ function buildRealDivisionBundle(
   const m2Row = matchRows.find((m) => m.bracket_key === 'M2')
   const m1Played = m1Row ? (toPlayedMatch(m1Row) ?? undefined) : undefined
   const m2Played = m2Row ? (toPlayedMatch(m2Row) ?? undefined) : undefined
-  const knockout = generateKnockout(standingRows, { m1: m1Played, m2: m2Played }, finalsRules)
+  const knockout = generateKnockout(standingRows, { m1: m1Played, m2: m2Played }, finalsRules, qualifyingPlaces)
 
   const finalRow = matchRows.find((m) => m.bracket_key === 'FINAL')
   const thirdRow = matchRows.find((m) => m.bracket_key === 'THIRD')

@@ -345,8 +345,11 @@ describe('validateStageRules / validateRules', () => {
     expect(hasErrors(validateRules('r', rules))).toBe(true)
   })
 
-  it('allows 0, 2 and 4 qualifiers', () => {
-    for (const places of [0, 2, 4]) {
+  // 0 used to be allowed here, but `divisions.qualifying_places` carries
+  // `check (qualifying_places >= 2)`, so a division with no knockout could
+  // never be saved. See qualifying-places.test.ts.
+  it('allows 2 and 4 qualifiers', () => {
+    for (const places of [2, 4]) {
       const rules = defaultRulesConfig()
       rules.qualifyingPlaces = places
       expect(hasErrors(validateRules('r', rules))).toBe(false)

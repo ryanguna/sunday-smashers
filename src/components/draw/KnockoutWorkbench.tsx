@@ -114,7 +114,7 @@ export function KnockoutWorkbench({
 
   const results = { m1: division.knockoutResults.M1, m2: division.knockoutResults.M2 }
   const bracket = readiness.ready
-    ? generateKnockout(standings, results, division.finalsRules)
+    ? generateKnockout(standings, results, division.finalsRules, division.qualifyingPlaces)
     : []
   const placings = finalPlacings(
     division.knockoutResults.FINAL,
@@ -149,6 +149,7 @@ export function KnockoutWorkbench({
         divisionId: division.id,
         rankedTeamIds: standings.map((row) => row.teamId),
         rules: division.finalsRules,
+        qualifyingPlaces: division.qualifyingPlaces,
         ...confirmation,
       })
 

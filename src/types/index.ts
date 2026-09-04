@@ -163,6 +163,11 @@ export function divisionFinalsRules(division: DivisionRow): StageRules {
   }
 }
 
+/** The number of pairs a division qualifies for its knockout stage. */
+export function divisionQualifyingPlaces(division: DivisionRow): number {
+  return division.qualifying_places
+}
+
 /**
  * Converts a `matches` row into the `StageRules` that applied when it was
  * played — useful for re-evaluating a single match (e.g. `matchWinner`)

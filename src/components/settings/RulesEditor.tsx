@@ -281,14 +281,14 @@ export function RulesEditor({
                 <TextField
                   label="Pairs advancing to the knockout"
                   type="number"
-                  min={0}
+                  min={2}
                   max={8}
                   step={2}
                   value={division.rules.qualifyingPlaces}
                   onChange={(event) =>
                     updateQualifiers(division.id, Number.parseInt(event.target.value, 10))
                   }
-                  hint="The draft rules qualify the top 4. Use 2 for a straight final, 0 for no knockout."
+                  hint="The draft rules qualify the top 4. Use 2 for a straight final — no semis, no Battle for 3rd."
                   error={firstErrorFor(issues, `${base}.rules.qualifyingPlaces`)}
                   disabled={readOnly}
                 />

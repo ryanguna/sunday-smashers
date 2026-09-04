@@ -236,6 +236,12 @@ export interface PublishKnockoutInput extends PublishOptions {
   /** Final ranked order after any manual tiebreak calls. */
   rankedTeamIds: TeamId[]
   rules: StageRules
+  /**
+   * The division's `qualifyingPlaces`. Required rather than defaulted: this is
+   * the one path that writes the bracket to the database, and defaulting it
+   * is exactly how a straight-final division ended up with two semi finals.
+   */
+  qualifyingPlaces: number
 }
 
 /**
@@ -295,8 +301,15 @@ async function linkKnockoutNextMatches(divisionId: string): Promise<number> {
 export async function publishKnockoutAction(
   input: PublishKnockoutInput
 ): Promise<DrawActionResult> {
-  if (input.rankedTeamIds.length < 4) {
-    return { ok: false, message: 'Four qualified pairs are needed before the bracket can be drawn.' }
+  const places = input.qualifyingPlaces
+  if (places < 2) {
+    return { ok: false, message: 'This division qualifies nobody, so there is no bracket to draw.' }
+  }
+  if (input.rankedTeamIds.length < places) {
+    return {
+      ok: false,
+      message: `${places} qualified pairs are needed before the bracket can be drawn.`,
+    }
   }
   if (!isSupabaseConfigured()) return DEMO_RESULT
   if (!(await isAdmin())) {
@@ -318,7 +331,7 @@ export async function publishKnockoutAction(
     needsAdminDecision: false,
   }))
 
-  const knockout = generateKnockout(standings, undefined, input.rules)
+  const knockout = generateKnockout(standings, undefined, input.rules, places)
   const result = await replaceStage(
     input.divisionId,
     ['semi', 'third_place', 'final'],
@@ -331,17 +344,20 @@ export async function publishKnockoutAction(
 
   const linked = await linkKnockoutNextMatches(input.divisionId)
 
-  // The RPC logs one row per stage; this records who the four qualifiers were.
+  // The RPC logs one row per stage; this records who the qualifiers were.
   await writeAudit('draw.knockout_published', input.divisionId, {
     stage: 'knockout',
-    qualifiers: input.rankedTeamIds.slice(0, 4),
+    qualifiers: input.rankedTeamIds.slice(0, places),
+    qualifying_places: places,
     fixtures: result.count ?? 0,
     next_match_links: linked,
   })
 
+  const shape =
+    places === 2 ? 'a straight Championship' : 'semis, Battle for 3rd and the Final'
   return {
     ...result,
-    message: `The bracket is live — ${result.count} fixtures: semis, Battle for 3rd and the Final. 🏆`,
+    message: `The bracket is live — ${result.count} fixtures: ${shape}. 🏆`,
   }
 }
 

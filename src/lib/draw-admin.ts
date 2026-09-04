@@ -786,9 +786,18 @@ export function knockoutReadiness(
     }
   }
   if (standings.length < qualifyingPlaces) {
+    // Naming the actual format matters here: a division set to a straight
+    // final has no semi finals, and telling an admin they are short of pairs
+    // "for the semi finals" sends them looking for a stage that does not
+    // exist. Dropping to 2 qualifiers is the real fix available to them.
+    const stage = qualifyingPlaces === 2 ? 'the final' : 'the semi finals'
+    const advice =
+      qualifyingPlaces > 2
+        ? ' Drop the qualifiers for this division if you want to run it with fewer.'
+        : ''
     return {
       ready: false,
-      reason: `Only ${standings.length} pairs — ${qualifyingPlaces} are needed for the semi finals.`,
+      reason: `Only ${standings.length} pairs — ${qualifyingPlaces} are needed for ${stage}.${advice}`,
     }
   }
   if (!allTiesResolved(standings, decisions)) {
