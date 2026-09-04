@@ -144,7 +144,11 @@ export default function OnboardingPage() {
       setServerError(error.message)
       return
     }
-    router.push('/dashboard')
+    // Full document load rather than `router.push` — see `/signup`. The
+    // profile that was just written is what `/dashboard` renders, and the
+    // router cache in front of it predates both the profile and the session.
+    // eslint-disable-next-line @next/next/no-location-assign-relative-destination -- discarding the client router cache is the point, not a side effect.
+    window.location.assign('/dashboard')
   }
 
   if (!isSupabaseConfigured()) {

@@ -116,7 +116,7 @@ function applyOrganiserSwitch(
       window: 'open',
       heading: 'Registration is OPEN — grab your spot!',
       message:
-        'The organisers have opened the sheet early. Fill in the form below, bring a partner (or let us find you one), and we’ll see you on court in December.',
+        'The organisers have opened the sheet early. Fill in the form below — the committee sorts out the pairs — and we’ll see you on court in December.',
       acceptsSubmissions: true,
     }
   }
@@ -173,7 +173,7 @@ function registrationWindowForPhase(
         countdownLabel: phaseInfo.countdownLabel,
         heading: 'Registration is OPEN — grab your spot!',
         message:
-          'Fill in the form below, bring a partner (or let us find you one), and we’ll see you on court in December.',
+          'Fill in the form below — the committee sorts out the pairs — and we’ll see you on court in December.',
         acceptsSubmissions: true,
       }
     case 'registration-closed':
@@ -426,10 +426,17 @@ export function parsePartnerIdentifier(raw: string): PartnerIdentifier {
 // Validation
 // ---------------------------------------------------------------------------
 
+/**
+ * What the registration wizard collects.
+ *
+ * There are deliberately no partner fields: the committee pairs players on
+ * `/admin/teams`, so every entry joins the free-agent pool. Keeping
+ * `partnerMode` here after the questions were removed would have left two
+ * fields owned by no step — the exact "field nobody asks for, submit blocked
+ * forever" defect the wizard tests guard against.
+ */
 export interface RegistrationFormValues {
   divisionId: string
-  partnerMode: PartnerMode
-  partnerIdentifier: string
   skillLevel: string
   phone: string
   emergencyContactName: string
@@ -442,8 +449,6 @@ export type RegistrationFormErrors = Partial<Record<keyof RegistrationFormValues
 
 export const EMPTY_REGISTRATION_FORM: RegistrationFormValues = {
   divisionId: '',
-  partnerMode: 'partner',
-  partnerIdentifier: '',
   skillLevel: '',
   phone: '',
   emergencyContactName: '',
@@ -451,6 +456,16 @@ export const EMPTY_REGISTRATION_FORM: RegistrationFormValues = {
   dietaryNotes: '',
   codeOfConductAccepted: false,
 }
+
+/**
+ * The partner mode every registration is submitted with.
+ *
+ * The wizard no longer asks, so this is a constant rather than an answer. It
+ * is named and exported so the submission path, the confirmation screen and
+ * their tests cannot drift apart, and so restoring the question is a matter
+ * of putting the two steps back in `ALL_STEPS` and reading the answer here.
+ */
+export const REGISTRATION_PARTNER_MODE: PartnerMode = 'solo'
 
 /** Digits-only length check — tolerant of spaces, `+`, dashes and brackets. */
 export function isValidPhone(raw: string): boolean {
@@ -486,23 +501,6 @@ export function validateRegistrationForm(
     errors.divisionId = 'Pick a division — Men’s or Women’s Doubles.'
   } else if (!context.eligibleDivisionIds.includes(values.divisionId)) {
     errors.divisionId = 'That division isn’t open to you. Pick one of the highlighted options.'
-  }
-
-  if (values.partnerMode === 'partner') {
-    const partner = parsePartnerIdentifier(values.partnerIdentifier)
-    if (partner.kind === 'empty') {
-      errors.partnerIdentifier = 'Grab a partner — the shuttles are still warming up 🎄'
-    } else if (partner.kind === 'invalid') {
-      errors.partnerIdentifier = 'That doesn’t look like an email or a player handle. Try “holly@example.com” or “@hollysmash”.'
-    } else if (partner.kind === 'email' && context.selfEmail && partner.email === context.selfEmail.trim().toLowerCase()) {
-      errors.partnerIdentifier = 'Doubles needs two humans — you can’t partner with yourself 🏸'
-    } else if (
-      partner.kind === 'handle' &&
-      context.selfHandle &&
-      partner.handle === context.selfHandle.trim().toLowerCase().replace(/^@+/, '')
-    ) {
-      errors.partnerIdentifier = 'Doubles needs two humans — you can’t partner with yourself 🏸'
-    }
   }
 
   if (!values.skillLevel) {
@@ -691,7 +689,6 @@ export function confirmationCopy(
         // announced by email. The dashboard is the honest channel.
         'Watch your dashboard — your status changes there the moment a spot opens.',
         `Keep your phone handy in the week before ${tournamentDayMonth || 'tournament day'}.`,
-        'Your partner invite (if you sent one) still stands.',
       ],
     }
   }
@@ -703,7 +700,7 @@ export function confirmationCopy(
       'Your registration is in and pending committee approval — usually a couple of days, sometimes a mince pie or two.',
     nextSteps: [
       'The committee reviews and approves your entry.',
-      'If you invited a partner, they need to accept before your pair is locked in.',
+      'The committee pairs you up and your partner appears on your dashboard.',
       'Once approved you’ll see your team, court times and duty roster on your dashboard.',
     ],
   }

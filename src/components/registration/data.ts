@@ -30,9 +30,8 @@ import type {
 import { getAllDemoBundles } from '@/lib/demo-data'
 import {
   buildRegistrationNotes,
+  REGISTRATION_PARTNER_MODE,
   buildTeamName,
-  escapeLikePattern,
-  parsePartnerIdentifier,
   PLAYERS_PER_TEAM,
   type DivisionSummary,
   type PartnerWarningCode,
@@ -243,8 +242,8 @@ export async function submitRegistration(input: SubmitRegistrationInput): Promis
       ok: true,
       status,
       divisionId: values.divisionId,
-      invitedPartner: values.partnerMode === 'partner',
-      freeAgent: values.partnerMode === 'solo',
+      invitedPartner: false,
+      freeAgent: true,
     }
   }
 
@@ -283,8 +282,8 @@ export async function submitRegistration(input: SubmitRegistrationInput): Promis
   }
 
   const notes = buildRegistrationNotes({
-    partnerMode: values.partnerMode,
-    partnerIdentifier: values.partnerIdentifier,
+    partnerMode: REGISTRATION_PARTNER_MODE,
+    partnerIdentifier: '',
     dietaryNotes: values.dietaryNotes,
     codeOfConductAcceptedAt: new Date().toISOString(),
     intent,
@@ -327,50 +326,20 @@ export async function submitRegistration(input: SubmitRegistrationInput): Promis
   }
 
   void inserted
-  let invitedPartner = false
-  let partnerWarning: PartnerWarningCode | undefined
 
-  if (values.partnerMode === 'partner') {
-    const partner = parsePartnerIdentifier(values.partnerIdentifier)
-    let inviteeId: string | null = null
-    const inviteeEmail = partner.kind === 'email' ? partner.email : null
-
-    if (partner.kind === 'handle') {
-      const lookup = await resolveHandle(partner.handle)
-      if (lookup.kind === 'found') {
-        inviteeId = lookup.id
-      } else if (lookup.kind === 'not-found') {
-        partnerWarning = 'handle-not-found'
-      } else if (lookup.kind === 'ambiguous') {
-        partnerWarning = 'handle-ambiguous'
-      } else {
-        partnerWarning = 'lookup-failed'
-      }
-    }
-
-    if (inviteeId || inviteeEmail) {
-      const { error: inviteError } = await supabase.from('partner_invites').insert({
-        division_id: values.divisionId,
-        inviter_id: context.userId,
-        invitee_id: inviteeId,
-        invitee_email: inviteeEmail,
-        status: 'pending',
-      } as never)
-      invitedPartner = !inviteError
-      if (inviteError) {
-        // Previously `invitedPartner = !inviteError` was the whole story: the
-        // player got the success screen with no partner badge and no reason.
-        partnerWarning = 'invite-failed'
-      }
-    }
-  }
+  // No partner invite is sent: the wizard does not ask for one. Every entry
+  // reaches the committee as a free agent and pairs are built on
+  // `/admin/teams`. The `partner_invites` table and the lookup helpers below
+  // are left in place for when the question comes back.
+  const invitedPartner = false
+  const partnerWarning: PartnerWarningCode | undefined = undefined
 
   return {
     ok: true,
     status,
     divisionId: values.divisionId,
     invitedPartner,
-    freeAgent: values.partnerMode === 'solo',
+    freeAgent: true,
     partnerWarning,
   }
 }
@@ -381,38 +350,6 @@ export async function submitRegistration(input: SubmitRegistrationInput): Promis
  * back to an email/admin-matched invite. Documented in the flow's copy.
  */
 /** The outcome of looking a `@handle` up, so each failure gets its own message. */
-type HandleLookup =
-  | { kind: 'found'; id: string }
-  | { kind: 'not-found' }
-  | { kind: 'ambiguous' }
-  | { kind: 'error' }
-
-async function resolveHandle(handle: string): Promise<HandleLookup> {
-  const supabase = createClient()
-  // Look the handle up in `player_directory`, not `profiles`. `profiles` is
-  // owner-or-admin under RLS (`profiles_select_own`, migration 0001), so this
-  // query used to return null for every ordinary player — the invite row was
-  // then never inserted and the named partner was never told. The view exists
-  // precisely for this lookup: it whitelists non-sensitive columns and is
-  // granted to `authenticated` (migration 0009).
-  //
-  // `nickname` has no unique constraint, so two players can share a handle.
-  // Asking for two rows tells ambiguity apart from a clean hit, rather than
-  // letting `.maybeSingle()` throw on the collision.
-  const { data, error } = await supabase
-    .from('player_directory')
-    .select('id')
-    .ilike('nickname', escapeLikePattern(handle))
-    .limit(2)
-
-  if (error) return { kind: 'error' }
-
-  const rows = (data ?? []) as { id: string }[]
-  if (rows.length === 0) return { kind: 'not-found' }
-  if (rows.length > 1) return { kind: 'ambiguous' }
-  return { kind: 'found', id: rows[0].id }
-}
-
 // ---------------------------------------------------------------------------
 // Partner invites
 // ---------------------------------------------------------------------------

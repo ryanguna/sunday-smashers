@@ -108,7 +108,7 @@ export function RegistrationWizard({ context, window: registrationWindow, onSubm
     [eligibleDivisions, context.userEmail, profile?.nickname]
   )
 
-  const steps = useMemo(() => buildWizardSteps(values), [values])
+  const steps = useMemo(() => buildWizardSteps(), [])
   // Switching to "find me a partner" removes a step, which can leave the index
   // past the end of the list.
   const safeIndex = Math.min(index, steps.length - 1)
@@ -346,79 +346,6 @@ function StepFields({
         />
       )
 
-    case 'partner':
-      return (
-        <div className="grid gap-3 sm:grid-cols-2">
-          {(
-            [
-              {
-                mode: 'partner' as const,
-                title: 'Yes, I have a partner',
-                blurb: 'Invite them by email or handle — they confirm and you’re a pair.',
-                icon: <ShuttlecockIcon size={19} />,
-              },
-              {
-                mode: 'solo' as const,
-                title: 'Find me a partner',
-                blurb: 'Join the free-agent pool and the committee will match you up.',
-                icon: <SparkleIcon size={19} />,
-              },
-            ]
-          ).map((option) => {
-            const selected = values.partnerMode === option.mode
-            return (
-              <label
-                key={option.mode}
-                className={cn(
-                  'hover-lift flex cursor-pointer flex-col gap-1 rounded-[var(--radius-lg)] border-2 bg-white p-4 shadow-[var(--shadow-soft)] transition' +
-                    FOCUS_RING,
-                  selected
-                    ? 'border-[var(--color-brand-mint-dark)] shadow-[var(--shadow-glow-mint)]'
-                    : 'border-[var(--color-brand-lilac-light)]'
-                )}
-              >
-                <input
-                  type="radio"
-                  name="partner-mode"
-                  className="peer sr-only"
-                  value={option.mode}
-                  checked={selected}
-                  onChange={() => update('partnerMode', option.mode)}
-                />
-                <span className="flex items-center gap-2 font-[family-name:var(--font-heading)] font-bold text-[var(--color-plum)]">
-                  <span
-                    aria-hidden="true"
-                    className={cn(
-                      'flex h-8 w-8 items-center justify-center rounded-full text-white',
-                      selected ? 'bg-[image:var(--gradient-mint-sky)]' : 'bg-[var(--color-brand-lilac)]'
-                    )}
-                  >
-                    {option.icon}
-                  </span>
-                  {option.title}
-                </span>
-                <span className="text-sm text-[var(--color-ink-soft)]">{option.blurb}</span>
-              </label>
-            )
-          })}
-        </div>
-      )
-
-    case 'partner-details':
-      return (
-        <TextField
-          label="Partner’s email or player handle"
-          required
-          autoFocus
-          value={values.partnerIdentifier}
-          onChange={(event) => update('partnerIdentifier', event.target.value)}
-          error={errors.partnerIdentifier}
-          hint="Try “holly@example.com” or “@hollysmash”. They’ll get an invite to confirm."
-          placeholder="rudolph@example.com"
-          autoComplete="off"
-        />
-      )
-
     case 'skill':
       return (
         <div className="grid gap-2.5">
@@ -615,8 +542,6 @@ function ReviewList({
 
   const answers: Record<string, string> = {
     division: division?.name ?? '—',
-    partner: values.partnerMode === 'partner' ? 'Bringing a partner' : 'Find me a partner',
-    'partner-details': values.partnerIdentifier || '—',
     skill: skill?.label ?? '—',
     contact: values.phone || '—',
     emergency: [values.emergencyContactName, values.emergencyContactPhone].filter(Boolean).join(' · ') || '—',

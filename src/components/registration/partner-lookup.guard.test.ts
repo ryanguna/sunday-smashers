@@ -22,21 +22,18 @@ import { describePartnerWarning, escapeLikePattern, parsePartnerIdentifier } fro
 const DATA_SOURCE = readFileSync(join(process.cwd(), 'src/components/registration/data.ts'), 'utf8')
 
 describe('partner handle lookup', () => {
-  it('resolves handles through player_directory, never through profiles', () => {
-    // `player_directory` (migrations 0002/0009) whitelists non-sensitive
-    // columns and is granted to `authenticated` precisely so one player can
-    // look another up.
-    expect(DATA_SOURCE).toContain("from('player_directory')")
-  })
-
-  it('never looks another player up by nickname in the owner-only profiles table', () => {
-    // Reading your *own* profile (`.eq('id', user.id)`) is fine and the file
-    // does it. The defect was specifically the cross-player lookup: filtering
-    // `profiles` by someone else's nickname, which RLS can never satisfy.
-    // So the guard is that every nickname lookup targets the view.
+  it('never looks another player up in the owner-only profiles table', () => {
+    // The rule that outlived the feature. Reading your *own* profile
+    // (`.eq('id', user.id)`) is fine and the file does it. The defect was the
+    // cross-player lookup: filtering `profiles` by someone else's nickname,
+    // which RLS can never satisfy — so it returned no row, no error and no
+    // message, and the named partner was simply never told.
+    //
+    // The registration wizard no longer asks for a partner (the committee
+    // pairs players on `/admin/teams`), so there is no lookup here today.
+    // This assertion is what stops one coming back through `profiles` if the
+    // question returns.
     const lookups = [...DATA_SOURCE.matchAll(/\.ilike\('nickname'/g)]
-    expect(lookups.length).toBeGreaterThan(0)
-
     for (const match of lookups) {
       const preceding = DATA_SOURCE.slice(Math.max(0, match.index - 200), match.index)
       expect(preceding).toContain("from('player_directory')")
@@ -44,19 +41,9 @@ describe('partner handle lookup', () => {
     }
   })
 
-  it('asks for two rows so a duplicate handle is detectable', () => {
-    // `profiles.nickname` has no unique constraint, so `.maybeSingle()` throws
-    // on a collision. Fetching two rows tells ambiguity from a clean hit.
-    expect(DATA_SOURCE).toContain('.limit(2)')
-    expect(DATA_SOURCE).not.toContain('.ilike(\'nickname\', handle)')
-  })
-
-  it('surfaces a reason whenever the invite does not go out', () => {
-    // The old code was `invitedPartner = !inviteError`, which discarded the
-    // error entirely. Every failure branch must now set a warning code.
-    for (const code of ['handle-not-found', 'handle-ambiguous', 'lookup-failed', 'invite-failed']) {
-      expect(DATA_SOURCE).toContain(`'${code}'`)
-    }
+  it('does not send a partner invite the player was never asked about', () => {
+    // Every entry reaches the committee as a free agent.
+    expect(DATA_SOURCE).not.toContain("from('partner_invites').insert")
   })
 })
 

@@ -1,6 +1,8 @@
 import type { Metadata } from 'next'
+import { redirect } from 'next/navigation'
 
 import { GradientText, SectionHeading } from '@/components/ui'
+import { isAdmin } from '@/lib/auth'
 import { readSetupStatus } from './actions'
 import { SetupClient } from './SetupClient'
 
@@ -19,16 +21,30 @@ export const metadata: Metadata = {
  * hand-writing SQL, since every signup gets 'player' and the role-granting
  * screen is itself behind the admin guard.
  *
- * Deliberately NOT behind `requireAdmin` — on day zero there is no admin to
- * satisfy that guard. It is safe because the privileged step calls
- * `claim_first_admin()`, which refuses the moment any admin exists, and
- * creating a tournament is gated by RLS, which only admins satisfy. The page
- * hides what you cannot do; the database is what actually stops you.
+ * Deliberately NOT behind `requireAdmin` *while the bootstrap is unfinished* —
+ * on day zero there is no admin to satisfy that guard. The database is what
+ * actually stops you: `claim_first_admin()` refuses the moment any admin
+ * exists, and creating a tournament is gated by RLS.
+ *
+ * But "you cannot do any harm here" is not the same as "you should be looking
+ * at this". Once an organiser exists the page has nothing left to offer a
+ * player, and what it showed them was a committee wizard reading "Step 3 of 3
+ * — the hall is ready" above a button labelled "Open the admin console". No
+ * amount of RLS stops that from reading as *"my player account has organiser
+ * access"*, which is exactly how it was reported. So the moment the bootstrap
+ * is complete this becomes an ordinary admin page.
  */
 export const dynamic = 'force-dynamic'
 
 export default async function SetupPage() {
   const status = await readSetupStatus()
+
+  // Only stay public while there is genuinely no other way in: an unconfigured
+  // deployment (`requireAuth` sends people here to explain itself) or a
+  // database with no organiser yet.
+  if (status.isConfigured && status.hasAdmin && !(await isAdmin())) {
+    redirect('/403')
+  }
 
   return (
     <main className="mx-auto max-w-5xl px-4 py-10 sm:py-16">

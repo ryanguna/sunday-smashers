@@ -2,7 +2,6 @@
 
 import { useState, type FormEvent } from 'react'
 import Link from 'next/link'
-import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui'
 import { GiftIcon } from '@/components/icons'
 import { AuthShell } from '@/components/auth/AuthShell'
@@ -56,7 +55,6 @@ export default function SignupPage() {
   const [existingAccount, setExistingAccount] = useState(false)
   const [confirmationRequired, setConfirmationRequired] = useState(false)
   const [loading, setLoading] = useState(false)
-  const router = useRouter()
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -94,7 +92,16 @@ export default function SignupPage() {
     }
 
     if (data.session) {
-      router.replace('/onboarding')
+      // A full document load, not a router push. Sign-up has just written the
+      // session cookie, and `/onboarding` is only useful to a request the
+      // *server* can see it on. A client-side navigation reuses the router
+      // cache built while this browser was signed out, so the new session is
+      // invisible to every server component until the next hard load — which
+      // is how finishing sign-up ended with "please sign in" while the header
+      // was already showing the new player's name. `/login` learned this the
+      // same way; see the comment beside `window.location.assign` there.
+      // eslint-disable-next-line @next/next/no-location-assign-relative-destination -- discarding the client router cache is the point, not a side effect.
+      window.location.assign('/onboarding')
       return
     }
 

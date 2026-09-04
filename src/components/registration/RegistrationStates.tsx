@@ -14,7 +14,7 @@ import type { RegistrationWindowInfo } from '@/lib/registration'
 
 /** The prep checklist shown while players wait for the window to open. */
 const PREP_LIST = [
-  { icon: <ShuttlecockIcon size={18} />, text: 'Find a partner (or plan to join the free-agent pool).' },
+  { icon: <ShuttlecockIcon size={18} />, text: 'No need to find a partner — the committee pairs everyone up.' },
   { icon: <GiftIcon size={18} />, text: 'Bring festive spirit — every player goes home with a loot bag 🎁' },
   { icon: <MedalIcon size={18} />, text: 'Be honest about your level so the draw stays fair.' },
   { icon: <BaubleIcon size={18} />, text: 'Have an emergency contact handy.' },

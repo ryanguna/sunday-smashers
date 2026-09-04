@@ -50,8 +50,19 @@ export interface WizardStep {
 }
 
 /**
- * Every step in order. `partner-details` is conditional and is filtered out by
- * `buildWizardSteps()` when the player is joining the free-agent pool.
+ * Every step in order.
+ *
+ * The committee pairs players, so the wizard does not ask about partners. It
+ * used to: a "do you have a partner?" step followed by a conditional invite
+ * step. Both are gone because every entry now joins the free-agent pool and
+ * the committee builds the pairs on `/admin/teams`, where they can see the
+ * whole field at once instead of inheriting whatever pairings happened to be
+ * arranged first.
+ *
+ * The invite machinery underneath (the `partner_invites` table, `partnerMode`
+ * on the submission, the free-agent flag) is deliberately left intact rather
+ * than torn out, so restoring the two steps is a change to this list rather
+ * than a migration.
  *
  * The final `review` step deliberately owns no fields: it is a read-back of
  * everything before submitting, so a player is never asked to trust that we
@@ -65,22 +76,6 @@ const ALL_STEPS: WizardStep[] = [
     blurb: 'Pick the division you want to play in.',
     badge: 'Division',
     cheer: 'Locked in. 🏸',
-  },
-  {
-    id: 'partner',
-    fields: ['partnerMode'],
-    question: 'Do you already have a partner?',
-    blurb: 'Doubles only — so you either bring someone or we find you someone.',
-    badge: 'Partner',
-    cheer: 'Good call.',
-  },
-  {
-    id: 'partner-details',
-    fields: ['partnerIdentifier'],
-    question: 'Who’s your partner?',
-    blurb: 'We’ll send them an invite. Your pair is locked in once they accept.',
-    badge: 'Invite',
-    cheer: 'We’ll let them know. 💌',
   },
   {
     id: 'skill',
@@ -137,18 +132,16 @@ const ALL_STEPS: WizardStep[] = [
 export const REVIEW_STEP_ID = 'review'
 
 /**
- * The steps that apply to the answers given so far.
+ * The steps the wizard shows.
  *
- * Only `partner-details` is conditional today, but routing it through this
- * function means a future conditional step cannot be missed by the progress
- * bar, the "are we finished" check and the review screen independently — they
- * all read the same list.
+ * No step is conditional now that the partner questions are gone, so this is
+ * a copy of `ALL_STEPS`. It stays a function because the progress bar, the
+ * "are we finished" check and the review screen must always agree about which
+ * steps exist, and one call site is the only way to guarantee that when a
+ * conditional step returns.
  */
-export function buildWizardSteps(values: RegistrationFormValues): WizardStep[] {
-  return ALL_STEPS.filter((step) => {
-    if (step.id === 'partner-details') return values.partnerMode === 'partner'
-    return true
-  })
+export function buildWizardSteps(): WizardStep[] {
+  return [...ALL_STEPS]
 }
 
 /**

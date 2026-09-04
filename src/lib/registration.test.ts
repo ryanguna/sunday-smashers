@@ -18,6 +18,7 @@ import {
   parsePartnerIdentifier,
   validateRegistrationForm,
   type RegistrationFormValues,
+  REGISTRATION_PARTNER_MODE,
 } from './registration'
 import {
   PRE_REGISTRATION_OPENS_AT,
@@ -27,8 +28,6 @@ import {
 
 const VALID_FORM: RegistrationFormValues = {
   divisionId: 'div-mens',
-  partnerMode: 'partner',
-  partnerIdentifier: 'rudolph@example.com',
   skillLevel: 'intermediate',
   phone: '0412 345 678',
   emergencyContactName: 'Mrs Claus',
@@ -257,12 +256,10 @@ describe('validateRegistrationForm', () => {
         'divisionId',
         'emergencyContactName',
         'emergencyContactPhone',
-        'partnerIdentifier',
         'phone',
         'skillLevel',
       ].sort()
     )
-    expect(errors.partnerIdentifier).toMatch(/warming up/)
   })
 
   it('rejects an ineligible division', () => {
@@ -270,25 +267,12 @@ describe('validateRegistrationForm', () => {
     expect(errors.divisionId).toMatch(/isn’t open to you/)
   })
 
-  it('does not require a partner when registering solo', () => {
-    const errors = validateRegistrationForm(
-      { ...VALID_FORM, partnerMode: 'solo', partnerIdentifier: '' },
-      CONTEXT
-    )
-    expect(errors.partnerIdentifier).toBeUndefined()
-  })
-
-  it('blocks partnering with yourself by email or handle', () => {
-    expect(
-      validateRegistrationForm(VALID_FORM, { ...CONTEXT, selfEmail: 'Rudolph@Example.com' })
-        .partnerIdentifier
-    ).toMatch(/two humans/)
-    expect(
-      validateRegistrationForm(
-        { ...VALID_FORM, partnerIdentifier: '@santa' },
-        { ...CONTEXT, selfHandle: 'Santa' }
-      ).partnerIdentifier
-    ).toMatch(/two humans/)
+  it('never asks for a partner, so it can never withhold an entry over one', () => {
+    // The committee pairs players. An entry that named no partner used to be
+    // rejected unless the player had also ticked "find me a partner"; there is
+    // now no way to express either, so a complete form must simply pass.
+    expect(validateRegistrationForm(VALID_FORM, CONTEXT)).toEqual({})
+    expect(REGISTRATION_PARTNER_MODE).toBe('solo')
   })
 
   it('rejects an unknown skill level', () => {
