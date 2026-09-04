@@ -77,6 +77,12 @@ supabase db push          # applies every file in supabase/migrations/
 fictional players and a demo tournament — useful for a local sandbox, actively
 harmful in production.
 
+`supabase login` and `supabase link` need a browser token and the database
+password. If you do not have them to hand, `./supabase/migrations/bundle.sh
+<first-migration>` emits the outstanding migrations as one transaction to paste
+into the SQL editor instead; see `supabase/migrations/README.md`, which also
+records which migrations the hosted project is currently missing.
+
 Sanity check, in the SQL editor:
 
 ```sql
