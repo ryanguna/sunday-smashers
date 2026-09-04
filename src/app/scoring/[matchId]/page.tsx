@@ -33,7 +33,7 @@ export default async function ScoringMatchPage({
   const data = await loadScoringMatch(matchId)
   if (!data) notFound()
 
-  const { demo, match, roles, canScore, clash, state, startedAtMs, now } = data
+  const { demo, match, roles, canScore, clash, state, startedAtMs, revision, now } = data
   const teams = `${match.teamA?.name ?? match.sourceA ?? 'TBC'} v ${match.teamB?.name ?? match.sourceB ?? 'TBC'}`
   const contextLabel = [
     match.court ?? 'Court TBC',
@@ -76,6 +76,7 @@ export default async function ScoringMatchPage({
         canScore={canScore}
         now={now}
         startedAtMs={startedAtMs}
+        revision={revision}
         contextLabel={contextLabel}
       />
     </main>

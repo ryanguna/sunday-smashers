@@ -28,6 +28,7 @@ import {
   type ScoringState,
   scoringReducer,
   sideName,
+  syncConflict,
   unsentRallies,
 } from '@/lib/scoring'
 
@@ -54,6 +55,8 @@ export interface ScoringConsoleProps {
   /** Clock resolved on the server, so render stays pure and hydration-safe. */
   now: number
   startedAtMs: number | null
+  /** The `matches.updated_at` the server rendered this console from. */
+  revision: string | null
   contextLabel: string
 }
 
@@ -75,6 +78,7 @@ export function ScoringConsole({
   canScore,
   now,
   startedAtMs,
+  revision,
   contextLabel,
 }: ScoringConsoleProps) {
   const [state, dispatch] = useReducer(scoringReducer, initialState)
@@ -96,6 +100,18 @@ export function ScoringConsole({
   // A save already in flight, and the newest state waiting behind it.
   const inFlight = useRef(false)
   const queued = useRef<ScoringState | null>(null)
+
+  /**
+   * The version of the match row this phone believes it is editing.
+   *
+   * A save replaces the whole rally log, so two officials on the same match —
+   * and the umpire and the scoresheet person are both duty officials — would
+   * otherwise take turns wiping each other's points with nobody told. Sending
+   * this back lets the server refuse a save built on a log it has since
+   * replaced. It is a ref, not state: it changes on every save and must never
+   * cause a re-render of a live scoreboard.
+   */
+  const knownRevision = useRef(revision)
 
   /**
    * Anything this phone recorded that never reached the server — surfaced as
@@ -149,11 +165,18 @@ export function ScoringConsole({
             rules: attempt.config.rules,
             teamA: attempt.config.teamA,
             teamB: attempt.config.teamB,
+            knownRevision: knownRevision.current,
           })
+          if (result.revision !== undefined) knownRevision.current = result.revision
           if (result.ok) {
             setTracker((current) => syncSucceeded(current, rallies, Date.now()))
           } else if (result.demo) {
             setTracker((current) => syncLocalOnly(current, rallies))
+          } else if (result.conflict) {
+            // Stop here rather than draining the queue: every state behind this
+            // one is built on the same stale log and would be refused too.
+            setTracker((current) => syncConflict(current, rallies, result.message))
+            return
           } else {
             setTracker((current) => syncFailed(current, rallies, result.message))
           }

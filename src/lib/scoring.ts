@@ -1036,7 +1036,16 @@ export function parseSnapshot(raw: string | null): ScoringSnapshot | null {
 // Sync tracking — loud failures, never a silently lost point
 // ---------------------------------------------------------------------------
 
-export type SyncStatus = 'idle' | 'saving' | 'saved' | 'pending' | 'failed' | 'offline' | 'local'
+export type SyncStatus =
+  | 'idle'
+  | 'saving'
+  | 'saved'
+  | 'pending'
+  | 'failed'
+  | 'offline'
+  | 'local'
+  /** Another official's phone has written to this match. Retrying cannot help. */
+  | 'conflict'
 
 export interface SyncTracker {
   status: SyncStatus
@@ -1098,6 +1107,22 @@ export function syncFailed(
     localRallies,
     lastError: error,
   }
+}
+
+/**
+ * Another duty official has scored this match from their own phone.
+ *
+ * Kept apart from `failed` because the advice is the opposite: a failed save
+ * says "nothing is lost, tap Retry", which is true of a dropped request and
+ * false here. Retrying a stale log cannot succeed, and the points at risk are
+ * the other official's, so the banner has to say reload instead.
+ */
+export function syncConflict(
+  tracker: SyncTracker,
+  localRallies: number,
+  error: string,
+): SyncTracker {
+  return { ...tracker, status: 'conflict', localRallies, lastError: error }
 }
 
 /** Demo mode / no database: honest about the fact nothing leaves the device. */
@@ -1166,6 +1191,16 @@ export function describeSync(tracker: SyncTracker): SyncBannerView {
         title: "Couldn't save",
         detail: `${points} not on the scoreboard yet${tracker.lastError ? ` (${tracker.lastError})` : ''}. Nothing is lost — tap Retry.`,
         retryable: true,
+      }
+    case 'conflict':
+      return {
+        tone: 'danger',
+        title: 'Someone else is scoring this match',
+        detail:
+          `${points} on this phone were not saved, because another official has scored ` +
+          'points your phone has not seen. Reload this page to pick up their score — ' +
+          'saving over it would wipe their points.',
+        retryable: false,
       }
     case 'pending':
       return {

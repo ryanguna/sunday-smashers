@@ -113,6 +113,11 @@ export interface ScoringMatchData {
   /** Session rebuilt from the server's `score_events` log where one exists. */
   state: ScoringState
   startedAtMs: number | null
+  /**
+   * The match row's `updated_at`, handed to the console so its first save can
+   * say which version of the row it is replacing. Null in demo mode.
+   */
+  revision: string | null
   now: number
 }
 
@@ -129,7 +134,7 @@ export async function loadScoringMatch(matchId: string): Promise<ScoringMatchDat
     (a) => a.match.id === match.id,
   )
 
-  const { startedAtMs, events } = await loadMatchScoringRow(match.id)
+  const { startedAtMs, revision, events } = await loadMatchScoringRow(match.id)
   // Rules, including `cap`, come off the fixture itself — one fetch, one
   // source of truth.
   const config = scoringConfigFromMatch(match)
@@ -144,6 +149,7 @@ export async function loadScoringMatch(matchId: string): Promise<ScoringMatchDat
     config,
     state: restoreFromScoreEvents(config, events),
     startedAtMs: startedAtMs ?? demoStartedAt(demo, match),
+    revision,
     now,
   }
 }
@@ -162,6 +168,7 @@ function demoStartedAt(demo: boolean, match: PublicMatch): number | null {
 
 interface MatchScoringRow {
   startedAtMs: number | null
+  revision: string | null
   events: StoredScoreEvent[]
 }
 
@@ -172,12 +179,12 @@ interface MatchScoringRow {
  * breaking the console.
  */
 async function loadMatchScoringRow(matchId: string): Promise<MatchScoringRow> {
-  if (!isSupabaseConfigured()) return { startedAtMs: null, events: [] }
+  if (!isSupabaseConfigured()) return { startedAtMs: null, revision: null, events: [] }
 
   try {
     const supabase = await createClient()
     const [{ data: row }, { data: events }] = await Promise.all([
-      supabase.from('matches').select('started_at').eq('id', matchId).maybeSingle(),
+      supabase.from('matches').select('started_at, updated_at').eq('id', matchId).maybeSingle(),
       supabase
         .from('score_events')
         .select('sequence, side, event_type, score_a_after, score_b_after, note')
@@ -188,10 +195,11 @@ async function loadMatchScoringRow(matchId: string): Promise<MatchScoringRow> {
     const started = row?.started_at ? new Date(row.started_at).getTime() : null
     return {
       startedAtMs: started != null && Number.isFinite(started) ? started : null,
+      revision: row?.updated_at ?? null,
       events: (events ?? []) as StoredScoreEvent[],
     }
   } catch {
-    return { startedAtMs: null, events: [] }
+    return { startedAtMs: null, revision: null, events: [] }
   }
 }
 

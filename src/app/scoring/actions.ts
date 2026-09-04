@@ -45,6 +45,14 @@ export interface ScoringActionResult {
   demo?: boolean
   /** Rallies accepted by the server — the console reconciles against this. */
   rallies?: number
+  /**
+   * The match row's new `updated_at`. The console keeps it and sends it back
+   * on the next save so the server can tell "nothing changed under me" from
+   * "another official has been scoring this match too".
+   */
+  revision?: string | null
+  /** True when the save was refused because someone else wrote first. */
+  conflict?: boolean
 }
 
 const DEMO_RESULT: ScoringActionResult = {
@@ -61,6 +69,14 @@ export interface SaveScorePayload {
   rules: StageRules
   teamA: ScoringTeam
   teamB: ScoringTeam
+  /**
+   * The `matches.updated_at` this console last saw. When set, the save is
+   * refused if the row has moved on, which is what stops a second official's
+   * phone silently replacing the umpire's rally log. Required rather than
+   * optional so a caller cannot quietly opt out of the guard — null is only
+   * for a console that has genuinely never been told a revision.
+   */
+  knownRevision: string | null
 }
 
 /**
@@ -104,19 +120,24 @@ export async function saveScore(payload: SaveScorePayload): Promise<ScoringActio
       }
 
     const patch = matchScorePatch(board, config)
-    const { data: updatedRows, error: matchError } = await supabase
-      .from('matches')
-      .update({
-        ...patch,
-        // `started_at` is deliberately NOT written here. This runs after every
-        // tap, so stamping it each time reset the courtside match clock to
-        // zero on every point, and an undo back to 0-0 wiped it altogether. It
-        // is owned solely by `startMatch()` below, which is the only moment
-        // that actually means "this match started".
-        completed_at: board.complete ? new Date().toISOString() : null,
-      })
-      .eq('id', matchId)
-      .select('id')
+    const write = () =>
+      supabase
+        .from('matches')
+        .update({
+          ...patch,
+          // `started_at` is deliberately NOT written here. This runs after every
+          // tap, so stamping it each time reset the courtside match clock to
+          // zero on every point, and an undo back to 0-0 wiped it altogether. It
+          // is owned solely by `startMatch()` below, which is the only moment
+          // that actually means "this match started".
+          completed_at: board.complete ? new Date().toISOString() : null,
+        })
+        .eq('id', matchId)
+
+    const guard = payload.knownRevision
+    const { data: updatedRows, error: matchError } = guard
+      ? await write().eq('updated_at', guard).select('id, updated_at')
+      : await write().select('id, updated_at')
 
     if (matchError) {
       return { ok: false, message: friendlyError(matchError.message) }
@@ -124,14 +145,53 @@ export async function saveScore(payload: SaveScorePayload): Promise<ScoringActio
 
     // PostgREST reports an RLS policy mismatch as zero rows affected with no
     // error at all, so checking `error` alone would show the umpire a saved
-    // score that was never written.
-    if (!updatedRows || updatedRows.length === 0) {
-      return {
-        ok: false,
-        message:
-          'Nothing was saved — you may no longer be on the duty roster for this match. Ask an admin.',
+    // score that was never written. With the revision guard on, zero rows also
+    // means the row moved on since this phone last saw it — three very
+    // different situations that all have to be told apart before we answer.
+    let matchRows = updatedRows
+    if (!matchRows || matchRows.length === 0) {
+      if (!guard) {
+        return {
+          ok: false,
+          message:
+            'Nothing was saved — you may no longer be on the duty roster for this match. Ask an admin.',
+        }
       }
+
+      const verdict = await classifyStaleWrite(supabase, matchId, user.id)
+      if (verdict === 'denied') {
+        return {
+          ok: false,
+          message:
+            'Nothing was saved — you may no longer be on the duty roster for this match. Ask an admin.',
+        }
+      }
+      if (verdict === 'conflict') {
+        return {
+          ok: false,
+          conflict: true,
+          message:
+            'Another official has scored this match since your phone last synced. Reload before saving so their points are not wiped.',
+        }
+      }
+
+      // `verdict === 'mine'`: the row moved because an earlier save of ours
+      // landed and its reply never made it back over the venue wifi. Retrying
+      // the same payload is exactly what the console is meant to do, so let it
+      // through rather than accusing the umpire of a conflict with themselves.
+      const retry = await write().select('id, updated_at')
+      if (retry.error) return { ok: false, message: friendlyError(retry.error.message) }
+      if (!retry.data || retry.data.length === 0) {
+        return {
+          ok: false,
+          message:
+            'Nothing was saved — you may no longer be on the duty roster for this match. Ask an admin.',
+        }
+      }
+      matchRows = retry.data
     }
+
+    const revision = (matchRows[0] as { updated_at?: string | null }).updated_at ?? null
 
     // Full replace — see the note at the top of this file.
     const { error: deleteError } = await supabase
@@ -176,6 +236,7 @@ export async function saveScore(payload: SaveScorePayload): Promise<ScoringActio
         ok: true,
         message: `Result saved, but the next round was not updated: ${advanceWarning}`,
         rallies: snapshot.rallies.length,
+        revision,
       }
     }
 
@@ -183,6 +244,7 @@ export async function saveScore(payload: SaveScorePayload): Promise<ScoringActio
       ok: true,
       message: board.complete ? 'Result saved.' : 'Score saved.',
       rallies: snapshot.rallies.length,
+      revision,
     }
   } catch (error) {
     return {
@@ -190,6 +252,45 @@ export async function saveScore(payload: SaveScorePayload): Promise<ScoringActio
       message: friendlyError(error instanceof Error ? error.message : ''),
     }
   }
+}
+
+/**
+ * Works out why a revision-guarded update matched no rows.
+ *
+ * Three things look identical to PostgREST — an RLS refusal, a genuine clash
+ * with another official, and our own earlier save whose reply was lost — so
+ * the match's rally log is asked who wrote it last.
+ *
+ *   - `denied`   the row is unreadable, so the console is not on the roster
+ *   - `mine`     nobody else has touched the log, so this is our own retry
+ *   - `conflict` a different official has written points we have not seen
+ */
+async function classifyStaleWrite(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  matchId: string,
+  userId: string,
+): Promise<'denied' | 'mine' | 'conflict'> {
+  const { data: row, error } = await supabase
+    .from('matches')
+    .select('id')
+    .eq('id', matchId)
+    .maybeSingle()
+  // Unreadable or gone: the console has no business writing to it either way.
+  if (error || !row) return 'denied'
+
+  const { data: events } = await supabase
+    .from('score_events')
+    .select('scored_by')
+    .eq('match_id', matchId)
+    .order('sequence', { ascending: false })
+    .limit(1)
+
+  const lastAuthor = events?.[0]?.scored_by ?? null
+  // An empty log means there are no points of anyone else's to overwrite —
+  // `startMatch` alone also bumps `updated_at`, and that must not lock the
+  // umpire out of scoring the match it just started.
+  if (lastAuthor == null || lastAuthor === userId) return 'mine'
+  return 'conflict'
 }
 
 /**

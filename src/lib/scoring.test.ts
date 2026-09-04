@@ -32,6 +32,7 @@ import {
   scoringStorageKey,
   serialiseSnapshot,
   serveSummary,
+  syncConflict,
   syncFailed,
   syncLocalOnly,
   syncStarted,
@@ -1101,5 +1102,30 @@ describe("the 'load' action", () => {
     })
     expect(deriveScoreboard(loaded).outcome).toBe('retired')
     expect(deriveScoreboard(loaded).winner).toBe('a')
+  })
+})
+
+describe('the banner when another official is scoring the same match', () => {
+  const conflicted = syncConflict(
+    { ...createSyncTracker('saving', 0), localRallies: 12, syncedRallies: 9 },
+    12,
+    'Another official has scored this match since your phone last synced.',
+  )
+
+  it('does not offer a retry that cannot possibly work', () => {
+    expect(describeSync(conflicted).retryable).toBe(false)
+  })
+
+  it('tells the umpire to reload rather than promising nothing is lost', () => {
+    const view = describeSync(conflicted)
+    expect(view.detail).toMatch(/reload/i)
+    expect(view.detail, 'this copy is only true of a dropped request').not.toMatch(
+      /nothing is lost/i,
+    )
+  })
+
+  it('warns that saving anyway would wipe the other official’s points', () => {
+    expect(describeSync(conflicted).detail).toMatch(/wipe their points/i)
+    expect(describeSync(conflicted).tone).toBe('danger')
   })
 })
