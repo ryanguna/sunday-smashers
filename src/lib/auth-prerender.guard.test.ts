@@ -90,9 +90,16 @@ describe('signed-in pages are never prerendered', () => {
    * entirely the proxy's prefix list, which redirects before any rendering.
    *
    * So every guarded page needs a matching prefix there. `/setup` is the one
-   * intentional exception: it has no auth guard precisely because on day zero
-   * there is no admin to sign in as.
+   * intentional exception, and it has to be listed rather than simply absent:
+   * its guard is *conditional*. Once an organiser exists it requires admin,
+   * but on day zero -- an empty database, or a deployment with no environment
+   * variables -- there is nobody who could sign in, and a proxy prefix would
+   * bounce the only route that can fix either state. It settles for the
+   * page-level redirect, which costs a `200` where a `307` would be tidier but
+   * still renders the 403 instead of the wizard.
    */
+  const CONDITIONALLY_GUARDED = ['/setup']
+
   it('every guarded page sits behind a proxy prefix', () => {
     const proxy = readFileSync(join(import.meta.dirname, '..', 'proxy.ts'), 'utf8')
     const block = proxy.slice(proxy.indexOf('const PROTECTED_PREFIXES'))
@@ -103,6 +110,7 @@ describe('signed-in pages are never prerendered', () => {
 
     const unguarded = guardedPages()
       .map((file) => '/' + relative(APP, file).replace(/\/?page\.tsx$/, ''))
+      .filter((route) => !CONDITIONALLY_GUARDED.includes(route))
       .filter((route) => !prefixes.some((p) => route === p || route.startsWith(`${p}/`)))
 
     expect(

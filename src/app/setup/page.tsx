@@ -1,8 +1,7 @@
 import type { Metadata } from 'next'
-import { redirect } from 'next/navigation'
 
 import { GradientText, SectionHeading } from '@/components/ui'
-import { isAdmin } from '@/lib/auth'
+import { requireAdmin } from '@/lib/auth'
 import { readSetupStatus } from './actions'
 import { SetupClient } from './SetupClient'
 
@@ -42,8 +41,14 @@ export default async function SetupPage() {
   // Only stay public while there is genuinely no other way in: an unconfigured
   // deployment (`requireAuth` sends people here to explain itself) or a
   // database with no organiser yet.
-  if (status.isConfigured && status.hasAdmin && !(await isAdmin())) {
-    redirect('/403')
+  //
+  // `requireAdmin` rather than a bare role check, so a signed-out visitor is
+  // sent to sign in instead of to a 403 that opens "you're signed in, but…"
+  // at someone who isn't. Neither of its own redirects can fire here: the
+  // unconfigured branch is excluded by `isConfigured`, and demo mode by the
+  // same test.
+  if (status.isConfigured && status.hasAdmin) {
+    await requireAdmin('/setup')
   }
 
   return (

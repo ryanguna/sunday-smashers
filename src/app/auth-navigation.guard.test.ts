@@ -76,8 +76,12 @@ describe('the first-run setup page closes behind the committee', () => {
 
   it('turns non-admins away once an organiser exists', () => {
     expect(source).toContain('status.hasAdmin')
-    expect(source).toContain('isAdmin()')
-    expect(source).toContain("redirect('/403')")
+    // `requireAdmin`, not a bare role check: it sends a signed-out visitor to
+    // sign in, where a bare check produced a 403 page that opens "you're
+    // signed in, but this area needs a different role" at someone who is not
+    // signed in at all.
+    expect(source).toContain("requireAdmin('/setup')")
+    expect(source).not.toContain("redirect('/403')")
   })
 
   it('stays open while there is genuinely no other way in', () => {
