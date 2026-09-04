@@ -48,3 +48,38 @@ describe('the courtside TV view recovers on its own', () => {
     expect(source).toContain('text-white')
   })
 })
+
+/**
+ * This tournament officiates itself: the umpire, scoresheet person and two
+ * line judges for a match are the players of the *next* match on that court.
+ * The side panel beside the score is the only place courtside that says so,
+ * and as one slide among seven it was on screen for 12 seconds in every 84 —
+ * long enough to be missed by exactly the people who need it, which stalls
+ * the next match while somebody goes looking for them.
+ */
+describe('the duty roster is never more than one slide away', () => {
+  const source = readFileSync(path.resolve(__dirname, '..', '..', 'components', 'tv', 'Scoreboard.tsx'), 'utf8')
+
+  function slidesBlock(): string {
+    const start = source.indexOf('const slides = useMemo(')
+    expect(start, 'the slide list moved — update this test').toBeGreaterThan(-1)
+    return source.slice(start, source.indexOf('}, [upNext,', start))
+  }
+
+  it('interleaves Up Next between the other panels rather than queueing it once', () => {
+    const block = slidesBlock()
+    expect(block).toContain('interleaved')
+    // Every other slide is followed by the roster again.
+    expect(block).toMatch(/for \(const slide of others\) \{[\s\S]*?interleaved\.push\(upNextSlide\)/)
+  })
+
+  it('still starts the rotation on the roster', () => {
+    expect(slidesBlock()).toMatch(/const interleaved[^=]*= \[upNextSlide\]/)
+  })
+
+  it('does not rotate through an empty notices panel', () => {
+    // An announcements slide with nothing in it is 12 seconds of dead air on
+    // a screen whose whole job is to be glanceable.
+    expect(slidesBlock()).toContain('announcements.length > 0')
+  })
+})

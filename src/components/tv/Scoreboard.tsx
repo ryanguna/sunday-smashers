@@ -81,23 +81,44 @@ export function Scoreboard({ initial, venueUpcoming, announcements, countdownTar
     }
   }, [live])
 
+  /**
+   * The side panel's rotation, with "Up Next" interleaved between every other
+   * slide rather than taking its turn once per cycle.
+   *
+   * This tournament officiates itself: the umpire, scoresheet person and line
+   * judges for a match are the players of the *next* match on that court, and
+   * the panel beside the score is the only place courtside that says so. As
+   * one slide among seven it was on screen for 12 seconds in every 84 — long
+   * enough to be missed by exactly the people who need it, which stalls the
+   * next match. Interleaved, it is never more than one slide away.
+   */
   const slides = useMemo(() => {
-    const s: React.ReactNode[] = [<UpNextPanel key="upnext" upNext={upNext} laterOnCourt={laterOnCourt} />]
-    for (const st of standings) s.push(<StandingsPanel key={`st-${st.division}`} standings={st} />)
-    for (const b of bracket) s.push(<BracketPanel key={`br-${b.division}`} bracket={b} />)
-    s.push(<RulesPanel key="rules" />)
-    s.push(
-      <AnnouncementsTvPanel
-        key="announce"
-        announcements={announcements}
-        limit={1}
-        excerptChars={70}
-        title="Notices"
-        className="h-full"
-      />,
-    )
-    s.push(<SponsorPanel key="sponsor" />)
-    return s
+    const upNextSlide = <UpNextPanel key="upnext" upNext={upNext} laterOnCourt={laterOnCourt} />
+
+    const others: React.ReactNode[] = []
+    for (const st of standings) others.push(<StandingsPanel key={`st-${st.division}`} standings={st} />)
+    for (const b of bracket) others.push(<BracketPanel key={`br-${b.division}`} bracket={b} />)
+    others.push(<RulesPanel key="rules" />)
+    if (announcements.length > 0) {
+      others.push(
+        <AnnouncementsTvPanel
+          key="announce"
+          announcements={announcements}
+          limit={1}
+          excerptChars={70}
+          title="Notices"
+          className="h-full"
+        />,
+      )
+    }
+    others.push(<SponsorPanel key="sponsor" />)
+
+    const interleaved: React.ReactNode[] = [upNextSlide]
+    for (const slide of others) {
+      interleaved.push(slide)
+      interleaved.push(upNextSlide)
+    }
+    return interleaved
   }, [upNext, laterOnCourt, standings, bracket, announcements])
 
   if (!live) {
@@ -162,7 +183,7 @@ export function Scoreboard({ initial, venueUpcoming, announcements, countdownTar
           </span>
           {live.status === 'live' && (
             <span className="tabular-nums">
-              ⏱ <ElapsedClock matchKey={live.matchId} />
+              ⏱ <ElapsedClock matchKey={live.matchId} startedAt={live.startedAt} />
             </span>
           )}
           <ConnectionIndicator status={status} />
@@ -222,6 +243,7 @@ export function Scoreboard({ initial, venueUpcoming, announcements, countdownTar
                 </span>
                 <ElapsedClock
                   matchKey={live.matchId}
+                  startedAt={live.startedAt}
                   className="font-[family-name:var(--font-heading)] text-[clamp(1.8rem,3.4vw,3.4rem)] font-extrabold tabular-nums text-frost"
                 />
                 <span className="text-[clamp(0.7rem,1vw,1.1rem)] font-bold uppercase tracking-[0.2em] text-frost/50">
