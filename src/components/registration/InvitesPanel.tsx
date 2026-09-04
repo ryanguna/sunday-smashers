@@ -7,6 +7,7 @@ import { GiftIcon, ShuttlecockIcon } from '@/components/icons'
 import { canRespondToInvite, describeInvite, type InviteTone } from '@/lib/registration'
 import { loadInvites, respondToInvite, type InviteView } from './data'
 import { SignInPromptPanel } from './RegistrationStates'
+import { SharePartnerInvitePrompt } from './SharePartnerInvitePrompt'
 
 const TONE_TO_BADGE: Record<InviteTone, 'pending' | 'approved' | 'unpaid' | 'info'> = {
   pending: 'pending',
@@ -193,6 +194,12 @@ export function InvitesPanel() {
             <ShuttlecockIcon size={20} className="text-[var(--color-brand-sky-dark)]" aria-hidden="true" />
             Invites you&rsquo;ve sent
           </h2>
+          {outgoing.some((invite) => invite.status === 'pending') && (
+            <SharePartnerInvitePrompt
+              partnerLabel={outgoing.find((invite) => invite.status === 'pending')?.sentTo}
+              className="mb-3 mt-0"
+            />
+          )}
           <ul className="grid gap-3">
             {outgoing.map((invite) => {
               const described = describeInvite(invite.status)

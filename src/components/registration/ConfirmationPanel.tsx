@@ -4,12 +4,13 @@ import { useEffect, useState } from 'react'
 import { Badge, Button, Card, Confetti } from '@/components/ui'
 import { GiftIcon, HollyIcon, SparkleIcon, TrophyIcon } from '@/components/icons'
 import { confirmationCopy } from '@/lib/registration'
+import { SharePartnerInvitePrompt } from './SharePartnerInvitePrompt'
 import type { RegistrationStatus } from '@/lib/supabase/types'
 
 export interface ConfirmationPanelProps {
   status: RegistrationStatus
   divisionName?: string | null
-  /** True when a partner invite was sent as part of this registration. */
+  /** True when a partner invite was saved as part of this registration. */
   invitedPartner?: boolean
   /** True when the player joined the free-agent pool instead. */
   freeAgent?: boolean
@@ -78,10 +79,18 @@ export function ConfirmationPanel({
             {status === 'waitlisted' ? 'Waitlisted' : 'Pending admin approval'}
           </Badge>
           {divisionName && <Badge status="info">{divisionName}</Badge>}
-          {invitedPartner && <Badge status="info">Partner invite sent</Badge>}
+          {/* "sent" would be a lie — there is no mailer. The invite is saved
+              and waits for the partner to sign up; the prompt below is what
+              actually gets it to them. */}
+          {invitedPartner && <Badge status="info">Partner invite saved</Badge>}
           {freeAgent && <Badge status="info">Free-agent pool</Badge>}
         </div>
       </Card>
+
+      {/* The partner's email is deliberately not in the URL, so the nudge
+          cannot name them here. It does on /register/invites, which reads the
+          invite from the database. */}
+      {invitedPartner && <SharePartnerInvitePrompt />}
 
       {partnerWarning && (
         <Card variant="default" className="mt-5 border-2 border-[var(--color-brand-gold-dark)] bg-[var(--color-brand-gold-light)]/30">
