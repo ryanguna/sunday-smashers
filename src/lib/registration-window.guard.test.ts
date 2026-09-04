@@ -146,3 +146,50 @@ describe('every public table forces row level security', () => {
     )
   })
 })
+
+/**
+ * Migration 0017 — `registrations` carries both `division_id` and
+ * `tournament_id`, and the two foreign keys are independent, so nothing ever
+ * checked that the division belonged to the tournament named beside it.
+ *
+ * It matters more after 0016: the window trigger reads the dates from the
+ * *division's* tournament, so a row could be admitted under one tournament's
+ * calendar while recording itself under another. The admin queue filters by
+ * `tournament_id`, so that row would be invisible to the committee while
+ * still holding its `unique (division_id, player_id)` slot and counting
+ * against the cap — an entry nobody can see and nobody can approve, occupying
+ * a place. Verified against live: before 0017 the mismatch was stored as
+ * written.
+ */
+describe('a registration cannot name a tournament its division does not belong to', () => {
+  const sync = readFileSync(
+    join(process.cwd(), 'supabase', 'migrations', '0017_registration_tournament_consistency.sql'),
+    'utf8',
+  )
+
+  it('derives the tournament from the division rather than trusting the client', () => {
+    expect(sync).toContain('new.tournament_id := owning_tournament')
+    expect(sync).toMatch(/from public\.divisions\s+where id = new\.division_id/)
+  })
+
+  it('corrects rather than refuses, so a stray client value cannot fail an entry', () => {
+    // A CHECK constraint here would turn a column the player has never heard
+    // of into a failed registration. The value is derived data; the database
+    // can just compute it.
+    expect(sync).not.toMatch(/raise exception/i)
+  })
+
+  it('covers updates too, so moving an entry between divisions stays consistent', () => {
+    expect(sync).toMatch(
+      /before insert or update of division_id, tournament_id on public\.registrations/,
+    )
+  })
+
+  it('repairs rows already stored with the wrong pairing', () => {
+    expect(sync).toMatch(/update public\.registrations r\s+set tournament_id = d\.tournament_id/)
+  })
+
+  it('pins search_path, like every other definer function in this schema', () => {
+    expect(sync).toContain('set search_path = public, pg_temp')
+  })
+})

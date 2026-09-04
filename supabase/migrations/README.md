@@ -6,8 +6,8 @@ already-applied migration is a no-op rather than an error.
 
 ## Status
 
-The hosted project (`xkxsjafexqexnnkyujou`) has **`0001`–`0016` applied**
-(`0013`–`0016` applied 2026-09-04, verified functionally against live).
+The hosted project (`xkxsjafexqexnnkyujou`) has **`0001`–`0017` applied**
+(`0013`–`0017` applied 2026-09-04, verified functionally against live).
 
 Check for drift directly — nothing in the UI reports it:
 
@@ -18,9 +18,14 @@ curl -s -o /dev/null -w '%{http_code}\n' \
 # 200 = 0015 applied, 404 = not applied
 ```
 
-`0016` has no new table or view to probe, so check the trigger instead — try
-an entry as a signed-out client before the window opens and you should get a
-`check_violation`, not a `pending` row.
+`0016` and `0017` add no table or view to probe, so check their triggers:
+
+```sql
+select tgname from pg_trigger
+where tgrelid = 'public.registrations'::regclass and not tgisinternal;
+-- expect enforce_division_capacity, enforce_registration_window,
+--        set_updated_at, sync_registration_tournament
+```
 
 Do not assume drift is harmless. While `0013`–`0015` were outstanding the app
 did **not** degrade quietly — the application code had been written against
