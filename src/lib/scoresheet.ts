@@ -581,6 +581,42 @@ export function countsTowardsStandings(state: SheetState): boolean {
   return state.status === 'verified'
 }
 
+/**
+ * Sheet statuses whose match result must be kept out of the standings.
+ *
+ * A dispute is the one status that makes a *recorded* result untrustworthy —
+ * a pair has read the sheet and said it is wrong. Every other status is just
+ * a stage of the paperwork catching up with a result nobody contests.
+ *
+ * Deliberately not the inverse of `countsTowardsStandings`. Requiring a
+ * verified sheet before a result counts would drop every match played on
+ * paper or entered by an admin — the fallback the rules explicitly keep — and
+ * would empty the standings on the day. Whether verification should gate the
+ * standings outright is a tournament-committee call, not one to infer here.
+ */
+export const STANDINGS_EXCLUDED_STATUSES: readonly ScoresheetStatus[] = ['disputed']
+
+/** True when this sheet's dispute should keep its match out of the standings. */
+export function resultIsDisputed(status: ScoresheetStatus): boolean {
+  return STANDINGS_EXCLUDED_STATUSES.includes(status)
+}
+
+/**
+ * The matches whose results are under dispute, from raw `scoresheets` rows.
+ *
+ * The single home for the rule. Standings are computed in three places — the
+ * public tables, the player dashboard and the admin draw workbench — and
+ * before this they each simply ignored sheet status, so a pair could dispute
+ * a score, the tabulator could mark it disputed, and the standings carried on
+ * as though nothing had happened. The sheet even told them "it does not count
+ * until it is corrected".
+ */
+export function disputedMatchIds(
+  sheets: readonly { match_id: string; status: ScoresheetStatus }[],
+): ReadonlySet<string> {
+  return new Set(sheets.filter((s) => resultIsDisputed(s.status)).map((s) => s.match_id))
+}
+
 // ---------------------------------------------------------------------------
 // Chain of custody — the visual rail on the sheet
 // ---------------------------------------------------------------------------

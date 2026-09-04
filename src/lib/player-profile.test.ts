@@ -41,6 +41,7 @@ const holly = team('t3', 'Holly Jolly Smash', ['Ezra Wills', 'Finn Ahern'], 3)
 
 function match(overrides: Partial<PublicMatch> & Pick<PublicMatch, 'id'>): PublicMatch {
   return {
+    resultDisputed: false,
     division: 'mens_doubles',
     stage: 'elims',
     court: 'Court 1',

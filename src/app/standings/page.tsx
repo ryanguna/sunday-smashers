@@ -26,14 +26,12 @@ export const metadata: Metadata = {
 
 export const dynamic = 'force-dynamic'
 
-const QUALIFYING_SPOTS = 4
-
 function pointDiffLabel(diff: number): string {
   if (diff > 0) return `+${diff}`
   return `${diff}`
 }
 
-function StandingsTable({ rows }: { rows: PublicStandingRow[] }) {
+function StandingsTable({ rows, qualifyingSpots }: { rows: PublicStandingRow[]; qualifyingSpots: number }) {
   return (
     <Table>
       <TableHead>
@@ -49,7 +47,7 @@ function StandingsTable({ rows }: { rows: PublicStandingRow[] }) {
       </TableHead>
       <TableBody>
         {rows.map((row) => {
-          const qualifying = row.rank <= QUALIFYING_SPOTS
+          const qualifying = row.rank <= qualifyingSpots
           return (
             <TableRow
               key={row.teamId}
@@ -81,7 +79,7 @@ function StandingsTable({ rows }: { rows: PublicStandingRow[] }) {
                     )}
                     {qualifying && (
                       <Badge status="final" className="text-xs">
-                        <MedalIcon size={12} /> Semis
+                        <MedalIcon size={12} /> {qualifyingSpots === 2 ? 'Final' : 'Semis'}
                       </Badge>
                     )}
                     {row.needsAdminDecision && (
@@ -136,7 +134,21 @@ function StandingsTable({ rows }: { rows: PublicStandingRow[] }) {
   )
 }
 
+function qualifyingSummary(standings: readonly PublicDivisionStandings[]): string {
+  const base = 'Every pair plays every other pair once, and wins decide the ranking.'
+  const spots = [...new Set(standings.map((s) => s.division.qualifyingPlaces))].sort((a, b) => a - b)
+  if (spots.length === 0) return base
+  // Divisions can be configured differently, so only name a single number
+  // when every division agrees on it.
+  if (spots.length > 1) return `${base} The top pairs in each division go through to the knockout.`
+  return spots[0] === 2
+    ? `${base} The top 2 in each division go straight through to the final.`
+    : `${base} The top ${spots[0]} in each division go through to the semi-finals.`
+}
+
 function DivisionPanel({ standings }: { standings: PublicDivisionStandings }) {
+  const spots = standings.division.qualifyingPlaces
+  const disputed = standings.disputedResults
   return (
     <div className="flex flex-col gap-4">
       <div className="flex flex-wrap items-center justify-between gap-3 rounded-[var(--radius-lg)] bg-white/70 px-4 py-3 shadow-[var(--shadow-soft)]">
@@ -146,10 +158,20 @@ function DivisionPanel({ standings }: { standings: PublicDivisionStandings }) {
         </p>
         <div className="flex items-center gap-2 text-xs font-semibold text-[var(--color-brand-mint-dark)]">
           <span className="h-2.5 w-2.5 rounded-full bg-[image:var(--gradient-mint-sky)]" aria-hidden="true" />
-          Top {QUALIFYING_SPOTS} qualify for the semis
+          Top {spots} qualify for the {spots === 2 ? 'final' : 'semis'}
         </div>
       </div>
-      <StandingsTable rows={standings.rows} />
+      {disputed > 0 && (
+        <p
+          role="status"
+          className="rounded-[var(--radius-lg)] bg-[var(--color-brand-gold-light)]/50 px-4 py-3 text-sm font-semibold text-[var(--color-plum)]"
+        >
+          {disputed === 1 ? 'One result is' : `${disputed} results are`} being checked after a
+          disagreement over the scoresheet, so {disputed === 1 ? 'it is' : 'they are'} not counted
+          in the table yet. The tabulator will sort it out. 🎄
+        </p>
+      )}
+      <StandingsTable rows={standings.rows} qualifyingSpots={spots} />
     </div>
   )
 }
@@ -167,7 +189,7 @@ export default async function StandingsPage() {
             eyebrow="Standings"
             title="Round-Robin Standings"
             level={1}
-            description="Every pair plays every other pair once. Wins decide the ranking; the top 4 in each division go through to the semi-finals."
+            description={qualifyingSummary(standings)}
           />
         </section>
 

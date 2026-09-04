@@ -60,6 +60,7 @@ const teamC: PublicTeam = {
 
 function makeMatch(overrides: Partial<PublicMatch>): PublicMatch {
   return {
+    resultDisputed: false,
     id: 'match-1',
     division: 'mens_doubles',
     stage: 'elims',

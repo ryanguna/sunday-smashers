@@ -886,6 +886,7 @@ describe('officiating assignments', () => {
 
   function match(overrides: Partial<PublicMatch>): PublicMatch {
     return {
+      resultDisputed: false,
       id: 'm1',
       division: 'womens_doubles',
       stage: 'elims',

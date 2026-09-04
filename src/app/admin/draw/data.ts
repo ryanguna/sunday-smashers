@@ -14,6 +14,8 @@ import type {
 } from '@/lib/supabase/types'
 import { QUALIFYING_PLACES, type PlayedMatch, type StageRules } from '@/lib/draw'
 import { divisionSettingsFromRow, toStageRules } from '@/lib/settings'
+import { disputedMatchIds } from '@/lib/scoresheet'
+import type { ScoresheetStatus } from '@/lib/supabase/types'
 import type { DrawTeamEntry, ExistingMatchSummary, ManualTiebreak } from '@/lib/draw-admin'
 import { getAllDemoBundles, type DemoDivisionBundle } from '@/lib/demo-data'
 
@@ -247,6 +249,7 @@ async function loadLive(): Promise<DrawWorkbenchRows> {
     registrationResult,
     paymentResult,
     matchResult,
+    sheetResult,
     auditResult,
   ] = await Promise.all([
     supabase.from('divisions').select('*'),
@@ -256,6 +259,7 @@ async function loadLive(): Promise<DrawWorkbenchRows> {
     supabase.from('registrations').select('*'),
     supabase.from('payments').select('*'),
     supabase.from('matches').select('*'),
+    supabase.from('scoresheets').select('match_id, status'),
     supabase
       .from('audit_log')
       .select('*')
@@ -271,6 +275,12 @@ async function loadLive(): Promise<DrawWorkbenchRows> {
   const registrations = rowsOrThrow(registrationResult) as RegistrationRow[]
   const payments = rowsOrThrow(paymentResult) as PaymentRow[]
   const matches = rowsOrThrow(matchResult) as MatchRow[]
+  // The admin workbench decides who qualifies, so it has to exclude the same
+  // contested results the public standings do — otherwise the bracket is
+  // drawn from a ranking nobody else can see.
+  const disputed = disputedMatchIds(
+    rowsOrThrow(sheetResult) as { match_id: string; status: ScoresheetStatus }[],
+  )
   const audit = rowsOrThrow(auditResult) as AuditLogRow[]
 
   const nameById = new Map(profiles.map((p) => [p.id, p.full_name]))
@@ -354,6 +364,7 @@ async function loadLive(): Promise<DrawWorkbenchRows> {
           hasResult: isDecided(match.status),
         })),
         playedElims: elims
+          .filter((match) => !disputed.has(match.id))
           .map(toPlayed)
           .filter((played): played is PlayedMatch => played != null),
         knockoutResults,

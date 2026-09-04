@@ -20,6 +20,8 @@
  */
 
 import { DECIDED_MATCH_STATUSES } from '@/lib/supabase/types'
+import { disputedMatchIds } from '@/lib/scoresheet'
+import type { ScoresheetStatus } from '@/lib/supabase/types'
 import { isSupabaseConfigured } from '@/lib/supabase/config'
 import { createClient } from '@/lib/supabase/client'
 import type { BadgeStatus } from '@/components/ui'
@@ -67,6 +69,13 @@ export interface PublicDivisionInfo {
   gender: string
   elimsRules: StageRules
   finalsRules: StageRules
+  /**
+   * How many pairs reach the knockout. The standings page used to hardcode 4
+   * to draw its qualification line, so a division set to a straight final
+   * highlighted four pairs and told two of them they were through when they
+   * were not.
+   */
+  qualifyingPlaces: number
 }
 
 export interface PublicPlayer {
@@ -135,6 +144,13 @@ export interface PublicMatch {
   sourceA: string | null
   sourceB: string | null
   status: PublicMatchStatus
+  /**
+   * A pair has read the scoresheet and said the result is wrong, and the
+   * tabulator has marked it disputed. The score still shows — hiding it would
+   * be its own kind of dishonest — but it is left out of the standings until
+   * the sheet is corrected, exactly as the sheet says it will be.
+   */
+  resultDisputed: boolean
   scoreA: number
   scoreB: number
   pointsToWin: number
@@ -158,6 +174,12 @@ export interface PublicStandingRow extends StandingRow {
 export interface PublicDivisionStandings {
   division: PublicDivisionInfo
   rows: PublicStandingRow[]
+  /**
+   * Round robin results left out of the table because their scoresheet is
+   * disputed. Shown rather than silently subtracted: a pair whose win count
+   * drops with no explanation will assume the site is broken.
+   */
+  disputedResults: number
 }
 
 export interface PublicKnockoutFixture {
@@ -200,6 +222,8 @@ function demoTeamToPublic(team: DemoTeam): PublicTeam {
 
 function demoMatchToPublic(match: DemoMatch, teamsById: Map<TeamId, PublicTeam>): PublicMatch {
   return {
+    // Demo data has no scoresheets, so nothing is under dispute.
+    resultDisputed: false,
     id: match.id,
     division: match.division,
     stage: match.stage,
@@ -341,14 +365,23 @@ async function loadRealBundles(): Promise<AdaptedDemoBundle[] | null> {
     const teamIds = teamRows.map((t) => t.id)
     const matchIds = matchRows.map((m) => m.id)
 
-    const [{ data: teamMembers }, { data: dutyAssignments }] = await Promise.all([
+    const [{ data: teamMembers }, { data: dutyAssignments }, { data: sheets }] = await Promise.all([
       teamIds.length > 0
         ? supabase.from('team_members').select('*').in('team_id', teamIds)
         : Promise.resolve({ data: [] as { team_id: string; player_id: string }[] }),
       matchIds.length > 0
         ? supabase.from('duty_assignments').select('*').in('match_id', matchIds)
         : Promise.resolve({ data: [] as DutyAssignmentRow[] }),
+      // Only the status is needed, and `scoresheets_select_via_match_or_tabulator`
+      // lets anyone read sheets belonging to a published division — so a
+      // signed-out visitor sees the same standings as a player, which is the
+      // whole point of leaving a disputed result out of them.
+      matchIds.length > 0
+        ? supabase.from('scoresheets').select('match_id, status').in('match_id', matchIds)
+        : Promise.resolve({ data: [] as { match_id: string; status: ScoresheetStatus }[] }),
     ])
+
+    const disputed = disputedMatchIds(sheets ?? [])
 
     const playerIds = [
       ...new Set([...(teamMembers ?? []).map((tm) => tm.player_id), ...(dutyAssignments ?? []).map((d) => d.player_id)]),
@@ -388,7 +421,7 @@ async function loadRealBundles(): Promise<AdaptedDemoBundle[] | null> {
     }
 
     return divisions.map((division) =>
-      buildRealDivisionBundle(division, teamRows, matchRows, playersByTeam, courtNameById, slotById, dutiesByMatch),
+      buildRealDivisionBundle(division, teamRows, matchRows, playersByTeam, courtNameById, slotById, dutiesByMatch, disputed),
     )
   } catch {
     // Any unexpected shape/permission error — fall back to demo data rather
@@ -405,6 +438,7 @@ function buildRealDivisionBundle(
   courtNameById: Map<string, string>,
   slotById: Map<string, { label: string | null; starts_at: string }>,
   dutiesByMatch: Map<string, PublicDutyAssignment[]>,
+  disputed: ReadonlySet<string>,
 ): AdaptedDemoBundle {
   const teamRows = allTeams.filter((t) => t.division_id === division.id)
   const teams: PublicTeam[] = teamRows.map((t) => ({
@@ -422,7 +456,7 @@ function buildRealDivisionBundle(
   const qualifyingPlaces = divisionQualifyingPlaces(division)
 
   const playedElims: PlayedMatch[] = matchRows
-    .filter((m) => m.stage === 'elims')
+    .filter((m) => m.stage === 'elims' && !disputed.has(m.id))
     .map(toPlayedMatch)
     .filter((m): m is PlayedMatch => m !== null)
   const standingRows = computeStandings(
@@ -449,7 +483,7 @@ function buildRealDivisionBundle(
     finalsRules,
   )
 
-  const matches: PublicMatch[] = matchRows.map((m) => matchRowToPublic(m, teamsById, courtNameById, slotById, dutiesByMatch))
+  const matches: PublicMatch[] = matchRows.map((m) => matchRowToPublic(m, teamsById, courtNameById, slotById, dutiesByMatch, disputed.has(m.id)))
   const matchByBracketKey = new Map(matches.filter((m) => m.bracketKey).map((m) => [m.bracketKey, m]))
 
   const publicDivision: PublicDivisionInfo = {
@@ -458,6 +492,7 @@ function buildRealDivisionBundle(
     gender: division.gender,
     elimsRules,
     finalsRules,
+    qualifyingPlaces,
   }
 
   const fixtures: PublicKnockoutFixture[] = knockout.map((fixture) => ({
@@ -498,6 +533,7 @@ function matchRowToPublic(
   courtNameById: Map<string, string>,
   slotById: Map<string, { label: string | null; starts_at: string }>,
   dutiesByMatch: Map<string, PublicDutyAssignment[]>,
+  resultDisputed: boolean,
 ): PublicMatch {
   const rules = matchStageRules(m)
   // Map the DB status onto the public one explicitly. An earlier version
@@ -532,6 +568,7 @@ function matchRowToPublic(
     sourceA: null,
     sourceB: null,
     status,
+    resultDisputed,
     scoreA: m.score_a,
     scoreB: m.score_b,
     pointsToWin: rules.pointsToWin,
@@ -568,7 +605,11 @@ export async function getDivisions(): Promise<PublicDivisionInfo[]> {
 /** Round-robin standings for every division. */
 export async function getStandings(): Promise<PublicDivisionStandings[]> {
   const bundles = await getBundles()
-  return bundles.map((b) => ({ division: b.division, rows: b.standings }))
+  return bundles.map((b) => ({
+    division: b.division,
+    rows: b.standings,
+    disputedResults: b.matches.filter((m) => m.stage === 'elims' && m.resultDisputed).length,
+  }))
 }
 
 /** The full match timetable across every division, sorted by court then slot. */

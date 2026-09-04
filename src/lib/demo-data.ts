@@ -31,6 +31,7 @@ import {
   finalPlacings,
   generateKnockout,
   generateRoundRobin,
+  QUALIFYING_PLACES,
   type FinalPlacings,
   type KnockoutFixture,
   type MatchStage,
@@ -58,6 +59,7 @@ export interface DemoDivisionInfo {
   gender: 'mens' | 'womens'
   elimsRules: StageRules
   finalsRules: StageRules
+  qualifyingPlaces: number
 }
 
 export interface DemoPlayer {
@@ -171,6 +173,7 @@ export const DEMO_DIVISIONS: DemoDivisionInfo[] = [
     gender: 'mens',
     elimsRules: DEFAULT_ELIMS_RULES,
     finalsRules: DEFAULT_FINALS_RULES,
+    qualifyingPlaces: QUALIFYING_PLACES,
   },
   {
     slug: 'womens_doubles',
@@ -178,6 +181,7 @@ export const DEMO_DIVISIONS: DemoDivisionInfo[] = [
     gender: 'womens',
     elimsRules: DEFAULT_ELIMS_RULES,
     finalsRules: DEFAULT_FINALS_RULES,
+    qualifyingPlaces: QUALIFYING_PLACES,
   },
 ]
 

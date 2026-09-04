@@ -61,6 +61,7 @@ const DIVISION: PublicDivisionInfo = {
   slug: 'womens_doubles',
   name: "Women's Doubles",
   gender: 'womens',
+  qualifyingPlaces: 4,
   elimsRules: { pointsToWin: 15, deuce: false },
   finalsRules: { pointsToWin: 21, deuce: false },
 }
@@ -75,6 +76,7 @@ function slotLabel(index: number): string {
 
 function match(partial: Partial<PublicMatch> & { id: string; slotIndex: number }): PublicMatch {
   return {
+    resultDisputed: false,
     division: 'womens_doubles',
     stage: 'elims',
     court: 'Court 4',

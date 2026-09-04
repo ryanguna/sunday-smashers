@@ -469,6 +469,11 @@ export function standingsFromMatches(
     // and walkovers: they have a winner, and dropping them would understate a
     // pair's win count — the very number that decides the top four.
     if (!isMatchDecided(match.status)) continue
+    // A disputed sheet means a pair has said this result is wrong and the
+    // tabulator agreed it needs correcting. The sheet promises it "does not
+    // count until it is corrected", so leave it out rather than letting a
+    // contested score decide who reaches the semis.
+    if (match.resultDisputed) continue
     played.push({
       teamA: match.teamA.id,
       teamB: match.teamB.id,
