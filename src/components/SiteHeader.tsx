@@ -54,6 +54,22 @@ export function SiteHeader({ visibility }: { visibility?: SitePageVisibility }) 
   const [headerHeight, setHeaderHeight] = useState(61)
 
   /**
+   * Nothing was measuring the header, so `headerHeight` sat on its 61px
+   * placeholder forever and the overlay covered the bottom 4px of the logo on a
+   * small phone. A `ResizeObserver` also re-runs when the web font finishes
+   * loading and reflows the header, which a one-off measurement would miss.
+   */
+  useEffect(() => {
+    const header = headerRef.current
+    if (!header) return
+    const measure = () => setHeaderHeight(header.getBoundingClientRect().height)
+    measure()
+    const observer = new ResizeObserver(measure)
+    observer.observe(header)
+    return () => observer.disconnect()
+  }, [])
+
+  /**
    * `createPortal` needs a real `document`, which does not exist during the
    * server render. Rendering the panel only after mount is safe because the
    * menu can only be opened by a click, which already implies a mounted client.
