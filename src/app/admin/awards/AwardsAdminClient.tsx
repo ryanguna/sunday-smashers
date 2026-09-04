@@ -33,6 +33,7 @@ import {
 } from '@/lib/awards'
 import type { PublicTeam } from '@/lib/public-data'
 import type { AdminDivisionAwards } from './data'
+import { AwardCategoriesPanel } from './AwardCategoriesPanel'
 import {
   confirmPlacingsAction,
   deleteAwardAction,
@@ -574,6 +575,8 @@ function AwardsAdminInner({ divisions, definitions, isDemo }: AwardsAdminClientP
           }))}
         />
       )}
+
+      <AwardCategoriesPanel definitions={definitions} isDemo={isDemo} />
     </div>
   )
 }

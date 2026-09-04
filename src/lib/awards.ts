@@ -150,6 +150,113 @@ export const DEFAULT_AWARD_DEFINITIONS: AwardDefinition[] = [
 ]
 
 /**
+ * The editable half of the catalogue.
+ *
+ * Placings are computed from the results by `derivePlacingAwards`, so letting
+ * an organiser invent or delete a "champion" would put a second, hand-typed
+ * answer next to the one the matches already give — the exact drift this
+ * project keeps having to undo. Everything else is theirs to name.
+ */
+export const EDITABLE_AWARD_CATEGORY: AwardCategory = 'special'
+
+export interface AwardCategoryDraft {
+  key: string
+  label: string
+  blurb: string
+  scope: AwardScope
+  icon: AwardIconKey
+}
+
+export const AWARD_ICON_KEYS: readonly AwardIconKey[] = [
+  'trophy',
+  'medal',
+  'sparkle',
+  'gift',
+  'holly',
+  'bauble',
+  'racket',
+]
+
+/** True when this key is derived from results and must not be hand-edited. */
+export function isPlacingAwardKey(key: string): boolean {
+  return DEFAULT_AWARD_DEFINITIONS.some(
+    (def) => def.key === key && def.category === 'placing',
+  )
+}
+
+/** True when the catalogue ships this key, so removing it only restores a default. */
+export function isBuiltInAwardKey(key: string): boolean {
+  return DEFAULT_AWARD_DEFINITIONS.some((def) => def.key === key)
+}
+
+/**
+ * Turns a label into a key. Organisers type "Best Christmas Jumper", not
+ * `best_christmas_jumper`, and a key they never see cannot be got wrong.
+ */
+export function awardKeyFromLabel(label: string): string {
+  return label
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '_')
+    .replace(/^_+|_+$/g, '')
+    .slice(0, 48)
+}
+
+/** Why this draft cannot be saved, or `null` when it can. */
+export function validateAwardCategory(draft: AwardCategoryDraft): string | null {
+  const label = draft.label.trim()
+  if (!label) return 'Give the award a name.'
+  if (!draft.key) return 'That name has no letters or numbers in it — try another.'
+  if (!isValidAwardKey(draft.key)) {
+    return 'That name can’t be turned into an id. Stick to letters and numbers.'
+  }
+  if (isPlacingAwardKey(draft.key)) {
+    return 'Champion, runner-up and the placings come from the results — they can’t be edited here.'
+  }
+  if (!AWARD_ICON_KEYS.includes(draft.icon)) return 'Pick one of the icons.'
+  if (draft.scope !== 'team' && draft.scope !== 'player') {
+    return 'Say whether it goes to a pair or a player.'
+  }
+  return null
+}
+
+/**
+ * Read-modify-write on the stored overrides list.
+ *
+ * Kept pure and separate from the Server Action so the rule that a placing
+ * can never be overridden is testable without a database, and so the blob is
+ * only ever rewritten from a value that was read first.
+ */
+export function upsertAwardCategory(
+  current: readonly Partial<AwardDefinition>[],
+  draft: AwardCategoryDraft,
+): Partial<AwardDefinition>[] {
+  const entry: Partial<AwardDefinition> = {
+    key: draft.key,
+    label: draft.label.trim(),
+    blurb: draft.blurb.trim(),
+    category: EDITABLE_AWARD_CATEGORY,
+    scope: draft.scope,
+    icon: draft.icon,
+    dbType: 'special_mention',
+  }
+  const index = current.findIndex((item) => item.key === draft.key)
+  if (index === -1) return [...current, entry]
+  // Keep anything the blob carried that this form does not edit — sortOrder
+  // in particular, so an award does not jump around the page on a rename.
+  const next = [...current]
+  next[index] = { ...current[index], ...entry }
+  return next
+}
+
+/** Drops an override. A built-in key reverts to its shipped definition. */
+export function removeAwardCategory(
+  current: readonly Partial<AwardDefinition>[],
+  key: string,
+): Partial<AwardDefinition>[] {
+  return current.filter((item) => item.key !== key)
+}
+
+/**
  * Merges admin-configured award definitions over the defaults. Entries with
  * a matching `key` override the default; new keys are appended. Anything the
  * admin adds is a `special_mention` unless it explicitly says otherwise.
@@ -702,7 +809,16 @@ export interface AwardAuditEntry {
 }
 
 export function awardAuditEntry(
-  action: 'award.create' | 'award.update' | 'award.delete' | 'award.publish' | 'award.unpublish',
+  action:
+    | 'award.create'
+    | 'award.update'
+    | 'award.delete'
+    | 'award.publish'
+    | 'award.unpublish'
+    // Catalogue edits: not a row in `awards`, but the same trail should show
+    // who renamed or removed a category.
+    | 'award.category_save'
+    | 'award.category_delete',
   record: Pick<AwardRecord, 'id' | 'key' | 'divisionSlug' | 'recipient'>,
 ): AwardAuditEntry {
   return {

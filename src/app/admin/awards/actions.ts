@@ -5,7 +5,7 @@ import { revalidatePath } from 'next/cache'
 import { isSupabaseConfigured } from '@/lib/supabase/config'
 import { createClient } from '@/lib/supabase/server'
 import { getCurrentUser, isAdmin } from '@/lib/auth'
-import type { AwardRow, Json } from '@/lib/supabase/types'
+import type { AwardRow, Json, SiteContentRow } from '@/lib/supabase/types'
 import { withDemoHint } from '@/lib/demo-mode'
 import {
   awardAuditEntry,
@@ -15,9 +15,18 @@ import {
   isValidAwardKey,
   planPublish,
   publishAuditEntry,
+  awardKeyFromLabel,
+  isBuiltInAwardKey,
+  isPlacingAwardKey,
+  removeAwardCategory,
+  upsertAwardCategory,
+  validateAwardCategory,
   type AwardAuditEntry,
+  type AwardCategoryDraft,
+  type AwardDefinition,
   type AwardRecord,
 } from '@/lib/awards'
+import { AWARD_CONFIG_SLUG } from './data'
 
 /**
  * Write actions for `/admin/awards`.
@@ -269,5 +278,147 @@ export async function setPublishedAction(
       ? `Published ${plan.ids.length} award${plan.ids.length === 1 ? '' : 's'} — the podium is live. 🎉`
       : `Hidden ${plan.ids.length} award${plan.ids.length === 1 ? '' : 's'} from the public page.`,
     count: plan.ids.length,
+  }
+}
+
+// ---------------------------------------------------------------------------
+// The award catalogue itself
+// ---------------------------------------------------------------------------
+
+/**
+ * Adds, renames or removes a special award category.
+ *
+ * The catalogue was already configurable — `parseDefinitions` in `./data`
+ * merges overrides from `site_content['award-config']` over the shipped list —
+ * but nothing ever wrote that row, so "best dressed" meant hand-editing JSON
+ * in the SQL editor while the console advertised configurability.
+ *
+ * Both actions read the blob before rewriting it and bail out if the read
+ * fails: an empty read and a failed read are not the same thing, and treating
+ * one as the other here would silently drop every other category.
+ */
+async function readCatalogue(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+): Promise<{ entries: Partial<AwardDefinition>[] } | { error: string }> {
+  const { data, error } = await supabase
+    .from('site_content')
+    .select('*')
+    .eq('slug', AWARD_CONFIG_SLUG)
+    .maybeSingle()
+  if (error) {
+    return {
+      error:
+        'We couldn’t read the current awards, so nothing was saved — writing anyway would have wiped the rest.',
+    }
+  }
+
+  const body = (data as SiteContentRow | null)?.body_markdown
+  if (!body) return { entries: [] }
+  try {
+    const parsed: unknown = JSON.parse(body)
+    if (Array.isArray(parsed)) return { entries: parsed as Partial<AwardDefinition>[] }
+    if (parsed && typeof parsed === 'object' && Array.isArray((parsed as { awards?: unknown }).awards)) {
+      return { entries: (parsed as { awards: Partial<AwardDefinition>[] }).awards }
+    }
+    return { entries: [] }
+  } catch {
+    // Unreadable JSON is a person's hand-edit gone wrong. Refuse rather than
+    // overwrite it — they can see and fix it in the SQL editor.
+    return { error: 'The saved award list isn’t valid JSON, so it was left alone. Ask a developer.' }
+  }
+}
+
+async function writeCatalogue(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  entries: Partial<AwardDefinition>[],
+): Promise<string | null> {
+  const { error } = await supabase.from('site_content').upsert({
+    slug: AWARD_CONFIG_SLUG,
+    title: 'Award categories',
+    body_markdown: JSON.stringify({ awards: entries }, null, 2),
+    // Config, not copy: the public rules page renders published rows.
+    is_published: false,
+  })
+  return error ? `Could not save the award: ${error.message}` : null
+}
+
+export async function saveAwardCategoryAction(
+  draft: AwardCategoryDraft,
+): Promise<AwardActionResult> {
+  const normalised: AwardCategoryDraft = {
+    ...draft,
+    label: draft.label.trim(),
+    blurb: draft.blurb.trim(),
+    key: draft.key.trim() || awardKeyFromLabel(draft.label),
+  }
+  const invalid = validateAwardCategory(normalised)
+  if (invalid) return { ok: false, message: invalid }
+
+  if (!isSupabaseConfigured()) return DEMO_RESULT
+  if (!(await ensureAdmin())) {
+    return { ok: false, message: 'Only admins can change the award categories.' }
+  }
+
+  const supabase = await createClient()
+  const current = await readCatalogue(supabase)
+  if ('error' in current) return { ok: false, message: current.error }
+
+  const failure = await writeCatalogue(supabase, upsertAwardCategory(current.entries, normalised))
+  if (failure) return { ok: false, message: failure }
+
+  await writeAudit(
+    supabase,
+    awardAuditEntry('award.category_save', {
+      id: null,
+      key: normalised.key,
+      divisionSlug: 'all',
+      recipient: { teamId: null, teamName: null, playerNames: [], playerId: null, playerName: null },
+    }),
+  )
+
+  revalidatePath(AWARDS_PATH)
+  revalidatePath(PUBLIC_PATH)
+  return { ok: true, message: `“${normalised.label}” saved.`, count: 1 }
+}
+
+export async function deleteAwardCategoryAction(key: string): Promise<AwardActionResult> {
+  if (isPlacingAwardKey(key)) {
+    return {
+      ok: false,
+      message: 'The placings come from the results, so they can’t be removed.',
+    }
+  }
+  if (!isSupabaseConfigured()) return DEMO_RESULT
+  if (!(await ensureAdmin())) {
+    return { ok: false, message: 'Only admins can change the award categories.' }
+  }
+
+  const supabase = await createClient()
+  const current = await readCatalogue(supabase)
+  if ('error' in current) return { ok: false, message: current.error }
+
+  const failure = await writeCatalogue(supabase, removeAwardCategory(current.entries, key))
+  if (failure) return { ok: false, message: failure }
+
+  await writeAudit(
+    supabase,
+    awardAuditEntry('award.category_delete', {
+      id: null,
+      key,
+      divisionSlug: 'all',
+      recipient: { teamId: null, teamName: null, playerNames: [], playerId: null, playerName: null },
+    }),
+  )
+
+  revalidatePath(AWARDS_PATH)
+  revalidatePath(PUBLIC_PATH)
+  return {
+    ok: true,
+    // A shipped category comes back rather than disappearing, and being told
+    // otherwise would send an organiser hunting for a bug.
+    message: isBuiltInAwardKey(key)
+      ? 'Your changes were removed, so that award is back to how it ships.'
+      : 'Award removed.',
+    count: 1,
   }
 }
