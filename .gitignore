@@ -59,3 +59,7 @@ next-env.d.ts
 /dev-server.log
 /*-dev.log
 /.*-dev.log
+
+# Supabase CLI scratch (holds the cached CLI version, not config)
+supabase/.temp/
+supabase/.branches/
