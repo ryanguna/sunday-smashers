@@ -120,6 +120,13 @@ interface PublishOptions {
  * its own; they are ordered semis → third → final so that a mid-way failure
  * leaves the *earlier* rounds published (which is the recoverable direction —
  * the semis are what gets played first).
+ *
+ * Every stage in `stages` gets a call, including the ones `inserts` has
+ * nothing for. `publish_draw()` deletes the stage before inserting, so an
+ * empty fixture list is how a stage is cleared — and clearing is required:
+ * a division switched from 4 qualifiers to a straight final produces only a
+ * FINAL, and without a call for `semi` and `third_place` the superseded
+ * semis stayed in the database, scheduled and waiting to be played.
  */
 async function replaceStage(
   divisionId: string,
@@ -153,7 +160,10 @@ async function replaceStage(
   let published = 0
   let stageIndex = 0
 
-  for (const call of toPublishDrawCalls(inserts)) {
+  const callsByStage = new Map(toPublishDrawCalls(inserts).map((call) => [call.stage, call]))
+
+  for (const stage of stages) {
+    const call = callsByStage.get(stage) ?? { stage, matches: [] }
     const { data, error } = await supabase.rpc('publish_draw', {
       p_division_id: divisionId,
       p_stage: call.stage,
