@@ -248,7 +248,12 @@ export function RolesManager({ initialUsers, currentUserId, updateRole, resetPas
                         )}
                       </p>
                       <p className="text-sm text-[var(--color-ink-muted)]">
-                        {user.email ?? 'Email hidden — lives in Supabase auth.'}
+                        {/* The old fallback said the address was "hidden — lives
+                            in Supabase auth", which stopped being true when
+                            migration 0007 mirrored it onto `profiles`. It was
+                            showing for everyone, so it read as a policy rather
+                            than the genuinely-missing case it now marks. */}
+                        {user.email ?? 'No email on record'}
                       </p>
                     </div>
                   </div>

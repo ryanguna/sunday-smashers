@@ -256,8 +256,11 @@ function toManagedUsers(
     id: profile.id,
     fullName: profile.full_name,
     nickname: profile.nickname,
-    // Email lives in `auth.users`, which the anon key cannot read.
-    email: null,
+    // Migration 0007 mirrors `auth.users.email` onto `profiles` precisely
+    // because the anon key cannot read the auth schema. Without it two
+    // accounts under one name are indistinguishable here — which is exactly
+    // the list you use to work out which of them to promote.
+    email: profile.email,
     roles: rolesByUser.get(profile.id) ?? [],
   }))
 }

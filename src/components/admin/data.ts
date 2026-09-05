@@ -31,9 +31,10 @@ import { DEMO_ADMIN_DIVISIONS, DEMO_ADMIN_REGISTRATIONS } from './demo'
  * It is `server-only` and must only be called from a route already behind
  * `requireAdmin()`. Never re-export these shapes to a public page.
  *
- * KNOWN GAP: player email lives in `auth.users`, which the anon key cannot
- * read. `email` is therefore `null` against a real database until a
- * `profiles.email` column or an admin RPC exists — see the report notes.
+ * Player email comes from `profiles.email` — a trigger-maintained mirror of
+ * `auth.users.email` added in migration 0007, because the anon key cannot read
+ * the auth schema. RLS keeps it own-or-admin, and this module is already
+ * behind `requireAdmin()`.
  */
 
 interface AdminConsoleRows {
@@ -134,7 +135,13 @@ async function loadLive(): Promise<AdminConsoleRows> {
       playerId: row.player_id,
       playerName: profile?.full_name ?? 'Unknown player',
       nickname: profile?.nickname ?? null,
-      email: null,
+      // Was hardcoded `null`. Email once lived only in `auth.users`, which the
+      // anon key cannot read — but migration 0007 mirrors it onto `profiles`,
+      // maintained by trigger and readable under `profiles_select_own`
+      // (`auth.uid() = id or is_admin()`). The column landed; this line never
+      // caught up, so the console had been blanking an address it could read
+      // the whole time.
+      email: profile?.email ?? null,
       phone: profile?.phone ?? null,
       emergencyContactName: profile?.emergency_contact_name ?? null,
       emergencyContactPhone: profile?.emergency_contact_phone ?? null,
