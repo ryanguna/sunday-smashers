@@ -105,17 +105,12 @@ export default async function RegisterPage({
         {/* The form asked for a partner's name, a skill level and an
             emergency contact without once saying what entering costs, so it
             was possible to pre-register and only discover the fee afterwards.
-            Payment instructions come from Settings, so the committee can say
-            how to pay in the same breath as how much. */}
+            One figure and nothing else: how to pay is a question for after
+            the committee approves an entry, and it was crowding out the
+            number people came here to find. */}
         {entryFee && (
           <p className="mb-6 rounded-[var(--radius-lg)] bg-[var(--color-brand-gold-light)]/50 px-4 py-3 text-sm text-[var(--color-ink)]">
-            <span className="font-extrabold text-[var(--color-plum)]">
-              Entry is {entryFee.perPlayer}
-            </span>{' '}
-            <span className="text-[var(--color-ink-muted)]">({entryFee.perPair}).</span>{' '}
-            {config.paymentInstructions
-              ? config.paymentInstructions
-              : 'Nothing to pay right now — the committee will confirm how to pay once your entry is approved.'}
+            <span className="font-extrabold text-[var(--color-plum)]">Entry is {entryFee}</span>
           </p>
         )}
 

@@ -269,10 +269,7 @@ export default async function HomePage() {
             <p className="inline-flex flex-wrap items-center justify-center gap-2 rounded-[var(--radius-pill)] bg-white/80 px-5 py-2.5 shadow-[var(--shadow-soft)]">
               <SparkleIcon size={18} className="text-[var(--color-brand-gold-dark)]" aria-hidden="true" />
               <span className="font-[family-name:var(--font-heading)] font-bold text-[var(--color-plum)]">
-                Entry {entryFee.perPlayer}
-              </span>
-              <span className="text-sm font-semibold text-[var(--color-ink-muted)]">
-                {entryFee.perPair}
+                Entry {entryFee}
               </span>
             </p>
           )}

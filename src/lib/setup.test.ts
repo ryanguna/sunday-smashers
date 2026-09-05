@@ -230,16 +230,12 @@ describe('deriveSetupStage — no database connected', () => {
 })
 
 describe('describeEntryFee', () => {
-  it('states the per-player fee and the pair total', () => {
-    // Doubles entries are usually paid by two people transferring together.
-    expect(describeEntryFee(5000)).toEqual({
-      perPlayer: '$50 per player',
-      perPair: '$100 per pair',
-    })
+  it('states the fee one player pays', () => {
+    expect(describeEntryFee(5000)).toBe('$50 per player')
   })
 
   it('keeps the cents when there are any', () => {
-    expect(describeEntryFee(2550)?.perPlayer).toBe('$25.50 per player')
+    expect(describeEntryFee(2550)).toBe('$25.50 per player')
   })
 
   it('says nothing at all when no fee is configured', () => {
@@ -258,7 +254,10 @@ describe('where the entry fee is shown', () => {
   it('appears in the landing hero, not only in a card near the bottom', () => {
     const landing = read('app/page.tsx')
     expect(landing).toContain('describeEntryFee(tournament.entryFeeCents)')
-    expect(landing).toContain('Entry {entryFee.perPlayer}')
+    expect(landing).toContain('Entry {entryFee}')
+    // One figure, not a pair total beside it — the line exists to be read
+    // once and believed, not checked with arithmetic.
+    expect(landing).not.toContain('per pair')
   })
 
   it('appears on the entry form, which never mentioned money', () => {
@@ -266,7 +265,11 @@ describe('where the entry fee is shown', () => {
     // contact and only find out the cost afterwards.
     const register = read('app/register/page.tsx')
     expect(register).toContain('describeEntryFee(config.entryFeeCents)')
-    expect(register).toContain('Entry is {entryFee.perPlayer}')
-    expect(register).toContain('config.paymentInstructions')
+    expect(register).toContain('Entry is {entryFee}')
+    expect(register).not.toContain('per pair')
+    // How to pay is a question for after approval. Printing the payment
+    // instructions here crowded out the number people came to find — and
+    // published a placeholder BSB on a public form.
+    expect(register).not.toContain('config.paymentInstructions')
   })
 })
