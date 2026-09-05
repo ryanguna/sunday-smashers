@@ -2,7 +2,7 @@ import Link from 'next/link'
 import { Button, Card, CardBody, Countdown } from '@/components/ui'
 import { BaubleIcon, GiftIcon, ShuttlecockIcon, TrophyIcon } from '@/components/icons'
 import { cn } from '@/lib/cn'
-import { formatTournamentDateLabel, getTournamentPhase, type TournamentDates } from '@/lib/tournament'
+import { getTournamentPhase, type TournamentDates } from '@/lib/tournament'
 import type { DashboardStage } from '@/lib/dashboard'
 
 export interface DashboardGreetingProps {
@@ -50,7 +50,6 @@ export function DashboardGreeting({
   className,
 }: DashboardGreetingProps) {
   const phase = getTournamentPhase(new Date(now), dates)
-  const dateLabel = formatTournamentDateLabel(dates?.tournamentDate)
   const firstName = name.trim().split(/\s+/)[0] || 'Smasher'
 
   return (
@@ -76,7 +75,12 @@ export function DashboardGreeting({
       {phase.countdownTarget && (
         <div className="mt-4 flex flex-col gap-2">
           <p className="text-sm font-extrabold tracking-wide text-[var(--color-brand-lilac-dark)] uppercase">
-            {phase.countdownLabel} · {dateLabel}
+            {/* The tournament date used to be appended here, which put the
+                match day next to a countdown that was ticking down to the
+                pre-registration deadline instead — two different dates, one
+                of which the clock was not counting to. The ticking figures
+                are the answer; the date was only ever ambiguity. */}
+            {phase.countdownLabel}
           </p>
           <Countdown target={phase.countdownTarget} className="justify-start" />
         </div>

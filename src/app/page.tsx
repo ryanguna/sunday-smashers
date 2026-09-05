@@ -27,7 +27,7 @@ import { formatTournamentDate, formatTournamentDateLabel } from '@/lib/tournamen
 import { howItWorksSteps } from '@/lib/tournament-copy'
 import { loadPublicPrizeBoard } from '@/lib/public-prizes'
 import type { PublicPrizeBoard } from '@/lib/settings'
-import { formatCents } from '@/lib/settings'
+import { formatCents, placingsFor } from '@/lib/settings'
 import type { DivisionGender } from '@/lib/supabase/types'
 
 export const metadata: Metadata = {
@@ -323,6 +323,17 @@ export default async function HomePage() {
               : undefined
           }
         />
+        {prizeBoard && (
+          // The pool is budgeted against an entry count nobody has yet, so the
+          // figure genuinely can move. Saying so here — next to the number, not
+          // buried in a footer — is the difference between a committee that
+          // adjusted a projection and one that appears to have quietly reduced
+          // the prize money after people entered.
+          <p className="mt-3 inline-flex items-center gap-2 rounded-[var(--radius-pill)] bg-[var(--color-brand-gold-light)]/60 px-3 py-1.5 text-xs font-extrabold text-[var(--color-brand-gold-dark)]">
+            <SparkleIcon size={14} aria-hidden="true" />
+            Total prize pool is subject to change
+          </p>
+        )}
         <div className="mt-10 grid gap-6 sm:grid-cols-3">
           {prizeCards.map(({ name, icon: Icon, description }) => (
             <Card key={name} variant="frosted" className="text-center">
@@ -340,64 +351,56 @@ export default async function HomePage() {
           ))}
         </div>
 
-        {/* `overflow-hidden` used to clip this table instead of scrolling it: on
-            a 320px phone the four columns squeeze to a couple of characters each
-            and anything wider than the box simply disappeared. The mobile e2e
-            guard only asserts the *document* does not scroll sideways, so the
-            clipping passed CI while hiding the prize money. */}
         {prizeBoard && prizeBoard.divisionPrizes.length > 0 && (
-          <div className="mt-8 min-w-0 overflow-x-auto rounded-[var(--radius-lg)] border border-[var(--color-line)] bg-white/70">
-            <table className="w-full min-w-[30rem] border-collapse text-left text-sm">
-              <caption className="px-4 py-3 text-left text-sm text-[var(--color-ink-soft)]">
-                Prize money by division and placing. Amounts are{' '}
-                <strong className="text-[var(--color-plum)]">per player</strong> — each placing is a
-                pair, so both partners take home the figure shown.
-              </caption>
-              <thead>
-                <tr className="bg-[var(--color-brand-gold-light)]/40">
-                  <th scope="col" className="px-4 py-3 font-extrabold text-[var(--color-plum)]">
-                    Division
-                  </th>
-                  <th scope="col" className="px-4 py-3 text-right font-extrabold text-[var(--color-plum)]">
-                    Champion
-                  </th>
-                  <th scope="col" className="px-4 py-3 text-right font-extrabold text-[var(--color-plum)]">
-                    Runner-up
-                  </th>
-                  <th scope="col" className="px-4 py-3 text-right font-extrabold text-[var(--color-plum)]">
-                    3rd
-                  </th>
-                  <th scope="col" className="px-4 py-3 text-right font-extrabold text-[var(--color-plum)]">
-                    4th
-                  </th>
-                </tr>
-              </thead>
-              <tbody>
-                {prizeBoard.divisionPrizes.map((prize) => (
-                  <tr key={prize.divisionId} className="border-t border-[var(--color-line)]">
-                    <th scope="row" className="px-4 py-3 font-semibold text-[var(--color-ink)]">
-                      {prize.divisionName}
-                    </th>
-                    <td className="px-4 py-3 text-right tabular-nums text-[var(--color-ink)]">
-                      {formatCents(prize.championCents)}
-                    </td>
-                    <td className="px-4 py-3 text-right tabular-nums text-[var(--color-ink)]">
-                      {formatCents(prize.runnerUpCents)}
-                    </td>
-                    <td className="px-4 py-3 text-right tabular-nums text-[var(--color-ink)]">
-                      {formatCents(prize.thirdPlaceCents)}
-                    </td>
-                    <td className="px-4 py-3 text-right tabular-nums text-[var(--color-ink)]">
-                      {/* 4th place was added after the prizes were first
-                          budgeted, so an unset amount is "not decided", not
-                          "you get nothing" — and a row of $0 next to real
-                          money reads as a broken page rather than a blank. */}
-                      {prize.fourthPlaceCents > 0 ? formatCents(prize.fourthPlaceCents) : '—'}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+          <div className="mt-8">
+            <p className="text-sm text-[var(--color-ink-soft)]">
+              Prize money by division and placing. Amounts are{' '}
+              <strong className="text-[var(--color-plum)]">per player</strong> — each placing is a
+              pair, so both partners take home the figure shown.
+            </p>
+            {/* Cards, not a table.
+
+                This was a five-column table in a horizontally scrolling box.
+                On a phone — which is where almost everyone reads this — the
+                money was off the right-hand edge behind a scroll gesture
+                nothing hinted at, so the prize board looked like it listed
+                division names and nothing else. A table earns its keep when
+                you compare down a column; here there are two rows, and what
+                people actually want is "what do I get if I win". One card per
+                division answers that without moving anything off screen. */}
+            <ul className="mt-4 grid gap-4 sm:grid-cols-2">
+              {prizeBoard.divisionPrizes.map((prize) => (
+                <li key={prize.divisionId}>
+                  <Card variant="frosted" className="h-full">
+                    <CardBody>
+                      <h3 className="text-lg font-extrabold text-[var(--color-plum)]">
+                        {prize.divisionName}
+                      </h3>
+                      <dl className="mt-3 space-y-1.5">
+                        {placingsFor(prize).map(({ label, medal, amountCents }) => (
+                          <div
+                            key={label}
+                            className="flex items-baseline gap-3 rounded-[var(--radius-md)] bg-white/70 px-3 py-2"
+                          >
+                            <dt className="flex min-w-0 items-baseline gap-2 font-semibold text-[var(--color-ink)]">
+                              <span aria-hidden="true">{medal}</span>
+                              {label}
+                            </dt>
+                            <dd className="ml-auto shrink-0 font-extrabold tabular-nums text-[var(--color-plum)]">
+                              {/* 4th place was added after the prizes were
+                                  first budgeted, so an unset amount is "not
+                                  decided", not "you get nothing" — a $0 next
+                                  to real money reads as a broken page. */}
+                              {amountCents > 0 ? formatCents(amountCents) : 'To be confirmed'}
+                            </dd>
+                          </div>
+                        ))}
+                      </dl>
+                    </CardBody>
+                  </Card>
+                </li>
+              ))}
+            </ul>
           </div>
         )}
       </section>

@@ -188,8 +188,11 @@ export function getTournamentPhase(
     return {
       phase: 'registration-open',
       countdownTarget: dates.registrationClosesAt,
-      countdownLabel: 'Registration closes in',
-      heading: 'Registration is OPEN!',
+      // "Pre-registration", not "Registration": entering is a request the
+      // committee reviews, and calling it registration here while the rest of
+      // the site calls it pre-registration reads as two different deadlines.
+      countdownLabel: 'Pre-registration closes in',
+      heading: 'Pre-registration is OPEN!',
     }
   }
 

@@ -114,7 +114,7 @@ function applyOrganiserSwitch(
     return {
       ...info,
       window: 'open',
-      heading: 'Registration is OPEN — grab your spot!',
+      heading: 'Pre-registration is OPEN — grab your spot!',
       message:
         'The organisers have opened the sheet early. Fill in the form below — the committee sorts out the pairs — and we’ll see you on court in December.',
       acceptsSubmissions: true,
@@ -125,7 +125,7 @@ function applyOrganiserSwitch(
     return {
       ...info,
       window: 'closed',
-      heading: 'Registration is paused',
+      heading: 'Pre-registration is paused',
       message:
         'The organisers have closed the sheet for now — the draw may be being built. Pop your name on the waitlist and we’ll call you in the moment a spot opens up 🎅',
       acceptsSubmissions: true,
@@ -171,7 +171,7 @@ function registrationWindowForPhase(
         phase: phaseInfo.phase,
         countdownTarget: phaseInfo.countdownTarget,
         countdownLabel: phaseInfo.countdownLabel,
-        heading: 'Registration is OPEN — grab your spot!',
+        heading: 'Pre-registration is OPEN — grab your spot!',
         message:
           'Fill in the form below — the committee sorts out the pairs — and we’ll see you on court in December.',
         acceptsSubmissions: true,

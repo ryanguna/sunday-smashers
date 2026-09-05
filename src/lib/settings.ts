@@ -1717,6 +1717,32 @@ export interface PublicDivisionPrize {
   fourthPlaceCents: number
 }
 
+/** One line of a division's prize card: which placing, and what it pays. */
+export interface PrizePlacing {
+  label: string
+  /** Decorative only — the label carries the meaning for screen readers. */
+  medal: string
+  amountCents: number
+}
+
+/**
+ * A division's prize money as an ordered list of placings.
+ *
+ * The landing page used to render this as a five-column table, which on a
+ * phone pushed every amount off the right-hand edge behind a scroll gesture
+ * nothing advertised. Listing the placings instead lets the page lay them out
+ * vertically, and putting the order here rather than in JSX means the podium
+ * can never end up out of sequence in one place and not another.
+ */
+export function placingsFor(prize: PublicDivisionPrize): PrizePlacing[] {
+  return [
+    { label: 'Champion', medal: '🥇', amountCents: prize.championCents },
+    { label: 'Runner-up', medal: '🥈', amountCents: prize.runnerUpCents },
+    { label: '3rd place', medal: '🥉', amountCents: prize.thirdPlaceCents },
+    { label: '4th place', medal: '🏸', amountCents: prize.fourthPlaceCents },
+  ]
+}
+
 /**
  * The display-safe projection of `PrizeSettings` that the landing page reads.
  *
