@@ -1,6 +1,8 @@
 import type { Metadata } from 'next'
 import { Snowfall } from '@/components/ui'
 import { AnnouncementsStrip } from '@/components/announcements'
+import { loadSitePageVisibility } from '@/lib/site-pages-server'
+import { isPageVisible } from '@/lib/site-pages'
 import {
   AwaitingDrawPanel,
   Celebration,
@@ -45,6 +47,10 @@ export default async function DashboardPage() {
 
   const { demo, profile, dashboard, announcements, now } = await loadDashboardData()
   const { dates } = await loadPublicTournamentConfig()
+  // The notice board follows the same switch as its public page: if the
+  // committee has turned it off in Settings > Pages, it is off everywhere,
+  // not just where a visitor could click through to it.
+  const showAnnouncements = isPageVisible(await loadSitePageVisibility(), 'announcements')
   const {
     stage,
     team,
@@ -124,7 +130,9 @@ export default async function DashboardPage() {
 
         {duties.length > 0 && <DutiesList duties={duties} />}
 
-        <AnnouncementsStrip announcements={announcements} now={now} limit={3} />
+        {showAnnouncements && (
+          <AnnouncementsStrip announcements={announcements} now={now} limit={3} />
+        )}
 
         <QuickLinks profileHref={team && profile ? `/players/${profile.id}` : null} />
 

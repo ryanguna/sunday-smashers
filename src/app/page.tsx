@@ -18,6 +18,9 @@ import { FeaturedPhotoStrip } from '@/components/gallery'
 import { loadFeaturedPhotos } from '@/components/gallery/data'
 import { WinnersShowcase } from '@/components/awards'
 import { loadPublicAnnouncementsFeed } from '@/lib/announcements-server'
+import { latestAnnouncements } from '@/lib/announcements'
+import { loadSitePageVisibility } from '@/lib/site-pages-server'
+import { isPageVisible } from '@/lib/site-pages'
 import { hasAnyWinners } from '@/lib/awards'
 import { getPublicAwards } from './awards/data'
 import { formatTournamentDate, formatTournamentDateLabel } from '@/lib/tournament'
@@ -143,16 +146,31 @@ export default async function HomePage() {
   // and photos render nothing when empty, and the podium only appears once
   // a division has actually been crowned — before match day the countdown
   // stays the hero rather than a row of "to be decided" placeholders.
-  const [{ now, announcements }, { views: awardViews }, featuredPhotos, tournament, prizeBoard] =
-    await Promise.all([
-      loadPublicAnnouncementsFeed(),
-      getPublicAwards(),
-      loadFeaturedPhotos(),
-      loadPublicTournamentConfig(),
-      // Null until the committee ticks "Show prize money on the public site"
-      // in Settings > Prizes — the static cards below stay as the fallback.
-      loadPublicPrizeBoard(),
-    ])
+  const [
+    { now, announcements },
+    { views: awardViews },
+    featuredPhotos,
+    tournament,
+    prizeBoard,
+    pageVisibility,
+  ] = await Promise.all([
+    loadPublicAnnouncementsFeed(),
+    getPublicAwards(),
+    loadFeaturedPhotos(),
+    loadPublicTournamentConfig(),
+    // Null until the committee ticks "Show prize money on the public site"
+    // in Settings > Prizes — the static cards below stay as the fallback.
+    loadPublicPrizeBoard(),
+    loadSitePageVisibility(),
+  ])
+  // The notice board earns its place on the front page only when it has
+  // something to say. An empty "no announcements yet" card above the fold
+  // advertises a feature nobody has used rather than the tournament, so the
+  // strip appears once the first notice is published — or never, if the
+  // committee has switched the notice board off entirely in Settings > Pages.
+  const showAnnouncements =
+    isPageVisible(pageVisibility, 'announcements') &&
+    latestAnnouncements(announcements, 3).length > 0
   const prizeCards = prizeCardsFor(prizeBoard)
   const showWinners = hasAnyWinners(awardViews)
   // Derived from the tournament row, never from the seeded constant: an
@@ -254,12 +272,14 @@ export default async function HomePage() {
         </section>
       ) : null}
 
-      <section
-        aria-label="Latest announcements"
-        className="relative z-10 mx-auto max-w-6xl px-4 pb-4 sm:px-6"
-      >
-        <AnnouncementsStrip announcements={announcements} now={now} />
-      </section>
+      {showAnnouncements ? (
+        <section
+          aria-label="Latest announcements"
+          className="relative z-10 mx-auto max-w-6xl px-4 pb-4 sm:px-6"
+        >
+          <AnnouncementsStrip announcements={announcements} now={now} />
+        </section>
+      ) : null}
 
       {/* ---------------------------------------------------------------- */}
       {/* Divisions                                                        */}
