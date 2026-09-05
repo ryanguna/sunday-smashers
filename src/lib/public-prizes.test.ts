@@ -127,3 +127,30 @@ describe('parsePublicPrizeBoard', () => {
     expect(board?.lootBagItems).toEqual([])
   })
 })
+
+describe('parsePublicPrizeBoard on an older blob', () => {
+  it('recomputes the total instead of trusting a per-pair figure', () => {
+    // Written before amounts became per player and before 4th place existed.
+    // The stored total was summed on the old basis, and it is the one number
+    // on the landing page that promises players real money.
+    const legacy = JSON.stringify({
+      divisionPrizes: [
+        {
+          divisionId: 'div-a',
+          divisionName: 'Mens',
+          championCents: 20000,
+          runnerUpCents: 15000,
+          thirdPlaceCents: 12000,
+        },
+      ],
+      trophyCount: 4,
+      medalCount: 12,
+      lootBagItems: [],
+      totalPoolCents: 47000,
+    })
+
+    const board = parsePublicPrizeBoard(legacy)
+    expect(board?.divisionPrizes[0].fourthPlaceCents).toBe(0)
+    expect(board?.totalPoolCents).toBe(2 * (20000 + 15000 + 12000))
+  })
+})

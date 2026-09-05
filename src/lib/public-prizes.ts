@@ -1,6 +1,6 @@
 import { loadSiteContent } from '@/lib/site-content'
 import { isSupabaseConfigured } from '@/lib/supabase/config'
-import type { PublicPrizeBoard } from '@/lib/settings'
+import { PLAYERS_PER_PAIR, type PublicPrizeBoard } from '@/lib/settings'
 
 /**
  * Reads the prize money the committee has chosen to announce.
@@ -59,16 +59,45 @@ export function parsePublicPrizeBoard(body: string | null | undefined): PublicPr
   const divisionPrizes = Array.isArray(blob.divisionPrizes) ? blob.divisionPrizes : []
   const lootBagItems = Array.isArray(blob.lootBagItems) ? blob.lootBagItems : []
 
+  const prizes = divisionPrizes
+    .filter((prize) => typeof prize?.divisionName === 'string' && typeof prize?.championCents === 'number')
+    // A blob written before 4th place existed has no `fourthPlaceCents`, and
+    // `undefined` in a currency formatter renders as `$NaN` on the landing
+    // page. Coerce every amount rather than trusting the stored shape.
+    .map((prize) => ({
+      divisionId: prize.divisionId,
+      divisionName: prize.divisionName,
+      championCents: numberOr(prize.championCents, 0),
+      runnerUpCents: numberOr(prize.runnerUpCents, 0),
+      thirdPlaceCents: numberOr(prize.thirdPlaceCents, 0),
+      fourthPlaceCents: numberOr(prize.fourthPlaceCents, 0),
+    }))
+
   const board: PublicPrizeBoard = {
-    divisionPrizes: divisionPrizes.filter(
-      (prize) => typeof prize?.divisionName === 'string' && typeof prize?.championCents === 'number',
-    ),
+    divisionPrizes: prizes,
     trophyCount: numberOr(blob.trophyCount, 0),
     medalCount: numberOr(blob.medalCount, 0),
     lootBagItems: lootBagItems.filter(
       (item) => typeof item?.name === 'string' && typeof item?.quantity === 'number',
     ),
-    totalPoolCents: numberOr(blob.totalPoolCents, 0),
+    // Recomputed, not read. Amounts are now per player, so a total stored by
+    // an older deploy was summed on the old per-pair basis and is simply
+    // wrong — and it is the one number on the landing page that promises
+    // players real money. The stored figure is only a fallback for a board
+    // that lists no divisions.
+    totalPoolCents:
+      prizes.length > 0
+        ? prizes.reduce(
+            (total, prize) =>
+              total +
+              PLAYERS_PER_PAIR *
+                (prize.championCents +
+                  prize.runnerUpCents +
+                  prize.thirdPlaceCents +
+                  prize.fourthPlaceCents),
+            0,
+          )
+        : numberOr(blob.totalPoolCents, 0),
   }
 
   // Nothing worth announcing: an empty board would render a heading over a
