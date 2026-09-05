@@ -31,11 +31,20 @@
 import { createClient as createSupabaseClient, type SupabaseClient } from '@supabase/supabase-js'
 import { supabaseUrl } from './config'
 
-const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY ?? ''
+/**
+ * Read on every call rather than once at module load.
+ *
+ * Module scope is evaluated during `next build`, which runs without this
+ * variable set in CI — capturing the empty string there would leave the reset
+ * button permanently disabled at runtime even though Vercel supplies the key.
+ */
+function serviceRoleKey(): string {
+  return process.env.SUPABASE_SERVICE_ROLE_KEY ?? ''
+}
 
 /** True when a service-role key is configured and admin operations are possible. */
 export function isServiceRoleConfigured(): boolean {
-  return supabaseUrl.length > 0 && serviceRoleKey.length > 0
+  return supabaseUrl.length > 0 && serviceRoleKey().length > 0
 }
 
 /**
@@ -55,7 +64,7 @@ export const SERVICE_ROLE_SETUP_HINT =
  */
 export function createAdminClient(): SupabaseClient | null {
   if (!isServiceRoleConfigured()) return null
-  return createSupabaseClient(supabaseUrl, serviceRoleKey, {
+  return createSupabaseClient(supabaseUrl, serviceRoleKey(), {
     auth: { autoRefreshToken: false, persistSession: false },
   })
 }
