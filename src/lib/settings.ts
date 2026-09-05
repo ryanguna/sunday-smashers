@@ -1717,12 +1717,32 @@ export interface PublicDivisionPrize {
   fourthPlaceCents: number
 }
 
+/**
+ * Joins a list into readable prose: "a, b and c".
+ *
+ * Used for the placings the prize pool actually funds. Naming them from the
+ * data rather than typing them into a sentence is what stops the summary card
+ * disagreeing with the board printed underneath it.
+ */
+export function formatList(items: string[]): string {
+  return new Intl.ListFormat('en-AU', { style: 'long', type: 'conjunction' }).format(items)
+}
+
 /** One line of a division's prize card: which placing, and what it pays. */
 export interface PrizePlacing {
   label: string
   /** Decorative only — the label carries the meaning for screen readers. */
   medal: string
-  amountCents: number
+  /** What one partner is handed, which is how the cash is actually counted. */
+  perPlayerCents: number
+  /**
+   * What the pair takes home between them — the headline figure on the public
+   * board, and the one that sums to the advertised total pool.
+   *
+   * Both are spelled out because a bare `amountCents` is exactly the ambiguity
+   * that made the landing page need a sentence of explanation underneath it.
+   */
+  pairCents: number
 }
 
 /**
@@ -1735,11 +1755,22 @@ export interface PrizePlacing {
  * can never end up out of sequence in one place and not another.
  */
 export function placingsFor(prize: PublicDivisionPrize): PrizePlacing[] {
+  const placing = (label: string, medal: string, perPlayerCents: number): PrizePlacing => ({
+    label,
+    medal,
+    perPlayerCents,
+    // Stored amounts are per player; the pair figure is derived here so the
+    // public board and the advertised total pool are computed from the same
+    // number. The total is summed per player and multiplied by the pair size,
+    // so a card that showed the per-player amount added up to half the
+    // headline figure sitting directly above it.
+    pairCents: perPlayerCents * PLAYERS_PER_PAIR,
+  })
   return [
-    { label: 'Champion', medal: '🥇', amountCents: prize.championCents },
-    { label: 'Runner-up', medal: '🥈', amountCents: prize.runnerUpCents },
-    { label: '3rd place', medal: '🥉', amountCents: prize.thirdPlaceCents },
-    { label: '4th place', medal: '🏸', amountCents: prize.fourthPlaceCents },
+    placing('Champion', '🥇', prize.championCents),
+    placing('Runner-up', '🥈', prize.runnerUpCents),
+    placing('3rd place', '🥉', prize.thirdPlaceCents),
+    placing('4th place', '🏸', prize.fourthPlaceCents),
   ]
 }
 

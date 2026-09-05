@@ -27,7 +27,7 @@ import { formatTournamentDate, formatTournamentDateLabel } from '@/lib/tournamen
 import { howItWorksSteps } from '@/lib/tournament-copy'
 import { loadPublicPrizeBoard } from '@/lib/public-prizes'
 import type { PublicPrizeBoard } from '@/lib/settings'
-import { formatCents, placingsFor } from '@/lib/settings'
+import { formatCents, formatList, placingsFor } from '@/lib/settings'
 import type { DivisionGender } from '@/lib/supabase/types'
 
 export const metadata: Metadata = {
@@ -106,11 +106,28 @@ function prizeCardsFor(board: PublicPrizeBoard | null): typeof PRIZES | PrizeCar
     .filter((item) => item.quantity > 0)
     .map((item) => (item.quantity > 1 ? `${item.quantity} × ${item.name}` : item.name))
 
+  // Which placings are actually funded, rather than a hardcoded three. Fourth
+  // place was added to the board after this sentence was written, so a card
+  // reading "champion, runner-up and third place" sat directly above a table
+  // listing a paid 4th — the summary contradicting the detail underneath it.
+  const paidPlacings = board.divisionPrizes.length
+    ? placingsFor(board.divisionPrizes[0]!)
+        .filter((placing) =>
+          board.divisionPrizes.every(
+            (prize) =>
+              (placingsFor(prize).find((row) => row.label === placing.label)?.pairCents ?? 0) > 0,
+          ),
+        )
+        .map((placing) => placing.label.toLowerCase())
+    : []
+
   return [
     {
       name: 'Cash prizes',
       icon: SparkleIcon,
-      description: `${formatCents(board.totalPoolCents)} on the table — champion, runner-up and third place paid in every division.`,
+      description: `${formatCents(board.totalPoolCents)} on the table — ${
+        paidPlacings.length > 0 ? formatList(paidPlacings) : 'champion, runner-up and third place'
+      } paid in every division.`,
     },
     {
       name: 'Trophies & medals',
@@ -354,9 +371,9 @@ export default async function HomePage() {
         {prizeBoard && prizeBoard.divisionPrizes.length > 0 && (
           <div className="mt-8">
             <p className="text-sm text-[var(--color-ink-soft)]">
-              Prize money by division and placing. Amounts are{' '}
-              <strong className="text-[var(--color-plum)]">per player</strong> — each placing is a
-              pair, so both partners take home the figure shown.
+              Prize money by division and placing. Each placing is a pair, and the figure shown is{' '}
+              <strong className="text-[var(--color-plum)]">what the pair takes home</strong> — split
+              evenly between both partners.
             </p>
             {/* Cards, not a table.
 
@@ -377,7 +394,7 @@ export default async function HomePage() {
                         {prize.divisionName}
                       </h3>
                       <dl className="mt-3 space-y-1.5">
-                        {placingsFor(prize).map(({ label, medal, amountCents }) => (
+                        {placingsFor(prize).map(({ label, medal, pairCents, perPlayerCents }) => (
                           <div
                             key={label}
                             className="flex items-baseline gap-3 rounded-[var(--radius-md)] bg-white/70 px-3 py-2"
@@ -386,12 +403,25 @@ export default async function HomePage() {
                               <span aria-hidden="true">{medal}</span>
                               {label}
                             </dt>
-                            <dd className="ml-auto shrink-0 font-extrabold tabular-nums text-[var(--color-plum)]">
+                            <dd className="ml-auto shrink-0 text-right font-extrabold tabular-nums text-[var(--color-plum)]">
                               {/* 4th place was added after the prizes were
                                   first budgeted, so an unset amount is "not
                                   decided", not "you get nothing" — a $0 next
                                   to real money reads as a broken page. */}
-                              {amountCents > 0 ? formatCents(amountCents) : 'To be confirmed'}
+                              {pairCents > 0 ? (
+                                <>
+                                  {formatCents(pairCents)}
+                                  {/* The cash is handed out in envelopes, one
+                                      per player, so the split is worth stating
+                                      rather than leaving each partner to halve
+                                      the headline in their head. */}
+                                  <span className="block text-xs font-semibold text-[var(--color-ink-muted)]">
+                                    {formatCents(perPlayerCents)} each
+                                  </span>
+                                </>
+                              ) : (
+                                'To be confirmed'
+                              )}
                             </dd>
                           </div>
                         ))}
