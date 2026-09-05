@@ -5,6 +5,7 @@ import { describe, expect, it } from 'vitest'
 
 import {
   PLAYERS_PER_PAIR,
+  formatCents,
   formatList,
   placingsFor,
   type PublicDivisionPrize,
@@ -149,5 +150,20 @@ describe('formatList', () => {
     const landing = read('app/page.tsx')
     expect(landing).toContain('formatList(paidPlacings)')
     expect(landing).toContain('paid in every division')
+  })
+})
+
+describe('formatCents', () => {
+  it('groups thousands, because the prize pool is four figures', () => {
+    // The landing page headline read "$2080.00", which is misread at a glance
+    // on the one number that promises players real money.
+    expect(formatCents(208_000)).toBe('$2,080.00')
+    expect(formatCents(1_000_000)).toBe('$10,000.00')
+  })
+
+  it('leaves smaller amounts alone', () => {
+    expect(formatCents(5_000)).toBe('$50.00')
+    expect(formatCents(0)).toBe('$0.00')
+    expect(formatCents(-2_500)).toBe('-$25.00')
   })
 })

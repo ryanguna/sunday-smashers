@@ -227,6 +227,7 @@ export function defaultRulesMarkdown(
   // final, and the number is the difference between a pair walking on and a
   // pair losing a game they turned up for.
   const graceLabel = `${forfeitGraceMinutes} ${forfeitGraceMinutes === 1 ? 'minute' : 'minutes'}`
+  const graceVerb = forfeitGraceMinutes === 1 ? 'is' : 'are'
 
   return [
     '## Eliminations',
@@ -250,6 +251,6 @@ export function defaultRulesMarkdown(
     '## Forfeits',
     '',
     `- A pair has **${graceLabel}** from their match being called to be on court and ready. This is a fixed limit — the umpire starts it when the call goes out.`,
-    `- **Late arrival or a no-show forfeits that game automatically** once ${graceLabel} is up.`,
+    `- **Late arrival or a no-show forfeits that game automatically** once ${graceLabel} ${graceVerb} up.`,
   ].join('\n')
 }

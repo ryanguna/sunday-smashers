@@ -1,6 +1,10 @@
+import { readFileSync } from 'node:fs'
+import path from 'node:path'
+
 import { describe, expect, it } from 'vitest'
 import {
   canSubmitSetupForm,
+  describeEntryFee,
   deriveSetupStage,
   formatEntryFee,
   isSetupComplete,
@@ -222,5 +226,47 @@ describe('deriveSetupStage — no database connected', () => {
     // actively wrong.
     const info = deriveSetupStage(status({ isConfigured: false, hasUrl: false, hasKey: true }))
     expect(info.heading).toBe('Connect a database first')
+  })
+})
+
+describe('describeEntryFee', () => {
+  it('states the per-player fee and the pair total', () => {
+    // Doubles entries are usually paid by two people transferring together.
+    expect(describeEntryFee(5000)).toEqual({
+      perPlayer: '$50 per player',
+      perPair: '$100 per pair',
+    })
+  })
+
+  it('keeps the cents when there are any', () => {
+    expect(describeEntryFee(2550)?.perPlayer).toBe('$25.50 per player')
+  })
+
+  it('says nothing at all when no fee is configured', () => {
+    // "$0" reads as free, which is worse than silence on a page that is
+    // asking somebody to commit to a tournament.
+    expect(describeEntryFee(null)).toBeNull()
+    expect(describeEntryFee(undefined)).toBeNull()
+    expect(describeEntryFee(0)).toBeNull()
+  })
+})
+
+describe('where the entry fee is shown', () => {
+  const read = (relative: string) =>
+    readFileSync(path.join(process.cwd(), 'src', relative), 'utf8')
+
+  it('appears in the landing hero, not only in a card near the bottom', () => {
+    const landing = read('app/page.tsx')
+    expect(landing).toContain('describeEntryFee(tournament.entryFeeCents)')
+    expect(landing).toContain('Entry {entryFee.perPlayer}')
+  })
+
+  it('appears on the entry form, which never mentioned money', () => {
+    // It was possible to fill in a partner, a skill level and an emergency
+    // contact and only find out the cost afterwards.
+    const register = read('app/register/page.tsx')
+    expect(register).toContain('describeEntryFee(config.entryFeeCents)')
+    expect(register).toContain('Entry is {entryFee.perPlayer}')
+    expect(register).toContain('config.paymentInstructions')
   })
 })

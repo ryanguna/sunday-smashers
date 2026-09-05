@@ -5,6 +5,7 @@ import { getRegistrationWindow } from '@/lib/registration'
 import { loadPublicTournamentConfig } from '@/lib/tournament-config'
 import { PRE_REGISTRATION_OPENS_AT, REGISTRATION_CLOSES_AT, formatTournamentDateLabel } from '@/lib/tournament'
 import { Countdown } from '@/components/ui'
+import { describeEntryFee } from '@/lib/setup'
 import { RegistrationShell } from '@/components/registration/RegistrationShell'
 import { RegisterExperience, type RegisterPreview } from '@/components/registration/RegisterExperience'
 import { PageGate } from '@/components/PageGate'
@@ -82,6 +83,7 @@ export default async function RegisterPage({
     isRegistrationOpen: config.isRegistrationOpen,
   })
   const waitingRoom = info.window === 'not-open-yet'
+  const entryFee = describeEntryFee(config.entryFeeCents)
 
   return (
     <PageGate pageKey="register">
@@ -100,6 +102,23 @@ export default async function RegisterPage({
           ) : undefined
         }
       >
+        {/* The form asked for a partner's name, a skill level and an
+            emergency contact without once saying what entering costs, so it
+            was possible to pre-register and only discover the fee afterwards.
+            Payment instructions come from Settings, so the committee can say
+            how to pay in the same breath as how much. */}
+        {entryFee && (
+          <p className="mb-6 rounded-[var(--radius-lg)] bg-[var(--color-brand-gold-light)]/50 px-4 py-3 text-sm text-[var(--color-ink)]">
+            <span className="font-extrabold text-[var(--color-plum)]">
+              Entry is {entryFee.perPlayer}
+            </span>{' '}
+            <span className="text-[var(--color-ink-muted)]">({entryFee.perPair}).</span>{' '}
+            {config.paymentInstructions
+              ? config.paymentInstructions
+              : 'Nothing to pay right now — the committee will confirm how to pay once your entry is approved.'}
+          </p>
+        )}
+
         <RegisterExperience info={info} preview={preview} copy={copy} />
 
         {!isSupabaseConfigured() && (

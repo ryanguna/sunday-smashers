@@ -192,6 +192,30 @@ export function formatEntryFee(cents: number | null | undefined): string {
 }
 
 /**
+ * How much it costs to enter, and what a pair pays between them.
+ *
+ * Players ask "how much?" before they ask anything else, and the answer was
+ * only ever printed in a "what to bring" card near the bottom of the landing
+ * page — the entry form itself never mentioned money at all, so it was
+ * possible to pre-register without ever being told the fee.
+ *
+ * Returns `null` when no fee is configured. A tournament with no fee saved
+ * yet must say nothing rather than "$0", which reads as free.
+ */
+export function describeEntryFee(cents: number | null | undefined): {
+  perPlayer: string
+  perPair: string
+} | null {
+  if (cents == null || cents <= 0) return null
+  return {
+    perPlayer: `${formatEntryFee(cents)} per player`,
+    // Doubles entries are paid by two people who usually transfer together,
+    // so the pair total saves everyone doing it in their head.
+    perPair: `${formatEntryFee(cents * 2)} per pair`,
+  }
+}
+
+/**
  * Validates the setup form. Delegates every shared rule to
  * `validateTournamentDetails` and only adds the fields that exist nowhere
  * else (slug, fee, doors-open time).

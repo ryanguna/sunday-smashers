@@ -6,6 +6,7 @@ import {
   parseSiteCopy,
   SITE_COPY_FIELDS,
 } from './site-copy'
+import { defaultRulesMarkdown } from './tournament-copy'
 
 describe('normaliseSiteCopy', () => {
   it('fills every missing field from the defaults', () => {
@@ -109,5 +110,14 @@ describe('forfeit grace period', () => {
         to: '5',
       },
     ])
+  })
+})
+
+describe('forfeit wording agrees with itself', () => {
+  it('says "are up" for plural minutes and "is up" for one', () => {
+    // Live read "once 2 minutes is up" on a page the committee publishes as
+    // the final rules.
+    expect(defaultRulesMarkdown([], 2)).toContain('once 2 minutes are up')
+    expect(defaultRulesMarkdown([], 1)).toContain('once 1 minute is up')
   })
 })

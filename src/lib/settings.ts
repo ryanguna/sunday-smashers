@@ -1492,7 +1492,14 @@ export function formatCents(cents: number): string {
   if (!Number.isFinite(cents)) return '—'
   const sign = cents < 0 ? '-' : ''
   const abs = Math.abs(Math.round(cents))
-  return `${sign}$${(abs / 100).toFixed(2)}`
+  // Grouped, because the prize pool crossed a thousand dollars and the
+  // headline on the landing page read "$2080.00" — a four-figure sum with no
+  // separator is read wrong at a glance, and this one is a promise of money.
+  const amount = (abs / 100).toLocaleString('en-AU', {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  })
+  return `${sign}$${amount}`
 }
 
 /** Parses "$25", "25.50", "2,500" into cents. Returns `null` when unparseable. */

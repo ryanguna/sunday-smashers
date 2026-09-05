@@ -12,7 +12,7 @@ import {
 } from '@/components/icons'
 import { CountdownSection } from '@/components/CountdownSection'
 import { loadPublicTournamentConfig } from '@/lib/tournament-config'
-import { formatEntryFee } from '@/lib/setup'
+import { describeEntryFee, formatEntryFee } from '@/lib/setup'
 import { AnnouncementsStrip } from '@/components/announcements'
 import { FeaturedPhotoStrip } from '@/components/gallery'
 import { loadFeaturedPhotos } from '@/components/gallery/data'
@@ -193,6 +193,7 @@ export default async function HomePage() {
   // Derived from the tournament row, never from the seeded constant: an
   // organiser who moves the date in Settings must see the hero move with it.
   const dateLabel = formatTournamentDateLabel(tournament.dates.tournamentDate)
+  const entryFee = describeEntryFee(tournament.entryFeeCents)
   const opensLabel = formatTournamentDate(tournament.dates.preRegistrationOpensAt)
   // Scoring and qualifying places are per-division settings, so the "how it
   // works" copy is generated rather than written — see `tournament-copy.ts`.
@@ -253,11 +254,28 @@ export default async function HomePage() {
           <span className="text-[var(--color-brand-pink-dark)]"> SMASH. COMPETE. CELEBRATE.</span>
         </p>
 
-        <div className="mt-6 inline-flex flex-wrap items-center justify-center gap-2 rounded-[var(--radius-pill)] bg-white/80 px-5 py-2.5 shadow-[var(--shadow-soft)]">
-          <ShuttlecockIcon size={18} className="text-[var(--color-brand-pink-dark)]" aria-hidden="true" />
-          <span className="font-[family-name:var(--font-heading)] font-bold text-[var(--color-plum)]">
-            {dateLabel}
-          </span>
+        <div className="mt-6 flex flex-wrap items-center justify-center gap-2">
+          <div className="inline-flex flex-wrap items-center justify-center gap-2 rounded-[var(--radius-pill)] bg-white/80 px-5 py-2.5 shadow-[var(--shadow-soft)]">
+            <ShuttlecockIcon size={18} className="text-[var(--color-brand-pink-dark)]" aria-hidden="true" />
+            <span className="font-[family-name:var(--font-heading)] font-bold text-[var(--color-plum)]">
+              {dateLabel}
+            </span>
+          </div>
+          {/* "How much?" is the first question anyone asks, and the answer
+              used to live in a "what to bring" card most of the way down the
+              page. Beside the date, above the register button, is where it is
+              actually read — before somebody commits, not after. */}
+          {entryFee && (
+            <p className="inline-flex flex-wrap items-center justify-center gap-2 rounded-[var(--radius-pill)] bg-white/80 px-5 py-2.5 shadow-[var(--shadow-soft)]">
+              <SparkleIcon size={18} className="text-[var(--color-brand-gold-dark)]" aria-hidden="true" />
+              <span className="font-[family-name:var(--font-heading)] font-bold text-[var(--color-plum)]">
+                Entry {entryFee.perPlayer}
+              </span>
+              <span className="text-sm font-semibold text-[var(--color-ink-muted)]">
+                {entryFee.perPair}
+              </span>
+            </p>
+          )}
         </div>
 
         <div className="mt-8 flex flex-wrap items-center justify-center gap-3">
