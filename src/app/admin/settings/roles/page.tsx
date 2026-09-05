@@ -3,7 +3,7 @@ import { DemoModeNotice } from '@/components/auth'
 import { AdminDataErrorBanner } from '@/components/admin/AdminUI'
 import { RolesManager } from '@/components/settings'
 import { loadSettingsPageData } from '../data'
-import { updateRoleAction } from '../actions'
+import { resetUserPasswordAction, updateRoleAction } from '../actions'
 
 /**
  * Signed-in only: never prerender. Without this the auth check runs at build
@@ -24,7 +24,12 @@ export default async function SettingsRolesPage() {
     <div className="space-y-5">
       {isDemo && <DemoModeNotice what="Saving role changes" />}
       {error && <AdminDataErrorBanner message={error} />}
-      <RolesManager initialUsers={users} currentUserId={currentUserId} updateRole={updateRoleAction} />
+      <RolesManager
+        initialUsers={users}
+        currentUserId={currentUserId}
+        updateRole={updateRoleAction}
+        resetPassword={resetUserPasswordAction}
+      />
     </div>
   )
 }

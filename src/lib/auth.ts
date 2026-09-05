@@ -1,3 +1,4 @@
+import { cache } from 'react'
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { isSupabaseConfigured, isUnconfiguredProductionDeployment } from '@/lib/supabase/config'
@@ -21,15 +22,25 @@ import { loginRedirectPath } from '@/lib/auth-utils'
  */
 export { isProfileComplete, loginRedirectPath, sanitiseNextPath } from '@/lib/auth-utils'
 
-/** Returns the current Supabase auth user, or `null` if signed out / demo mode. */
-export async function getCurrentUser(): Promise<User | null> {
+/**
+ * Returns the current Supabase auth user, or `null` if signed out / demo mode.
+ *
+ * Wrapped in React's `cache()` so it resolves **once per request** no matter
+ * how many guards ask. `auth.getUser()` is a real network round trip to the
+ * Supabase Auth server — it verifies the JWT rather than trusting the cookie —
+ * and a single gated page render now asks three times (`requireAuth`, the
+ * registration gate, `getUserRoles`). During a live event those pages are the
+ * hot path on a gym's wifi, so the duplicate calls were latency nobody was
+ * buying anything with.
+ */
+export const getCurrentUser = cache(async function getCurrentUser(): Promise<User | null> {
   if (!isSupabaseConfigured()) return null
   const supabase = await createClient()
   const {
     data: { user },
   } = await supabase.auth.getUser()
   return user
-}
+})
 
 /** Alias kept for readability at call sites that only care about "is there a session". */
 export async function getSession() {

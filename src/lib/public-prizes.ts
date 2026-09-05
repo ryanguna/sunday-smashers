@@ -1,6 +1,6 @@
 import { loadSiteContent } from '@/lib/site-content'
 import { isSupabaseConfigured } from '@/lib/supabase/config'
-import { PLAYERS_PER_PAIR, type PublicPrizeBoard } from '@/lib/settings'
+import { PLAYERS_PER_PAIR, PRIZE_BASIS, rebasePerPairAmount, type PublicPrizeBoard } from '@/lib/settings'
 
 /**
  * Reads the prize money the committee has chosen to announce.
@@ -59,6 +59,15 @@ export function parsePublicPrizeBoard(body: string | null | undefined): PublicPr
   const divisionPrizes = Array.isArray(blob.divisionPrizes) ? blob.divisionPrizes : []
   const lootBagItems = Array.isArray(blob.lootBagItems) ? blob.lootBagItems : []
 
+  // No `basis` means the row was published when amounts meant "per pair".
+  // The landing page now captions them "per player", so publishing the stored
+  // figure unchanged would announce double the money the committee agreed.
+  const legacy = blob.basis !== PRIZE_BASIS
+  const amount = (value: unknown): number => {
+    const cents = numberOr(value, 0)
+    return legacy ? rebasePerPairAmount(cents) : cents
+  }
+
   const prizes = divisionPrizes
     .filter((prize) => typeof prize?.divisionName === 'string' && typeof prize?.championCents === 'number')
     // A blob written before 4th place existed has no `fourthPlaceCents`, and
@@ -67,13 +76,14 @@ export function parsePublicPrizeBoard(body: string | null | undefined): PublicPr
     .map((prize) => ({
       divisionId: prize.divisionId,
       divisionName: prize.divisionName,
-      championCents: numberOr(prize.championCents, 0),
-      runnerUpCents: numberOr(prize.runnerUpCents, 0),
-      thirdPlaceCents: numberOr(prize.thirdPlaceCents, 0),
-      fourthPlaceCents: numberOr(prize.fourthPlaceCents, 0),
+      championCents: amount(prize.championCents),
+      runnerUpCents: amount(prize.runnerUpCents),
+      thirdPlaceCents: amount(prize.thirdPlaceCents),
+      fourthPlaceCents: amount(prize.fourthPlaceCents),
     }))
 
   const board: PublicPrizeBoard = {
+    basis: PRIZE_BASIS,
     divisionPrizes: prizes,
     trophyCount: numberOr(blob.trophyCount, 0),
     medalCount: numberOr(blob.medalCount, 0),
@@ -97,7 +107,10 @@ export function parsePublicPrizeBoard(body: string | null | undefined): PublicPr
                   prize.fourthPlaceCents),
             0,
           )
-        : numberOr(blob.totalPoolCents, 0),
+        : // Fallback only, for a board that lists no divisions. A legacy total
+          // was summed per pair, which is already the real outlay — the same
+          // figure the per-player sum above produces — so it needs no rebasing.
+          numberOr(blob.totalPoolCents, 0),
   }
 
   // Nothing worth announcing: an empty board would render a heading over a

@@ -151,6 +151,39 @@ describe('parsePublicPrizeBoard on an older blob', () => {
 
     const board = parsePublicPrizeBoard(legacy)
     expect(board?.divisionPrizes[0].fourthPlaceCents).toBe(0)
-    expect(board?.totalPoolCents).toBe(2 * (20000 + 15000 + 12000))
+
+    // The blob carries no `basis`, so its amounts are per *pair* — what the
+    // committee agreed when they typed them. Rebased to per player they halve,
+    // and the announced total lands back on the money actually being handed
+    // out. Reading them as per-player would have doubled every figure on the
+    // landing page.
+    expect(board?.divisionPrizes[0].championCents).toBe(10000)
+    expect(board?.divisionPrizes[0].runnerUpCents).toBe(7500)
+    expect(board?.divisionPrizes[0].thirdPlaceCents).toBe(6000)
+    expect(board?.totalPoolCents).toBe(47000)
+  })
+
+  it('leaves a blob that declares the per-player basis alone', () => {
+    const current = JSON.stringify({
+      basis: 'per-player',
+      divisionPrizes: [
+        {
+          divisionId: 'div-a',
+          divisionName: 'Mens',
+          championCents: 10000,
+          runnerUpCents: 7500,
+          thirdPlaceCents: 6000,
+          fourthPlaceCents: 0,
+        },
+      ],
+      trophyCount: 4,
+      medalCount: 12,
+      lootBagItems: [],
+      totalPoolCents: 47000,
+    })
+
+    const board = parsePublicPrizeBoard(current)
+    expect(board?.divisionPrizes[0].championCents).toBe(10000)
+    expect(board?.totalPoolCents).toBe(47000)
   })
 })

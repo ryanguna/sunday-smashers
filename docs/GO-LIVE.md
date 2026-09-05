@@ -138,13 +138,20 @@ to *Production* and *Development* (not *Preview* — see above):
 | --- | --- |
 | `NEXT_PUBLIC_SUPABASE_URL` | `https://<project-ref>.supabase.co` |
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | the publishable (`sb_publishable_…`) or legacy anon key |
+| `SUPABASE_SERVICE_ROLE_KEY` | the `service_role` secret — **no `NEXT_PUBLIC_` prefix** |
 
-Both are already set on the live project — this section is for rebuilding it
-from scratch, or pointing the site at a different Supabase project.
+The first two are already set on the live project — this section is for
+rebuilding it from scratch, or pointing the site at a different Supabase
+project.
 
-Never add the **secret / service-role** key. A `NEXT_PUBLIC_*` variable is
-shipped to every browser that loads the site, and that key bypasses row-level
-security completely. `scripts/finish-go-live.sh` refuses one on sight, and also
+`SUPABASE_SERVICE_ROLE_KEY` is optional and does exactly one job: it lets an
+admin issue a one-time password for a locked-out player from **Settings →
+People & roles**. Leave it unset and everything else works; the reset button
+simply explains what to add.
+
+Never add the service-role key as a `NEXT_PUBLIC_*` variable. Anything with
+that prefix is shipped to every browser that loads the site, and this key
+bypasses row-level security completely. `scripts/finish-go-live.sh` refuses one on sight, and also
 checks the key is accepted by *this* project — a key from another project fails
 with a 401 that looks exactly like having set nothing at all.
 
@@ -226,16 +233,26 @@ longer sends anything; it shows the organiser's name and phone number from the
 tournament settings and asks the player to get in touch. Make sure those
 contact fields are filled in (step 5) or that page is a dead end.
 
-To reset a password for someone, an organiser runs:
+**From the admin console (preferred).** Open **Admin → Settings → People &
+roles**, find the player and press **🔑 Reset password**. The console shows a
+one-time password like `Holly-Smash-4821` once — paste it into the group chat,
+then press *Done — hide it*. It is never stored and never written to the audit
+log; only the fact that you reset it is recorded.
+
+This needs `SUPABASE_SERVICE_ROLE_KEY` set in Vercel (Project Settings → API →
+`service_role`). Without it the button explains exactly that instead of
+failing. The key bypasses row-level security, so keep it server-side only —
+never give it a `NEXT_PUBLIC_` prefix.
+
+**From a committee laptop (fallback, e.g. if the console itself is unreachable):**
 
 ```bash
 SUPABASE_DB_URL='postgresql://…:5432/postgres' \
   npm run reset:password -- player@example.com 'their-new-password'
 ```
 
-Then tell them the new password out of band (group chat, in person) and point
-them at **`/account/password`**, where they can change it to something only
-they know. That page is in the avatar menu under *Change password*, and it is
+Either way, point them at **`/account/password`**, where they can change it to
+something only they know. That page is in the avatar menu under *Change password*, and it is
 the only password-change control in the app — it asks for the current password
 before accepting a new one.
 
@@ -357,12 +374,15 @@ Reveal them roughly in this order:
 Use a real second email address, not the organiser account:
 
 - [ ] Sign up, confirm the email, complete onboarding.
-- [ ] Register for a division through the wizard, inviting a partner by email.
-- [ ] Sign up as that partner. **The invite should be waiting on their first
-      sign-in** — it is claimed automatically by email.
-- [ ] Accept it, and confirm the pair appears in `/admin/teams`.
+- [ ] Register for a division through the wizard, nominating a partner by name.
+- [ ] Before approving, confirm that account sees **only** `/status` — the
+      dashboard, scoring and scoresheets all redirect there until you decide.
+- [ ] Pair them up in `/admin/teams` (the committee does the pairing; players
+      no longer invite each other).
 - [ ] Approve the registration and record a payment in `/admin`.
 - [ ] Confirm the player's dashboard shows *approved* and *paid*.
+- [ ] Reset that account's password from **Admin → Settings → People & roles**
+      and sign in with the one-time password it gives you.
 - [ ] Build a draw, schedule it, and open `/tv` on the hall's monitor.
 
 Then delete the test rows before the real thing.
@@ -409,14 +429,10 @@ Existing stranded accounts are rescued with the bootstrap script below.
 **A player has forgotten their password.**
 There is no reset email — that is the deliberate trade in step 3.
 `/forgot-password` points them at the organiser's phone number from the
-tournament settings. An organiser then runs, from a committee laptop:
-
-```bash
-SUPABASE_DB_URL='…' npm run bootstrap:organiser -- player@example.com
-```
-
-It prints a generated password, or takes one as a second argument. It does
-**not** grant admin, so it is safe to run for an ordinary player.
+tournament settings. An organiser then opens **Admin → Settings → People &
+roles** and presses **🔑 Reset password** next to their name, which issues a
+one-time password to send them. See step 3 for the fallback if the console is
+unreachable.
 
 **To create the first committee account without touching the dashboard:**
 

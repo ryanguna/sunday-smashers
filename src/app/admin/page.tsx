@@ -8,7 +8,6 @@ import {
   RacketIcon,
   ShuttlecockIcon,
   SnowflakeIcon,
-  SparkleIcon,
   TrophyIcon,
 } from '@/components/icons'
 import {

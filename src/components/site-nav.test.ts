@@ -158,3 +158,22 @@ describe('shouldShowRegisterCta', () => {
     }
   })
 })
+
+describe('accountLinks while an entry is under review', () => {
+  it('offers the status page instead of a dashboard that would bounce them', () => {
+    // The approval gate redirects a pending/waitlisted/declined player off
+    // /dashboard, so linking them there reads as a broken menu item.
+    expect(accountLinks([], { awaitingApproval: true })[0]).toEqual({
+      href: '/status',
+      label: 'My entry',
+    })
+  })
+
+  it('still offers every console a role holder has', () => {
+    // Staff are never gated, but the flag must not eat their consoles even if
+    // a caller passes it by mistake.
+    const hrefs = accountLinks(['admin'], { awaitingApproval: true }).map((link) => link.href)
+    expect(hrefs).toContain('/admin')
+    expect(hrefs).toContain('/account/password')
+  })
+})

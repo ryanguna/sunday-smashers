@@ -26,7 +26,6 @@ import type {
 import { getAllDemoBundles } from '@/lib/demo-data'
 import {
   buildRegistrationNotes,
-  buildTeamName,
   PLAYERS_PER_TEAM,
   type DivisionSummary,
   type RegistrationFormValues,

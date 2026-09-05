@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
+  bestRegistrationStatus,
   GATED_PREFIXES,
   REGISTRATION_STATUS_PATH,
   resolveRegistrationGate,
@@ -62,5 +63,28 @@ describe('GATED_PREFIXES', () => {
   it('does not gate the page it redirects to', () => {
     // A gated status page is an infinite redirect.
     expect(GATED_PREFIXES).not.toContain(REGISTRATION_STATUS_PATH)
+  })
+})
+
+describe('bestRegistrationStatus', () => {
+  it('returns null when the player holds no entries', () => {
+    expect(bestRegistrationStatus([])).toBeNull()
+  })
+
+  it('lets one approval outrank a newer pending entry in another division', () => {
+    // The realistic sequence: approved for men's doubles, then enters the
+    // mixed draw. Judging on the newest row would lock them out of a spot
+    // they already hold.
+    expect(bestRegistrationStatus(['pending', 'approved'])).toBe('approved')
+  })
+
+  it('falls back to the first (newest) entry when none are approved', () => {
+    expect(bestRegistrationStatus(['pending', 'rejected'])).toBe('pending')
+    expect(bestRegistrationStatus(['rejected'])).toBe('rejected')
+    expect(bestRegistrationStatus(['waitlisted', 'rejected'])).toBe('waitlisted')
+  })
+
+  it('keeps an approved player in even when a later entry was declined', () => {
+    expect(bestRegistrationStatus(['rejected', 'approved'])).toBe('approved')
   })
 })

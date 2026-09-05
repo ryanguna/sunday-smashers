@@ -156,7 +156,41 @@ export interface DivisionPrize {
 /** Everyone on the podium is a pair, so every placing is paid twice. */
 export const PLAYERS_PER_PAIR = 2
 
+/**
+ * Which basis the stored amounts were entered on.
+ *
+ * Prizes used to be recorded **per pair** and were later redefined as **per
+ * player**, because that is the figure the committee counts into an envelope.
+ * The blob sitting in `site_content` from before that change contains per-pair
+ * numbers, and nothing in the JSON says so — read naively, every announced
+ * prize silently doubles and the landing page promises money the committee
+ * never budgeted.
+ *
+ * So the basis is written explicitly from now on, and a blob without it is
+ * known to be the old format and is halved on read. This is a one-way marker:
+ * once rebased and saved, the amount is per player forever.
+ */
+export type PrizeBasis = 'per-player'
+
+/** The value written into every blob saved by this version onwards. */
+export const PRIZE_BASIS: PrizeBasis = 'per-player'
+
+/**
+ * Converts a legacy per-pair amount to the per-player equivalent.
+ *
+ * Rounds rather than truncates so a stray odd cent does not quietly vanish
+ * from the pool; amounts are whole dollars in practice.
+ */
+export function rebasePerPairAmount(cents: number): number {
+  return Math.round(cents / PLAYERS_PER_PAIR)
+}
+
 export interface PrizeSettings {
+  /**
+   * Absent means the blob predates the per-pair -> per-player change and its
+   * amounts still need halving. See `PrizeBasis`.
+   */
+  basis?: PrizeBasis
   divisionPrizes: DivisionPrize[]
   trophyCount: number
   medalCount: number
@@ -283,6 +317,7 @@ export function defaultTournamentSettings(): TournamentSettings {
     ],
     timeSlots: defaultTimeSlots(),
     prizes: {
+      basis: PRIZE_BASIS,
       divisionPrizes: divisions.map((d) => ({
         divisionId: d.id,
         // Per player. A champion pair therefore costs $300.
@@ -1638,15 +1673,24 @@ export function normalisePrizes(
 ): PrizeSettings {
   if (!parsed) return fallback
   const money = (value: unknown): number => (typeof value === 'number' && Number.isFinite(value) ? value : 0)
+  // A blob with no `basis` was written when amounts meant "per pair". Reading
+  // it as-is would double every figure the committee had agreed, so rebase it
+  // here — the single place every prize read passes through.
+  const legacy = parsed.basis !== PRIZE_BASIS
+  const amount = (value: unknown): number => {
+    const cents = money(value)
+    return legacy ? rebasePerPairAmount(cents) : cents
+  }
   return {
     ...fallback,
     ...parsed,
+    basis: PRIZE_BASIS,
     divisionPrizes: (parsed.divisionPrizes ?? fallback.divisionPrizes).map((prize) => ({
       divisionId: prize.divisionId,
-      championCents: money(prize.championCents),
-      runnerUpCents: money(prize.runnerUpCents),
-      thirdPlaceCents: money(prize.thirdPlaceCents),
-      fourthPlaceCents: money(prize.fourthPlaceCents),
+      championCents: amount(prize.championCents),
+      runnerUpCents: amount(prize.runnerUpCents),
+      thirdPlaceCents: amount(prize.thirdPlaceCents),
+      fourthPlaceCents: amount(prize.fourthPlaceCents),
     })),
     lootBagItems: parsed.lootBagItems ?? fallback.lootBagItems,
   }
@@ -1682,6 +1726,8 @@ export interface PublicDivisionPrize {
  * standing in a gym should be able to read it.
  */
 export interface PublicPrizeBoard {
+  /** Absent means legacy per-pair amounts — see `PrizeBasis`. */
+  basis?: PrizeBasis
   divisionPrizes: PublicDivisionPrize[]
   trophyCount: number
   medalCount: number
@@ -1719,6 +1765,7 @@ export function publicPrizeBoard(
   }
 
   return {
+    basis: PRIZE_BASIS,
     divisionPrizes,
     trophyCount: prizes.trophyCount,
     medalCount: prizes.medalCount,

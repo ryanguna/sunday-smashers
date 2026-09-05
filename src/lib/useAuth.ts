@@ -4,12 +4,18 @@ import { useCallback, useEffect, useState } from 'react'
 import type { User } from '@supabase/supabase-js'
 import { createClient } from '@/lib/supabase/client'
 import { isSupabaseConfigured } from '@/lib/supabase/config'
-import type { ProfileRow, UserRole, UserRoleRow } from '@/lib/supabase/types'
+import type { ProfileRow, RegistrationStatus, UserRole, UserRoleRow } from '@/lib/supabase/types'
 
 export interface UseAuthResult {
   user: User | null
   profile: ProfileRow | null
   roles: UserRole[]
+  /**
+   * The viewer's most recent entry status, or `null` when they have not
+   * entered (or the read failed). The header uses it to avoid offering a
+   * dashboard the approval gate would bounce them off.
+   */
+  registrationStatus: RegistrationStatus | null
   /** True while the initial session/profile/roles fetch is in flight. */
   loading: boolean
   /** True once Supabase env vars are present — false means "demo mode". */
@@ -35,24 +41,34 @@ export function useAuth(): UseAuthResult {
   const [user, setUser] = useState<User | null>(null)
   const [profile, setProfile] = useState<ProfileRow | null>(null)
   const [roles, setRoles] = useState<UserRole[]>([])
+  const [registrationStatus, setRegistrationStatus] = useState<RegistrationStatus | null>(null)
   const [loading, setLoading] = useState(configured)
 
   const loadProfileAndRoles = useCallback(async (currentUser: User | null) => {
     if (!configured || !currentUser) {
       setProfile(null)
       setRoles([])
+      setRegistrationStatus(null)
       return
     }
     const supabase = createClient()
-    const [{ data: profileRow }, { data: roleRows }] = await Promise.all([
+    const [{ data: profileRow }, { data: roleRows }, { data: registrationRows }] = await Promise.all([
       supabase.from('profiles').select('*').eq('id', currentUser.id).maybeSingle(),
       supabase.from('user_roles').select('role').eq('user_id', currentUser.id),
+      supabase
+        .from('registrations')
+        .select('status, created_at')
+        .eq('player_id', currentUser.id)
+        .order('created_at', { ascending: false })
+        .limit(1),
     ])
     // See the comment in `src/lib/auth.ts#getProfile` — `Database['public']['Tables']`
     // resolves to `never` because the row types are declared with `interface`, so we
     // cast back to the real shapes here instead of editing that (out-of-scope) file.
     setProfile((profileRow as ProfileRow | null) ?? null)
     setRoles(((roleRows ?? []) as Pick<UserRoleRow, 'role'>[]).map((row) => row.role))
+    const entry = ((registrationRows ?? []) as { status: RegistrationStatus }[])[0]
+    setRegistrationStatus(entry?.status ?? null)
   }, [configured])
 
   const refresh = useCallback(async () => {
@@ -102,12 +118,14 @@ export function useAuth(): UseAuthResult {
     setUser(null)
     setProfile(null)
     setRoles([])
+    setRegistrationStatus(null)
   }, [configured])
 
   return {
     user,
     profile,
     roles,
+    registrationStatus,
     loading,
     configured,
     hasRole: (role) => roles.includes(role),

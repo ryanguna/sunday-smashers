@@ -23,6 +23,14 @@ export interface RoleUpdateResult {
   warning?: string
 }
 
+export interface PasswordResetOutcome {
+  ok: boolean
+  demo?: boolean
+  message: string
+  temporaryPassword?: string
+  email?: string
+}
+
 export interface RolesManagerProps {
   initialUsers: ManagedUser[]
   currentUserId: string | null
@@ -31,6 +39,11 @@ export interface RolesManagerProps {
     role: AssignableRole
     action: 'grant' | 'revoke'
   }) => Promise<RoleUpdateResult>
+  /**
+   * Sets a one-time password for a locked-out player. Optional so the manager
+   * can still be rendered on surfaces that do not offer it.
+   */
+  resetPassword?: (input: { targetUserId: string }) => Promise<PasswordResetOutcome>
   readOnly?: boolean
 }
 
@@ -39,12 +52,13 @@ export interface RolesManagerProps {
  * guard applied optimistically in the UI *and* re-checked in the Server
  * Action — a blocked toggle is disabled with the reason as its tooltip.
  */
-export function RolesManager({ initialUsers, currentUserId, updateRole, readOnly = false }: RolesManagerProps) {
+export function RolesManager({ initialUsers, currentUserId, updateRole, resetPassword, readOnly = false }: RolesManagerProps) {
   const [users, setUsers] = useState(initialUsers)
   const [query, setQuery] = useState('')
   const [pending, setPending] = useState<string | null>(null)
   const [feedback, setFeedback] = useState<RoleUpdateResult | null>(null)
   const [celebrate, setCelebrate] = useState(false)
+  const [issued, setIssued] = useState<{ userId: string; name: string } & PasswordResetOutcome | null>(null)
   const [, startTransition] = useTransition()
 
   const results = useMemo(() => searchUsers(users, query), [users, query])
@@ -85,6 +99,28 @@ export function RolesManager({ initialUsers, currentUserId, updateRole, readOnly
         )
         setCelebrate(true)
         setTimeout(() => setCelebrate(false), 2200)
+      }
+    })
+  }
+
+  function reset(user: ManagedUser) {
+    if (!resetPassword) return
+    const confirmed = window.confirm(
+      `Set a new one-time password for ${user.fullName}?\n\nTheir current password stops working immediately. You will see the new one once — send it to them, then ask them to change it under Account → Password.`,
+    )
+    if (!confirmed) return
+
+    setIssued(null)
+    setPending(`${user.id}:password`)
+    startTransition(async () => {
+      const result = await resetPassword({ targetUserId: user.id })
+      setPending(null)
+      if (result.ok && result.temporaryPassword) {
+        setIssued({ ...result, userId: user.id, name: user.fullName })
+        setFeedback(null)
+      } else {
+        setIssued(null)
+        setFeedback({ ok: result.ok, message: result.message })
       }
     })
   }
@@ -131,6 +167,38 @@ export function RolesManager({ initialUsers, currentUserId, updateRole, readOnly
         >
           <p>{feedback.message}</p>
           {feedback.warning && <p className="mt-1 font-bold">{feedback.warning}</p>}
+        </div>
+      )}
+
+      {issued && (
+        <div
+          role="status"
+          className="rounded-[var(--radius-md)] border-2 border-[var(--color-success)] bg-[var(--color-success-bg)] p-4 text-sm text-[var(--color-success)]"
+        >
+          <p className="font-bold">One-time password for {issued.name}</p>
+          {issued.email && <p className="mt-1">They sign in with {issued.email}</p>}
+          <p className="mt-3 select-all break-all rounded-[var(--radius-sm)] bg-white px-3 py-2 font-mono text-lg font-bold tracking-wide text-[var(--color-plum)]">
+            {issued.temporaryPassword}
+          </p>
+          <p className="mt-3">
+            Send this to them now — it is not stored anywhere and disappears when you leave this page.
+            Ask them to change it straight away under Account → Password.
+          </p>
+          <div className="mt-3 flex flex-wrap gap-2">
+            <Button
+              type="button"
+              size="sm"
+              variant="secondary"
+              onClick={() => {
+                void navigator.clipboard?.writeText(issued.temporaryPassword ?? '')
+              }}
+            >
+              Copy password
+            </Button>
+            <Button type="button" size="sm" variant="ghost" onClick={() => setIssued(null)}>
+              Done — hide it
+            </Button>
+          </div>
         </div>
       )}
 
@@ -216,6 +284,19 @@ export function RolesManager({ initialUsers, currentUserId, updateRole, readOnly
                         </Button>
                       )
                     })}
+                    {resetPassword && (
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="ghost"
+                        loading={pending === `${user.id}:password`}
+                        disabled={readOnly || pending !== null}
+                        title={`Set a one-time password for ${user.fullName}`}
+                        onClick={() => reset(user)}
+                      >
+                        🔑 Reset password
+                      </Button>
+                    )}
                   </div>
                 </li>
               )

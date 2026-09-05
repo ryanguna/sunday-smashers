@@ -3,7 +3,7 @@ import Link from 'next/link'
 import { notFound } from 'next/navigation'
 
 import { PrintableScoresheet, PrintButton } from '@/components/scoresheet'
-import { requireAuth } from '@/lib/auth'
+import { requireApprovedPlayer } from '@/lib/registration-gate-server'
 
 import { loadScoresheet } from '../../data'
 
@@ -31,7 +31,7 @@ export default async function PrintScoresheetPage({
   params: Promise<{ matchId: string }>
 }) {
   const { matchId } = await params
-  await requireAuth(`/scoresheets/${matchId}/print`)
+  await requireApprovedPlayer(`/scoresheets/${matchId}/print`)
 
   const data = await loadScoresheet(matchId)
   if (!data) notFound()

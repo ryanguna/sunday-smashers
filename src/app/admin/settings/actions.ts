@@ -6,6 +6,8 @@ import type { Json } from '@/lib/supabase/types'
 import { requireAdmin } from '@/lib/auth'
 import { isSupabaseConfigured } from '@/lib/supabase/config'
 import { createClient } from '@/lib/supabase/server'
+import { createAdminClient, SERVICE_ROLE_SETUP_HINT } from '@/lib/supabase/admin'
+import { generateTemporaryPassword } from '@/lib/temp-password'
 import type { SiteContentRow } from '@/lib/supabase/types'
 import {
   analyseRoleChange,
@@ -22,6 +24,7 @@ import {
   divisionRowPatch,
   hasErrors,
   isPersistedId,
+  PRIZE_BASIS,
   ROLE_LABELS,
   validateCourts,
   validateDivision,
@@ -557,6 +560,10 @@ export async function savePrizesAction(prizes: PrizeSettings): Promise<ActionRes
 
   const mergeFailed = await mergeExtras(supabase, PRIZES_SLUG, 'Prizes and loot bag configuration', () => ({
     ...prizes,
+    // Stamped on write, never taken from the client. Amounts reaching here
+    // have already been rebased on read, so this is what stops the next read
+    // halving them a second time.
+    basis: PRIZE_BASIS,
   }))
   if (mergeFailed) return mergeFailed
 
@@ -666,6 +673,87 @@ export async function updateRoleAction(input: {
     message: `${target?.fullName ?? 'That user'} ${verb} the ${label} role.`,
     warning: verdict.warning,
     changes,
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Password resets
+// ---------------------------------------------------------------------------
+
+export interface PasswordResetResult extends ActionResult {
+  /**
+   * The new password, returned exactly once, to the admin who clicked. It is
+   * never stored, never logged and never written to the audit trail — the only
+   * copy is the one now on the organiser's screen.
+   */
+  temporaryPassword?: string
+  /** The address the player signs in with, so the organiser can confirm it. */
+  email?: string
+}
+
+/**
+ * Sets a temporary password for a locked-out player.
+ *
+ * `/forgot-password` tells players to ask an organiser, because this
+ * tournament has no mail server and therefore no reset emails. That promise
+ * needed something on the admin side that could keep it. This is it: the
+ * organiser clicks, gets a one-time password like `Holly-Smash-4821`, and
+ * passes it to the player in the group chat. The player signs in and is asked
+ * to change it at `/account/password`.
+ *
+ * Changing another user's credentials is a Supabase Auth *admin* operation, so
+ * unlike every other action here it needs the service-role key rather than the
+ * organiser's own cookie-bound session. That key bypasses RLS entirely, which
+ * is why the admin check happens first and the client is built only after it
+ * passes.
+ */
+export async function resetUserPasswordAction(input: {
+  targetUserId: string
+}): Promise<PasswordResetResult> {
+  const actor = await ensureAdmin()
+  const current = await loadSettingsPageData()
+  const target = current.users.find((user) => user.id === input.targetUserId)
+  const who = target?.fullName ?? 'that player'
+
+  if (!isSupabaseConfigured()) {
+    return {
+      ok: true,
+      demo: true,
+      message: `Demo mode — ${who} would get a new one-time password to sign in with.`,
+    }
+  }
+
+  const admin = createAdminClient()
+  if (!admin) {
+    return { ok: false, message: SERVICE_ROLE_SETUP_HINT }
+  }
+
+  const temporaryPassword = generateTemporaryPassword()
+  const { data, error } = await admin.auth.admin.updateUserById(input.targetUserId, {
+    password: temporaryPassword,
+  })
+
+  if (error) {
+    return { ok: false, message: `Could not reset the password: ${error.message}` }
+  }
+
+  const supabase = await createClient()
+  await writeAudit(
+    supabase,
+    actor?.id ?? '',
+    // Deliberately no `changes` and no password in the metadata: the audit log
+    // records *that* a reset happened and by whom, which is the accountability
+    // that matters, without becoming a place credentials are kept.
+    buildAuditEntry('settings.password.reset', 'profile', input.targetUserId, [], {
+      target_name: who,
+    }),
+  )
+
+  return {
+    ok: true,
+    message: `New one-time password ready for ${who}. Send it to them, then it disappears from this screen.`,
+    temporaryPassword,
+    email: data.user?.email ?? target?.email ?? undefined,
   }
 }
 

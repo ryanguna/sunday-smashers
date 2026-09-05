@@ -15,6 +15,7 @@ import {
   isPersistedId,
   type PrizeSettings,
   normalisePrizes,
+  PRIZE_BASIS,
   PLAYERS_PER_PAIR,
   describeDivisionFormat,
   describeStage,
@@ -1018,5 +1019,77 @@ describe('totalPrizePoolCents', () => {
       ],
     }
     expect(totalPrizePoolCents(prizes)).toBe((100 + 50 + 25 + 10) * PLAYERS_PER_PAIR)
+  })
+})
+
+describe('normalisePrizes and the per-pair to per-player rebase', () => {
+  const fallback = {
+    basis: PRIZE_BASIS,
+    divisionPrizes: [],
+    trophyCount: 0,
+    medalCount: 0,
+    lootBagItems: [],
+    showOnPublicSite: false,
+  }
+
+  it('halves the amounts in a blob written before the basis existed', () => {
+    // These are the real figures sitting in production: entered per pair,
+    // under a UI that has since been relabelled "per player". Read naively
+    // the landing page would announce double the committee's budget.
+    const rebased = normalisePrizes(
+      {
+        divisionPrizes: [
+          { divisionId: 'a', championCents: 20000, runnerUpCents: 15000, thirdPlaceCents: 12000, fourthPlaceCents: 0 },
+        ],
+      },
+      fallback,
+    )
+    expect(rebased.divisionPrizes[0]).toEqual({
+      divisionId: 'a',
+      championCents: 10000,
+      runnerUpCents: 7500,
+      thirdPlaceCents: 6000,
+      fourthPlaceCents: 0,
+    })
+    expect(rebased.basis).toBe(PRIZE_BASIS)
+  })
+
+  it('keeps the total outlay identical across the rebase', () => {
+    const rebased = normalisePrizes(
+      {
+        divisionPrizes: [
+          { divisionId: 'a', championCents: 20000, runnerUpCents: 15000, thirdPlaceCents: 12000, fourthPlaceCents: 0 },
+        ],
+      },
+      fallback,
+    )
+    // The committee still brings exactly the money they agreed to bring.
+    expect(totalPrizePoolCents(rebased)).toBe(47000)
+  })
+
+  it('leaves a blob that already declares the basis untouched', () => {
+    const kept = normalisePrizes(
+      {
+        basis: PRIZE_BASIS,
+        divisionPrizes: [
+          { divisionId: 'a', championCents: 10000, runnerUpCents: 7500, thirdPlaceCents: 6000, fourthPlaceCents: 0 },
+        ],
+      },
+      fallback,
+    )
+    expect(kept.divisionPrizes[0].championCents).toBe(10000)
+  })
+
+  it('is idempotent, so a re-read never halves twice', () => {
+    const once = normalisePrizes(
+      {
+        divisionPrizes: [
+          { divisionId: 'a', championCents: 20000, runnerUpCents: 15000, thirdPlaceCents: 12000, fourthPlaceCents: 0 },
+        ],
+      },
+      fallback,
+    )
+    const twice = normalisePrizes(once, fallback)
+    expect(twice.divisionPrizes).toEqual(once.divisionPrizes)
   })
 })

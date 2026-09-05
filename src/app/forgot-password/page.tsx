@@ -25,6 +25,11 @@ export const metadata: Metadata = {
  * committee can change who fields these requests without a redeploy. If they
  * haven't filled any in yet we say so plainly instead of rendering an empty
  * card that looks broken.
+ *
+ * The promise this page makes is backed by a real button: an admin can issue a
+ * one-time password from Admin -> Settings -> People & roles
+ * (`resetUserPasswordAction`). Before that existed this page sent players to a
+ * human who had no way to help them.
  */
 export default async function ForgotPasswordPage() {
   const config = await loadPublicTournamentConfig()
@@ -40,7 +45,7 @@ export default async function ForgotPasswordPage() {
       icon={<BaubleIcon size={26} />}
       eyebrow="Locked out?"
       title="Let's get you back on court"
-      subtitle="Ask an organiser to change it for you."
+      subtitle="Message an organiser — they'll send you a one-time password to sign in with."
       footer={
         <>
           Remembered it?{' '}
@@ -83,6 +88,11 @@ export default async function ForgotPasswordPage() {
       )}
 
       <p className="mt-5 text-sm text-[var(--color-ink-soft)]">
+        They can issue you a one-time password on the spot. Sign in with it, then change it to
+        something only you know.
+      </p>
+
+      <p className="mt-3 text-sm text-[var(--color-ink-soft)]">
         Signed in already and just want a different password?{' '}
         <Link
           href="/account/password"

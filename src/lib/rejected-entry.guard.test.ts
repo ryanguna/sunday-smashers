@@ -40,3 +40,12 @@ describe('the rejected-entry card has somewhere to send the player', () => {
     expect(read('lib', 'dashboard.ts')).not.toContain("actionLabel: 'Try again'")
   })
 })
+
+describe('the approval gate keeps that escape hatch reachable', () => {
+  it('the status page offers the contact anchor to a declined entry', () => {
+    // The dashboard card above is now unreachable for a declined player — the
+    // gate in `src/lib/registration-gate.ts` redirects them to `/status`
+    // before it renders — so the only route back to a human has to be there.
+    expect(read('app', 'status', 'page.tsx')).toContain("href=\"/#contact\"")
+  })
+})

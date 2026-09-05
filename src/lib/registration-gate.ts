@@ -59,6 +59,27 @@ export function resolveRegistrationGate({ status, isStaff }: RegistrationGateInp
 export const REGISTRATION_STATUS_PATH = '/status'
 
 /**
+ * Reduces every entry a player holds to the one the gate should judge them on.
+ *
+ * Entries are per division and a player may hold several, so "their status" is
+ * not a single value. An approval anywhere outranks everything: being told you
+ * are in one draw and then locked out of the app because a second application
+ * is still being read would be absurd, and worse, it would strand a player
+ * mid-event on a spot they had already paid for.
+ *
+ * Below that the caller's ordering decides — pass rows newest-first and a
+ * player who was declined and re-entered reads as `pending`, which is the
+ * honest answer.
+ */
+export function bestRegistrationStatus(
+  statuses: readonly RegistrationStatus[],
+): RegistrationStatus | null {
+  if (statuses.length === 0) return null
+  if (statuses.includes('approved')) return 'approved'
+  return statuses[0]
+}
+
+/**
  * Routes under the gate: everything a player only has a use for once they are
  * actually in the tournament. The public site (schedule, standings, live
  * scores, `/tv`) stays open to everyone, including declined entrants — it is

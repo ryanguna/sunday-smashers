@@ -61,9 +61,16 @@ database, auth and realtime score updates.
 |---|---|
 | `NEXT_PUBLIC_SUPABASE_URL` | Supabase project URL |
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Supabase publishable/anon key |
+| `SUPABASE_SERVICE_ROLE_KEY` | Optional. Lets an admin issue a one-time password for a locked-out player |
 
-Both are safe to expose client-side; access is controlled by Postgres
-row-level security policies.
+The two `NEXT_PUBLIC_` values are safe to expose client-side; access is
+controlled by Postgres row-level security policies.
+
+`SUPABASE_SERVICE_ROLE_KEY` is **not**. It bypasses every RLS policy, is read
+server-side only (`src/lib/supabase/admin.ts`), and exists because there is no
+mail server here — so password resets happen by an organiser handing over a
+one-time password rather than by emailing a link. Leave it unset and the rest
+of the app is unaffected; the reset button just explains what to add.
 
 ---
 

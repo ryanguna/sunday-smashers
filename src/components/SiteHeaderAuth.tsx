@@ -6,6 +6,7 @@ import { useEffect, useId, useRef, useState } from 'react'
 import { useAuth } from '@/lib/useAuth'
 import { cn } from '@/lib/cn'
 import { accountDisplayName, accountLinks, accountNavState, type NavLink } from '@/components/site-nav'
+import { resolveRegistrationGate } from '@/lib/registration-gate'
 
 /**
  * The account corner of `SiteHeader`.
@@ -30,7 +31,7 @@ import { accountDisplayName, accountLinks, accountNavState, type NavLink } from 
  * "Sign in" button that would visibly flip to an avatar a moment later.
  */
 export function SiteHeaderAuth({ variant }: { variant: 'desktop' | 'mobile' }) {
-  const { user, profile, roles, loading, configured } = useAuth()
+  const { user, profile, roles, registrationStatus, loading, configured } = useAuth()
   const pathname = usePathname()
   const state = accountNavState({ configured, loading, signedIn: Boolean(user) })
   const mobile = variant === 'mobile'
@@ -45,7 +46,14 @@ export function SiteHeaderAuth({ variant }: { variant: 'desktop' | 'mobile' }) {
     return <AccountLink href="/dashboard" label="Account" mobile={mobile} active={false} />
   }
 
-  const links = accountLinks(state === 'demo' ? [] : roles)
+  const links = accountLinks(state === 'demo' ? [] : roles, {
+    awaitingApproval:
+      state !== 'demo' &&
+      resolveRegistrationGate({
+        status: registrationStatus,
+        isStaff: roles.some((role) => role !== 'player'),
+      }) !== 'allow',
+  })
   const who = accountDisplayName(profile?.full_name, user?.email)
 
   if (mobile) {

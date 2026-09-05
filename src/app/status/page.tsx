@@ -84,12 +84,19 @@ export default async function RegistrationStatusPage() {
           )}
 
           <div className="mt-8 flex flex-wrap items-center justify-center gap-3">
-            <Button href="/">Back to home court</Button>
-            {outcome !== 'declined' && (
-              <Button href="/rules" variant="secondary">
-                Read the rules
-              </Button>
+            {/* A declined entry is a dead end unless there is a human at the
+                end of it. `unique (division_id, player_id)` refuses a second
+                entry, so only the committee can reopen the existing row —
+                this is the only route back, and it used to live on the
+                dashboard, which a declined player can no longer reach. */}
+            {outcome === 'declined' ? (
+              <Button href="/#contact">Contact an organiser</Button>
+            ) : (
+              <Button href="/rules">Read the rules</Button>
             )}
+            <Button href="/" variant="secondary">
+              Back to home court
+            </Button>
           </div>
         </Card>
       </div>

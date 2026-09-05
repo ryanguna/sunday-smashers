@@ -84,9 +84,25 @@ const ROLE_LINKS: readonly { role: UserRole; link: NavLink }[] = [
  * too much work to repeat in the header on every page. `/dashboard` already
  * surfaces the next duty, so we link there instead.
  */
-export function accountLinks(roles: readonly UserRole[]): NavLink[] {
+export function accountLinks(
+  roles: readonly UserRole[],
+  options: {
+    /**
+     * True when the viewer's entry has not been approved, so the gate in
+     * `src/lib/registration-gate.ts` would bounce them off `/dashboard`.
+     *
+     * Offering "My dashboard" to someone the app immediately redirects reads
+     * as a broken link, so they are offered the page they will actually land
+     * on instead. Role holders are never gated, so their consoles are
+     * unaffected.
+     */
+    awaitingApproval?: boolean
+  } = {},
+): NavLink[] {
   return [
-    { href: '/dashboard', label: 'My dashboard' },
+    options.awaitingApproval
+      ? { href: '/status', label: 'My entry' }
+      : { href: '/dashboard', label: 'My dashboard' },
     ...ROLE_LINKS.filter(({ role }) => roles.includes(role)).map(({ link }) => link),
     // Last, below the role consoles: needed rarely, but it is the only place
     // in the app that can change a password, so it must be findable without
