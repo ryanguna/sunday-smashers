@@ -99,9 +99,13 @@ export function ConfirmationPanel({
         </ol>
 
         <div className="mt-6 flex flex-wrap gap-3">
-          <Button href="/dashboard" size="lg">
+          {/* Not `/dashboard`: the person reading this has just applied, so
+              they are pending and the gate would bounce them straight to
+              `/status` anyway. `/status` sends approved players and committee
+              members on to the dashboard, so this is right for everyone. */}
+          <Button href="/status" size="lg">
             <GiftIcon size={20} aria-hidden="true" />
-            Go to my dashboard
+            Check my entry status
           </Button>
           <Button href="/rules" variant="ghost" size="lg">
             Brush up on the rules

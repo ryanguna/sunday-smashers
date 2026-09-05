@@ -49,3 +49,18 @@ describe('the approval gate keeps that escape hatch reachable', () => {
     expect(read('app', 'status', 'page.tsx')).toContain("href=\"/#contact\"")
   })
 })
+
+describe('post-registration call to action', () => {
+  it('sends a fresh applicant to their status, not a dashboard they cannot open', () => {
+    // The person reading the confirmation panel has just applied, so they are
+    // pending by definition and the gate would bounce /dashboard straight to
+    // /status. Linking there directly avoids a redirect the moment after the
+    // single most important action on the site.
+    const panel = readFileSync(
+      join(process.cwd(), 'src', 'components', 'registration', 'ConfirmationPanel.tsx'),
+      'utf8',
+    )
+    expect(panel).toContain('href="/status"')
+    expect(panel).not.toContain('href="/dashboard"')
+  })
+})

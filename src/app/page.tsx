@@ -368,7 +368,11 @@ export default async function HomePage() {
                       {formatCents(prize.thirdPlaceCents)}
                     </td>
                     <td className="px-4 py-3 text-right tabular-nums text-[var(--color-ink)]">
-                      {formatCents(prize.fourthPlaceCents)}
+                      {/* 4th place was added after the prizes were first
+                          budgeted, so an unset amount is "not decided", not
+                          "you get nothing" — and a row of $0 next to real
+                          money reads as a broken page rather than a blank. */}
+                      {prize.fourthPlaceCents > 0 ? formatCents(prize.fourthPlaceCents) : '—'}
                     </td>
                   </tr>
                 ))}
