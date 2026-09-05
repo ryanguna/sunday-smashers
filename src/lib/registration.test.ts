@@ -2,10 +2,8 @@ import { describe, expect, it } from 'vitest'
 import {
   buildRegistrationNotes,
   buildTeamName,
-  canRespondToInvite,
   confirmationCopy,
   decideRegistrationOutcome,
-  describeInvite,
   divisionCapacity,
   divisionEligibilityHint,
   EMPTY_REGISTRATION_FORM,
@@ -15,10 +13,8 @@ import {
   isDuplicateRegistration,
   isValidPhone,
   MAX_NOTES_LENGTH,
-  parsePartnerIdentifier,
   validateRegistrationForm,
   type RegistrationFormValues,
-  REGISTRATION_PARTNER_MODE,
 } from './registration'
 import {
   PRE_REGISTRATION_OPENS_AT,
@@ -28,6 +24,7 @@ import {
 
 const VALID_FORM: RegistrationFormValues = {
   divisionId: 'div-mens',
+  nominatedPartner: '',
   skillLevel: 'intermediate',
   phone: '0412 345 678',
   emergencyContactName: 'Mrs Claus',
@@ -203,32 +200,6 @@ describe('decideRegistrationOutcome', () => {
   })
 })
 
-describe('parsePartnerIdentifier', () => {
-  it('recognises and lower-cases emails', () => {
-    expect(parsePartnerIdentifier('  Holly@Example.COM ')).toEqual({
-      kind: 'email',
-      email: 'holly@example.com',
-    })
-  })
-
-  it('recognises handles with or without an @ prefix', () => {
-    expect(parsePartnerIdentifier('@HollySmash')).toEqual({ kind: 'handle', handle: 'hollysmash' })
-    expect(parsePartnerIdentifier('holly_smash-01')).toEqual({ kind: 'handle', handle: 'holly_smash-01' })
-  })
-
-  it('reports empty input', () => {
-    expect(parsePartnerIdentifier('   ')).toEqual({ kind: 'empty' })
-    expect(parsePartnerIdentifier('')).toEqual({ kind: 'empty' })
-  })
-
-  it('rejects malformed values', () => {
-    expect(parsePartnerIdentifier('nope@').kind).toBe('invalid')
-    expect(parsePartnerIdentifier('a@b').kind).toBe('invalid')
-    expect(parsePartnerIdentifier('x').kind).toBe('invalid')
-    expect(parsePartnerIdentifier('holly smash').kind).toBe('invalid')
-  })
-})
-
 describe('isValidPhone', () => {
   it('accepts realistic AU/international numbers', () => {
     expect(isValidPhone('0412 345 678')).toBe(true)
@@ -272,7 +243,6 @@ describe('validateRegistrationForm', () => {
     // rejected unless the player had also ticked "find me a partner"; there is
     // now no way to express either, so a complete form must simply pass.
     expect(validateRegistrationForm(VALID_FORM, CONTEXT)).toEqual({})
-    expect(REGISTRATION_PARTNER_MODE).toBe('solo')
   })
 
   it('rejects an unknown skill level', () => {
@@ -294,15 +264,15 @@ describe('validateRegistrationForm', () => {
 })
 
 describe('buildRegistrationNotes', () => {
-  it('records an emailed partner invite', () => {
+  it('records a nominated partner as a nomination, not a pairing', () => {
     const notes = buildRegistrationNotes({
-      partnerMode: 'partner',
-      partnerIdentifier: 'Rudolph@Example.com',
+      nominatedPartner: '  Rudolph Reyes ',
       dietaryNotes: 'Vegetarian',
       codeOfConductAcceptedAt: '2026-09-10T00:00:00.000Z',
       intent: 'register',
     })
-    expect(notes).toContain('Partner: invited rudolph@example.com')
+    expect(notes).toContain('Partner nominated: Rudolph Reyes (committee to confirm)')
+    expect(notes).not.toContain('FREE AGENT')
     expect(notes).toContain('Dietary / notes: Vegetarian')
     expect(notes).toContain('Code of conduct accepted: 2026-09-10T00:00:00.000Z')
     expect(notes).not.toContain('Waitlist entry')
@@ -310,8 +280,6 @@ describe('buildRegistrationNotes', () => {
 
   it('flags free agents and waitlist entries', () => {
     const notes = buildRegistrationNotes({
-      partnerMode: 'solo',
-      partnerIdentifier: '',
       dietaryNotes: '   ',
       codeOfConductAcceptedAt: '2026-09-10T00:00:00.000Z',
       intent: 'waitlist',
@@ -321,16 +289,15 @@ describe('buildRegistrationNotes', () => {
     expect(notes).toContain('Dietary / notes: none')
   })
 
-  it('records a handle invite', () => {
+  it('treats a blank nomination as no nomination', () => {
     expect(
       buildRegistrationNotes({
-        partnerMode: 'partner',
-        partnerIdentifier: '@hollysmash',
+        nominatedPartner: '   ',
         dietaryNotes: '',
         codeOfConductAcceptedAt: 'now',
         intent: 'register',
       })
-    ).toContain('Partner: invited @hollysmash')
+    ).toContain('FREE AGENT')
   })
 })
 
@@ -352,26 +319,6 @@ describe('buildTeamName', () => {
     expect(buildTeamName('Holly', '  ')).toBe('Holly')
     expect(buildTeamName('', 'Rudolph')).toBe('Rudolph')
     expect(buildTeamName('', '')).toBe('Mystery Pair')
-  })
-})
-
-describe('invites', () => {
-  it('only lets pending invites be answered', () => {
-    expect(canRespondToInvite({ status: 'pending' })).toBe(true)
-    for (const status of ['accepted', 'declined', 'expired', 'cancelled'] as const) {
-      expect(canRespondToInvite({ status })).toBe(false)
-      expect(describeInvite(status).actionable).toBe(false)
-    }
-  })
-
-  it('describes every status with copy', () => {
-    for (const status of ['pending', 'accepted', 'declined', 'expired', 'cancelled'] as const) {
-      const described = describeInvite(status)
-      expect(described.label.length).toBeGreaterThan(0)
-      expect(described.blurb.length).toBeGreaterThan(0)
-    }
-    expect(describeInvite('pending').tone).toBe('pending')
-    expect(describeInvite('accepted').tone).toBe('approved')
   })
 })
 

@@ -299,10 +299,6 @@ describe('buildAlerts', () => {
     expect(alert?.title).toContain('full')
   })
 
-  it('flags pending invites', () => {
-    expect(buildAlerts([], DIVISIONS, 3).some((a) => a.id === 'pending-invites')).toBe(true)
-  })
-
   it('leads with the dead sign-up form when there are no divisions', () => {
     const alerts = buildAlerts([], [])
     expect(alerts[0].id).toBe('no-divisions')

@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { Badge, Button, Card, Confetti } from '@/components/ui'
 import { AlertBanner } from '@/components/auth'
 import { FieldWrapper, TextField } from '@/components/auth/FormField'
@@ -10,7 +10,6 @@ import {
   decideRegistrationOutcome,
   divisionCapacity,
   EMPTY_REGISTRATION_FORM,
-  isDivisionEligible,
   MAX_NOTES_LENGTH,
   SKILL_LEVELS,
   isDuplicateRegistration,
@@ -29,6 +28,7 @@ import {
   wizardProgress,
   type WizardStep,
 } from '@/lib/registration-wizard'
+import type { SiteCopy } from '@/lib/site-copy'
 import { DivisionPicker } from './DivisionPicker'
 import { WizardGarland } from './WizardGarland'
 import { submitRegistration, type RegistrationContext, type SubmitRegistrationResult } from './data'
@@ -45,6 +45,8 @@ const FOCUS_RING =
 
 export interface RegistrationWizardProps {
   context: RegistrationContext
+  /** Committee-editable disclaimers shown alongside the questions. */
+  copy: SiteCopy
   window: RegistrationWindow
   onSubmitted: (result: SubmitRegistrationResult) => void
 }
@@ -63,17 +65,19 @@ export interface RegistrationWizardProps {
  * selects that step's errors out of the whole-form validation. Nothing here
  * re-implements a validation rule.
  */
-export function RegistrationWizard({ context, window: registrationWindow, onSubmitted }: RegistrationWizardProps) {
+export function RegistrationWizard({ context, copy, window: registrationWindow, onSubmitted }: RegistrationWizardProps) {
   const profile = context.profile
 
-  const eligibleDivisions = useMemo(
-    () => context.divisions.filter((division) => isDivisionEligible(division.gender, profile?.gender)),
-    [context.divisions, profile?.gender]
-  )
+  // Every open division is selectable. The wizard used to filter this list by
+  // the gender on the player's profile and silently pre-select the survivor,
+  // which meant anyone who had answered "prefer not to say" — or whose profile
+  // simply disagreed with the draw they meant to enter — was quietly entered
+  // into the wrong one. The committee reviews every entry anyway, so guessing
+  // buys nothing and costs a wrong division nobody notices until the draw.
+  const eligibleDivisions = context.divisions
 
   const [values, setValues] = useState<RegistrationFormValues>(() => ({
     ...EMPTY_REGISTRATION_FORM,
-    divisionId: eligibleDivisions.length === 1 ? eligibleDivisions[0].id : '',
     skillLevel: profile?.skill_level ?? '',
     phone: profile?.phone ?? '',
     emergencyContactName: profile?.emergency_contact_name ?? '',
@@ -108,7 +112,12 @@ export function RegistrationWizard({ context, window: registrationWindow, onSubm
     [eligibleDivisions, context.userEmail, profile?.nickname]
   )
 
-  const steps = useMemo(() => buildWizardSteps(), [])
+  const selectedDivisionGender =
+    context.divisions.find((division) => division.id === values.divisionId)?.gender ?? null
+  const steps = useMemo(
+    () => buildWizardSteps({ askPartnerNomination: selectedDivisionGender === 'mens' }),
+    [selectedDivisionGender],
+  )
   // Switching to "find me a partner" removes a step, which can leave the index
   // past the end of the list.
   const safeIndex = Math.min(index, steps.length - 1)
@@ -256,11 +265,11 @@ export function RegistrationWizard({ context, window: registrationWindow, onSubm
         <div className="min-h-[9rem]">
           <StepFields
             step={step}
+            copy={copy}
             values={values}
             errors={errors}
             update={update}
             context={context}
-            profileGender={profile?.gender}
             steps={steps}
             onJump={(target) => {
               setShowErrors(false)
@@ -313,37 +322,58 @@ export function RegistrationWizard({ context, window: registrationWindow, onSubm
 
 interface StepFieldsProps {
   step: WizardStep
+  copy: SiteCopy
   steps: WizardStep[]
   values: RegistrationFormValues
   errors: Partial<Record<keyof RegistrationFormValues, string>>
   update: <K extends keyof RegistrationFormValues>(key: K, value: RegistrationFormValues[K]) => void
   context: RegistrationContext
-  profileGender: Parameters<typeof isDivisionEligible>[1]
   onJump: (index: number) => void
   outcomeLabel: string | null
 }
 
 function StepFields({
   step,
+  copy,
   steps,
   values,
   errors,
   update,
   context,
-  profileGender,
   onJump,
   outcomeLabel,
 }: StepFieldsProps) {
   switch (step.id) {
     case 'division':
       return (
-        <DivisionPicker
-          divisions={context.divisions}
-          value={values.divisionId}
-          onChange={(divisionId) => update('divisionId', divisionId)}
-          profileGender={profileGender}
-          error={errors.divisionId}
-        />
+        <>
+          <DivisionPicker
+            divisions={context.divisions}
+            value={values.divisionId}
+            onChange={(divisionId) => update('divisionId', divisionId)}
+            error={errors.divisionId}
+          />
+          <Disclaimer>{copy.partnerDisclaimer}</Disclaimer>
+        </>
+      )
+
+    case 'partner':
+      return (
+        <>
+          <TextField
+            label="Nominated partner"
+            name="nominated-partner"
+            autoComplete="off"
+            value={values.nominatedPartner}
+            onChange={(event) => update('nominatedPartner', event.target.value)}
+            error={errors.nominatedPartner}
+            hint="Their name is enough. Leave it blank and the committee will find you a partner."
+          />
+          <Disclaimer>
+            This is a nomination, not a confirmed pair — the committee groups every pair itself, so
+            please don’t assume you’re playing together until it shows on your dashboard.
+          </Disclaimer>
+        </>
       )
 
     case 'skill':
@@ -390,6 +420,7 @@ function StepFields({
               {errors.skillLevel}
             </p>
           )}
+          <Disclaimer>{copy.skillPairingDisclaimer}</Disclaimer>
         </div>
       )
 
@@ -542,6 +573,7 @@ function ReviewList({
 
   const answers: Record<string, string> = {
     division: division?.name ?? '—',
+    partner: values.nominatedPartner.trim() || 'Committee to pair me',
     skill: skill?.label ?? '—',
     contact: values.phone || '—',
     emergency: [values.emergencyContactName, values.emergencyContactPhone].filter(Boolean).join(' · ') || '—',
@@ -584,5 +616,21 @@ function ReviewList({
           })}
       </ul>
     </div>
+  )
+}
+
+/**
+ * A quiet, committee-authored note under a question.
+ *
+ * Deliberately not an `AlertBanner`: these are reassurances and expectations
+ * ("we'll find you a partner", "you'll be paired on this answer"), and dressing
+ * them as warnings would make a friendly form feel like it was telling players
+ * off.
+ */
+function Disclaimer({ children }: { children: ReactNode }) {
+  return (
+    <p className="mt-3 rounded-[var(--radius-md)] bg-[var(--color-brand-lilac-light)]/40 px-3 py-2 text-sm text-[var(--color-ink-soft)]">
+      {children}
+    </p>
   )
 }

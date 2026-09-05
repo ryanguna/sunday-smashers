@@ -6,6 +6,7 @@ import { Card, Spinner } from '@/components/ui'
 import { DemoModeNotice } from '@/components/auth'
 import { GiftIcon } from '@/components/icons'
 import { getRegistrationWindow, type RegistrationWindowInfo } from '@/lib/registration'
+import type { SiteCopy } from '@/lib/site-copy'
 import { loadRegistrationContext, type RegistrationContext } from './data'
 import { RegistrationWizard } from './RegistrationWizard'
 import { NoDivisionsPanel, NotOpenYetPanel, SignInPromptPanel, TournamentOverPanel } from './RegistrationStates'
@@ -15,6 +16,8 @@ export type RegisterPreview = 'open' | 'closed' | 'full'
 
 export interface RegisterExperienceProps {
   info: RegistrationWindowInfo
+  /** Committee-editable disclaimers, loaded on the server. */
+  copy: SiteCopy
   /** Only ever set in demo mode (no Supabase env vars) — see `page.tsx`. */
   preview?: RegisterPreview | null
 }
@@ -25,7 +28,7 @@ export interface RegisterExperienceProps {
  * itself, or "the tournament already happened" — and then hands off to
  * `/register/success` once an entry is saved.
  */
-export function RegisterExperience({ info, preview = null }: RegisterExperienceProps) {
+export function RegisterExperience({ info, copy, preview = null }: RegisterExperienceProps) {
   const router = useRouter()
   const [context, setContext] = useState<RegistrationContext | null>(null)
   const [loading, setLoading] = useState(true)
@@ -87,29 +90,10 @@ export function RegisterExperience({ info, preview = null }: RegisterExperienceP
     <div className="grid gap-5">
       {!context.configured && <DemoModeNotice what="Saving your registration" />}
 
-      {context.pendingInviteCount > 0 && (
-        <a
-          href="/register/invites"
-          className="hover-lift flex items-center gap-3 rounded-[var(--radius-lg)] bg-[image:var(--gradient-gold)] p-4 text-[var(--color-plum)] shadow-[var(--shadow-soft)]"
-        >
-          <span
-            aria-hidden="true"
-            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-white/70"
-          >
-            <GiftIcon size={22} />
-          </span>
-          <span>
-            <span className="block font-[family-name:var(--font-heading)] font-bold">
-              You have {context.pendingInviteCount} partner invite
-              {context.pendingInviteCount === 1 ? '' : 's'} waiting
-            </span>
-            <span className="text-sm">Someone wants you on their team — go say yes (or no) →</span>
-          </span>
-        </a>
-      )}
 
       <RegistrationWizard
         context={formContext}
+        copy={copy}
         window={info.window}
         onSubmitted={(result) => {
           const params = new URLSearchParams({ status: result.status })
@@ -118,9 +102,7 @@ export function RegisterExperience({ info, preview = null }: RegisterExperienceP
           if (result.divisionId) params.set('divisionId', result.divisionId)
           const division = divisions.find((item) => item.id === result.divisionId)
           if (division) params.set('division', division.name)
-          if (result.invitedPartner) params.set('partner', 'invited')
           if (result.freeAgent) params.set('partner', 'solo')
-          if (result.partnerWarning) params.set('partnerWarning', result.partnerWarning)
           router.push(`/register/success?${params.toString()}`)
         }}
       />

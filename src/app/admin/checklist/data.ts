@@ -2,7 +2,7 @@ import { cache } from 'react'
 
 import { getAdminConsoleData } from '@/components/admin/data'
 import { PRIZES_SLUG } from '@/app/admin/settings/data'
-import { defaultTournamentSettings, type PrizeSettings } from '@/lib/settings'
+import { defaultTournamentSettings, normalisePrizes, type PrizeSettings } from '@/lib/settings'
 import { loadLiveOrDemo, rowOrThrow, rowsOrThrow } from '@/lib/demo-mode'
 import { createClient } from '@/lib/supabase/server'
 import type { AdminRegistration } from '@/lib/admin'
@@ -48,13 +48,7 @@ function readPrizes(raw: string | null | undefined): PrizeSettings {
   const fallback = defaultTournamentSettings().prizes
   if (!raw) return fallback
   try {
-    const parsed = JSON.parse(raw) as Partial<PrizeSettings>
-    return {
-      ...fallback,
-      ...parsed,
-      divisionPrizes: parsed.divisionPrizes ?? fallback.divisionPrizes,
-      lootBagItems: parsed.lootBagItems ?? fallback.lootBagItems,
-    }
+    return normalisePrizes(JSON.parse(raw) as Partial<PrizeSettings>, fallback)
   } catch {
     return fallback
   }

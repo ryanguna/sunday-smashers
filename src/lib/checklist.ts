@@ -23,7 +23,7 @@
  */
 
 import { csvEscape, csvFilename, formatCents, type AdminRegistration } from './admin'
-import type { PrizeSettings } from './settings'
+import { totalPrizePoolCents, type PrizeSettings } from './settings'
 import type { CommitteeChecklistRow } from './supabase/types'
 
 // ---------------------------------------------------------------------------
@@ -346,10 +346,10 @@ export function deriveQuantities(input: DeriveInput): DerivedQuantities {
   const podiumSpots = 3 * input.divisionCount
   const medalsNeeded = podiumSpots * 2
 
-  const prizePoolCents = input.prizes.divisionPrizes.reduce(
-    (total, prize) => total + prize.championCents + prize.runnerUpCents + prize.thirdPlaceCents,
-    0,
-  )
+  // Shared with the settings console so the committee is never told two
+  // different numbers for the same envelope pile. Amounts are per player and
+  // every placing is a pair, which is what this had been missing.
+  const prizePoolCents = totalPrizePoolCents(input.prizes)
 
   const lootBagLines = input.prizes.lootBagItems.map((item) => ({
     name: item.name,

@@ -21,7 +21,7 @@ import {
   type TournamentDates,
   type TournamentPhase,
 } from '@/lib/tournament'
-import type { DivisionGender, PartnerInviteStatus, RegistrationStatus } from '@/lib/supabase/types'
+import type { DivisionGender, RegistrationStatus } from '@/lib/supabase/types'
 
 // ---------------------------------------------------------------------------
 // Options / constants
@@ -353,90 +353,24 @@ export function decideRegistrationOutcome(input: RegistrationOutcomeInput): Regi
 }
 
 // ---------------------------------------------------------------------------
-// Partner identifier parsing
-// ---------------------------------------------------------------------------
-
-export type PartnerMode = 'partner' | 'solo'
-
-export type PartnerIdentifier =
-  | { kind: 'empty' }
-  | { kind: 'email'; email: string }
-  | { kind: 'handle'; handle: string }
-  | { kind: 'invalid' }
-
-const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/
-const HANDLE_PATTERN = /^[a-z0-9][a-z0-9._-]{1,29}$/
-
-/**
- * Accepts either an email address or a player handle (the profile nickname,
- * optionally `@`-prefixed). Emails are lower-cased, handles stripped of the
- * leading `@` and lower-cased.
- */
-/**
- * Why a partner invite did not go out, even though the entry itself saved.
- *
- * Codes, not sentences, because this travels through the URL to the
- * confirmation screen. `describePartnerWarning` is the only place the copy
- * lives, so an unrecognised value from a hand-edited link renders nothing.
- */
-export type PartnerWarningCode = 'handle-not-found' | 'handle-ambiguous' | 'lookup-failed' | 'invite-failed'
-
-const PARTNER_WARNING_COPY: Record<PartnerWarningCode, string> = {
-  'handle-not-found':
-    'We saved your entry, but nobody is using that handle yet. Ask your partner to sign up, then send the invite again from your dashboard.',
-  'handle-ambiguous':
-    'We saved your entry, but more than one player uses that handle. Invite your partner by email instead so it reaches the right person.',
-  'lookup-failed':
-    'We saved your entry, but we couldn’t look your partner up just then. Send the invite again from your dashboard.',
-  'invite-failed':
-    'We saved your entry, but the partner invite didn’t send. Try again from your dashboard — your spot is safe either way.',
-}
-
-/** Returns the player-facing copy, or `null` for anything not on the whitelist. */
-export function describePartnerWarning(code: string | null | undefined): string | null {
-  if (!code) return null
-  return PARTNER_WARNING_COPY[code as PartnerWarningCode] ?? null
-}
-
-/**
- * Escapes the SQL `LIKE` wildcards so a handle is matched literally.
- *
- * `HANDLE_PATTERN` allows `_`, which `LIKE`/`ILIKE` reads as "any single
- * character" — without this, the handle `holly_smash` also matches
- * `hollyxsmash`, which either invites the wrong player or trips the
- * ambiguity check. `\` is escaped first so it cannot double-escape.
- */
-export function escapeLikePattern(value: string): string {
-  return value.replace(/[\\%_]/g, (match) => `\\${match}`)
-}
-
-export function parsePartnerIdentifier(raw: string): PartnerIdentifier {
-  const trimmed = (raw ?? '').trim()
-  if (!trimmed) return { kind: 'empty' }
-
-  if (trimmed.includes('@') && !trimmed.startsWith('@')) {
-    return EMAIL_PATTERN.test(trimmed) ? { kind: 'email', email: trimmed.toLowerCase() } : { kind: 'invalid' }
-  }
-
-  const handle = trimmed.replace(/^@+/, '').toLowerCase()
-  return HANDLE_PATTERN.test(handle) ? { kind: 'handle', handle } : { kind: 'invalid' }
-}
-
-// ---------------------------------------------------------------------------
 // Validation
 // ---------------------------------------------------------------------------
 
 /**
  * What the registration wizard collects.
  *
- * There are deliberately no partner fields: the committee pairs players on
- * `/admin/teams`, so every entry joins the free-agent pool. Keeping
- * `partnerMode` here after the questions were removed would have left two
- * fields owned by no step — the exact "field nobody asks for, submit blocked
- * forever" defect the wizard tests guard against.
+ * `nominatedPartner` is a **nomination, not an invitation**. Nothing is sent,
+ * nobody has to accept, and the pairing is not created by it: the committee
+ * still builds every pair on `/admin/teams`. It exists because men entering
+ * together want to say so, and writing a name into the notes the committee
+ * already reads is the whole of that requirement. The `partner_invites` flow
+ * that used to do this — with acceptances, expiry and a second player blocked
+ * on the first — is gone.
  */
 export interface RegistrationFormValues {
   divisionId: string
+  /** Free text: who this player would like to be paired with. Optional. */
+  nominatedPartner: string
   skillLevel: string
   phone: string
   emergencyContactName: string
@@ -449,6 +383,7 @@ export type RegistrationFormErrors = Partial<Record<keyof RegistrationFormValues
 
 export const EMPTY_REGISTRATION_FORM: RegistrationFormValues = {
   divisionId: '',
+  nominatedPartner: '',
   skillLevel: '',
   phone: '',
   emergencyContactName: '',
@@ -456,16 +391,6 @@ export const EMPTY_REGISTRATION_FORM: RegistrationFormValues = {
   dietaryNotes: '',
   codeOfConductAccepted: false,
 }
-
-/**
- * The partner mode every registration is submitted with.
- *
- * The wizard no longer asks, so this is a constant rather than an answer. It
- * is named and exported so the submission path, the confirmation screen and
- * their tests cannot drift apart, and so restoring the question is a matter
- * of putting the two steps back in `ALL_STEPS` and reading the answer here.
- */
-export const REGISTRATION_PARTNER_MODE: PartnerMode = 'solo'
 
 /** Digits-only length check — tolerant of spaces, `+`, dashes and brackets. */
 export function isValidPhone(raw: string): boolean {
@@ -485,6 +410,9 @@ export interface ValidationContext {
 }
 
 export const MAX_NOTES_LENGTH = 500
+
+/** Long enough for "Rudolph Reindeer (0400 000 000)", short enough to stay one line in the admin table. */
+export const MAX_NOMINATED_PARTNER_LENGTH = 80
 
 /**
  * Validates the whole form in one pass and returns festive, human error
@@ -525,6 +453,10 @@ export function validateRegistrationForm(
     errors.emergencyContactPhone = 'That emergency number looks a little short — try 04XX XXX XXX.'
   }
 
+  if (values.nominatedPartner.trim().length > MAX_NOMINATED_PARTNER_LENGTH) {
+    errors.nominatedPartner = `Just their name is plenty — keep it under ${MAX_NOMINATED_PARTNER_LENGTH} characters.`
+  }
+
   if (values.dietaryNotes.length > maxNotes) {
     errors.dietaryNotes = `Keep it under ${maxNotes} characters — you can tell us the rest on the day.`
   }
@@ -545,8 +477,11 @@ export function hasErrors(errors: RegistrationFormErrors): boolean {
 // ---------------------------------------------------------------------------
 
 export interface RegistrationNotesInput {
-  partnerMode: PartnerMode
-  partnerIdentifier: string
+  /**
+   * Free-text nomination from the entry form. Optional — an entry without one
+   * is a free agent, which is the normal case.
+   */
+  nominatedPartner?: string
   dietaryNotes: string
   codeOfConductAcceptedAt: string
   intent: RegistrationIntent
@@ -561,13 +496,12 @@ export interface RegistrationNotesInput {
 export function buildRegistrationNotes(input: RegistrationNotesInput): string {
   const lines: string[] = []
 
-  if (input.partnerMode === 'solo') {
-    lines.push('Partner: FREE AGENT — happy to be paired by the committee.')
+  const nominated = (input.nominatedPartner ?? '').trim()
+  if (nominated.length > 0) {
+    // A nomination, not a confirmed pairing — the committee still decides.
+    lines.push(`Partner nominated: ${nominated} (committee to confirm)`)
   } else {
-    const partner = parsePartnerIdentifier(input.partnerIdentifier)
-    if (partner.kind === 'email') lines.push(`Partner: invited ${partner.email}`)
-    else if (partner.kind === 'handle') lines.push(`Partner: invited @${partner.handle}`)
-    else lines.push('Partner: requested (details pending)')
+    lines.push('Partner: FREE AGENT — happy to be paired by the committee.')
   }
 
   if (input.intent === 'waitlist') {
@@ -597,66 +531,6 @@ export function buildTeamName(playerA: string, playerB: string): string {
   if (!a) return b
   if (!b) return a
   return `${a} & ${b}`
-}
-
-// ---------------------------------------------------------------------------
-// Partner invites
-// ---------------------------------------------------------------------------
-
-export type InviteTone = 'pending' | 'approved' | 'unpaid' | 'info'
-
-export interface InviteDescription {
-  label: string
-  tone: InviteTone
-  /** True when the invitee can still accept/decline. */
-  actionable: boolean
-  blurb: string
-}
-
-export function describeInvite(status: PartnerInviteStatus): InviteDescription {
-  switch (status) {
-    case 'pending':
-      return {
-        label: 'Waiting on you',
-        tone: 'pending',
-        actionable: true,
-        blurb: 'Say yes and you’re a pair — say no and we’ll let them down gently.',
-      }
-    case 'accepted':
-      return {
-        label: 'Accepted',
-        tone: 'approved',
-        actionable: false,
-        blurb: 'You’re paired up! Your team is heading to the committee for approval 🎉',
-      }
-    case 'declined':
-      return {
-        label: 'Declined',
-        tone: 'unpaid',
-        actionable: false,
-        blurb: 'No hard feelings — there are plenty of shuttles in the tube.',
-      }
-    case 'expired':
-      return {
-        label: 'Expired',
-        tone: 'info',
-        actionable: false,
-        blurb: 'This invite timed out. Ask them to send a fresh one.',
-      }
-    case 'cancelled':
-    default:
-      return {
-        label: 'Cancelled',
-        tone: 'info',
-        actionable: false,
-        blurb: 'The inviter withdrew this one.',
-      }
-  }
-}
-
-/** Guards the accept/decline actions — only a pending invite can be answered. */
-export function canRespondToInvite(invite: { status: PartnerInviteStatus }): boolean {
-  return invite.status === 'pending'
 }
 
 /**
@@ -700,8 +574,8 @@ export function confirmationCopy(
       'Your registration is in and pending committee approval — usually a couple of days, sometimes a mince pie or two.',
     nextSteps: [
       'The committee reviews and approves your entry.',
-      'The committee pairs you up and your partner appears on your dashboard.',
-      'Once approved you’ll see your team, court times and duty roster on your dashboard.',
+      'The committee pairs you up behind the scenes — your partner appears on your dashboard once they do.',
+      'Once approved you’ll be added to the group chat on Messenger, and your team, court times and duty roster show up on your dashboard.',
     ],
   }
 }

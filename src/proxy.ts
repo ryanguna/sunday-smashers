@@ -37,6 +37,7 @@ const PROTECTED_PREFIXES = [
   '/onboarding',
   '/scoresheets',
   '/scoring',
+  '/status',
   '/tabulator',
 ]
 

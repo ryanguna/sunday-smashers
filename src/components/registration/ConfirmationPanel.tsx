@@ -4,15 +4,12 @@ import { useEffect, useState } from 'react'
 import { Badge, Button, Card, Confetti } from '@/components/ui'
 import { GiftIcon, HollyIcon, SparkleIcon, TrophyIcon } from '@/components/icons'
 import { confirmationCopy } from '@/lib/registration'
-import { SharePartnerInvitePrompt } from './SharePartnerInvitePrompt'
 import type { RegistrationStatus } from '@/lib/supabase/types'
 
 export interface ConfirmationPanelProps {
   status: RegistrationStatus
   divisionName?: string | null
-  /** True when a partner invite was saved as part of this registration. */
-  invitedPartner?: boolean
-  /** True when the player joined the free-agent pool instead. */
+  /** True when the committee will be pairing this player. */
   freeAgent?: boolean
   /**
    * The organiser's saved tournament date in day-and-month form, from
@@ -20,12 +17,8 @@ export interface ConfirmationPanelProps {
    * "tournament day" rather than quoting a stale date.
    */
   tournamentDayMonth?: string
-  /**
-   * Player-facing copy explaining why the partner invite did not go out, when
-   * the entry itself saved. Already resolved from a whitelisted code by
-   * `describePartnerWarning`, so it is never raw text from the URL.
-   */
-  partnerWarning?: string | null
+  /** Committee-editable note about refunds and cancellations. */
+  refundPolicyNote?: string
 }
 
 /**
@@ -39,10 +32,9 @@ export interface ConfirmationPanelProps {
 export function ConfirmationPanel({
   status,
   divisionName,
-  invitedPartner = false,
   freeAgent = false,
   tournamentDayMonth = '',
-  partnerWarning = null,
+  refundPolicyNote = '',
 }: ConfirmationPanelProps) {
   const [celebrate, setCelebrate] = useState(false)
   const copy = confirmationCopy(status, tournamentDayMonth)
@@ -79,10 +71,6 @@ export function ConfirmationPanel({
             {status === 'waitlisted' ? 'Waitlisted' : 'Pending admin approval'}
           </Badge>
           {divisionName && <Badge status="info">{divisionName}</Badge>}
-          {/* "sent" would be a lie — there is no mailer. The invite is saved
-              and waits for the partner to sign up; the prompt below is what
-              actually gets it to them. */}
-          {invitedPartner && <Badge status="info">Partner invite saved</Badge>}
           {/* Every entry is a free agent now that the committee does the
               pairing, so this badge no longer *distinguishes* anyone — it
               just answers "where's my partner?" before the player asks. */}
@@ -90,25 +78,6 @@ export function ConfirmationPanel({
         </div>
       </Card>
 
-      {/* The partner's email is deliberately not in the URL, so the nudge
-          cannot name them here. It does on /register/invites, which reads the
-          invite from the database. */}
-      {invitedPartner && <SharePartnerInvitePrompt />}
-
-      {partnerWarning && (
-        <Card variant="default" className="mt-5 border-2 border-[var(--color-brand-gold-dark)] bg-[var(--color-brand-gold-light)]/30">
-          <h3 className="flex items-center gap-2 text-lg font-bold text-[var(--color-plum)]">
-            <span aria-hidden="true">🎯</span>
-            Your partner hasn’t been invited yet
-          </h3>
-          <p className="mt-2 text-[var(--color-ink-soft)]">{partnerWarning}</p>
-          <div className="mt-4">
-            <Button href="/register/invites" variant="secondary">
-              Manage partner invites
-            </Button>
-          </div>
-        </Card>
-      )}
 
       <Card variant="default" className="mt-5">
         <h3 className="mb-3 flex items-center gap-2 text-xl font-bold text-[var(--color-plum)]">
@@ -134,15 +103,17 @@ export function ConfirmationPanel({
             <GiftIcon size={20} aria-hidden="true" />
             Go to my dashboard
           </Button>
-          {invitedPartner && (
-            <Button href="/register/invites" variant="secondary" size="lg">
-              Track my partner invite
-            </Button>
-          )}
           <Button href="/rules" variant="ghost" size="lg">
             Brush up on the rules
           </Button>
         </div>
+
+        {refundPolicyNote && (
+          <p className="mt-5 rounded-[var(--radius-md)] bg-[var(--color-brand-lilac-light)]/40 px-3 py-2 text-sm text-[var(--color-ink-soft)]">
+            <span className="font-semibold text-[var(--color-plum)]">Refunds &amp; cancellations: </span>
+            {refundPolicyNote}
+          </p>
+        )}
       </Card>
     </>
   )

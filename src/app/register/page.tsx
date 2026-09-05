@@ -7,6 +7,7 @@ import { Countdown } from '@/components/ui'
 import { RegistrationShell } from '@/components/registration/RegistrationShell'
 import { RegisterExperience, type RegisterPreview } from '@/components/registration/RegisterExperience'
 import { PageGate } from '@/components/PageGate'
+import { loadSiteCopy } from '@/lib/site-copy-server'
 
 // The register link is the one most likely to be pasted into a group chat,
 // so its description must name the date the organiser actually saved.
@@ -59,6 +60,8 @@ export default async function RegisterPage({
   // Dates and the open/closed switch come from the tournament row, so the
   // committee can open the sheet for a test run without a redeploy (audit B4).
   const config = await loadPublicTournamentConfig()
+  // The disclaimers are the committee's words, edited in /admin/settings/copy.
+  const copy = await loadSiteCopy()
   const info = getRegistrationWindow(previewNow(preview), {
     dates: config.dates,
     isRegistrationOpen: config.isRegistrationOpen,
@@ -82,7 +85,7 @@ export default async function RegisterPage({
           ) : undefined
         }
       >
-        <RegisterExperience info={info} preview={preview} />
+        <RegisterExperience info={info} preview={preview} copy={copy} />
 
         {!isSupabaseConfigured() && (
           <nav

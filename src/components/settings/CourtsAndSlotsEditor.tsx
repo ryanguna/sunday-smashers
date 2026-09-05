@@ -230,14 +230,19 @@ export function CourtsAndSlotsEditor({
                 value={generator.start}
                 onChange={(event) => setGenerator((g) => ({ ...g, start: event.target.value }))}
               />
+              {/* Half-minute steps because a real gym timetable does not land
+                  on whole minutes: eight 12.5-minute slots fit an hour and
+                  forty, and rounding each one up to 13 pushes the last match
+                  four minutes past the booking. */}
               <TextField
                 label="Minutes each"
                 type="number"
-                min={5}
+                min={0.5}
                 max={120}
+                step={0.5}
                 value={generator.duration}
                 onChange={(event) =>
-                  setGenerator((g) => ({ ...g, duration: Number.parseInt(event.target.value, 10) || 0 }))
+                  setGenerator((g) => ({ ...g, duration: Number.parseFloat(event.target.value) || 0 }))
                 }
               />
               <TextField
@@ -255,9 +260,10 @@ export function CourtsAndSlotsEditor({
                 type="number"
                 min={0}
                 max={60}
+                step={0.5}
                 value={generator.gap}
                 onChange={(event) =>
-                  setGenerator((g) => ({ ...g, gap: Number.parseInt(event.target.value, 10) || 0 }))
+                  setGenerator((g) => ({ ...g, gap: Number.parseFloat(event.target.value) || 0 }))
                 }
               />
             </div>
@@ -285,7 +291,8 @@ export function CourtsAndSlotsEditor({
                 <TextField
                   label="Starts"
                   type="datetime-local"
-                  value={toDateTimeLocal(slot.startsAt)}
+                  step={30}
+                  value={toDateTimeLocal(slot.startsAt, { withSeconds: true })}
                   onChange={(event) => updateSlot(slot.id, { startsAt: fromDateTimeLocal(event.target.value) })}
                   error={firstErrorFor(issues, `timeSlots.${slot.id}.startsAt`)}
                   disabled={readOnly}
@@ -295,7 +302,8 @@ export function CourtsAndSlotsEditor({
                 <TextField
                   label="Ends"
                   type="datetime-local"
-                  value={toDateTimeLocal(slot.endsAt)}
+                  step={30}
+                  value={toDateTimeLocal(slot.endsAt, { withSeconds: true })}
                   onChange={(event) => updateSlot(slot.id, { endsAt: fromDateTimeLocal(event.target.value) })}
                   error={firstErrorFor(issues, `timeSlots.${slot.id}.endsAt`)}
                   disabled={readOnly}

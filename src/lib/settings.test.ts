@@ -12,6 +12,10 @@ import {
   countRole,
   defaultRulesConfig,
   defaultTournamentSettings,
+  isPersistedId,
+  type PrizeSettings,
+  normalisePrizes,
+  PLAYERS_PER_PAIR,
   describeDivisionFormat,
   describeStage,
   diffDetails,
@@ -950,5 +954,69 @@ describe('entry fee and payment instructions', () => {
   it('does not nag about instructions for a free tournament', () => {
     const issues = validateTournamentDetails(details({ entryFeeCents: 0, paymentInstructions: '' }))
     expect(issues.some((i) => i.path === 'details.paymentInstructions')).toBe(false)
+  })
+})
+
+describe('isPersistedId', () => {
+  it('accepts a database uuid', () => {
+    expect(isPersistedId('3f1b8f0c-2c3e-4a5b-9d6e-7f8a9b0c1d2e')).toBe(true)
+  })
+
+  it('rejects the placeholder ids the defaults ship with', () => {
+    // These reach the save action whenever the tables are still empty, and
+    // updating `where id = 'div-mens'` is what produced "invalid input syntax
+    // for type uuid" on the very first save.
+    for (const id of ['div-mens', 'div-womens', 'court-1', 'slot-1', 'division-3']) {
+      expect(isPersistedId(id)).toBe(false)
+    }
+  })
+})
+
+describe('normalisePrizes', () => {
+  const fallback = defaultTournamentSettings().prizes
+
+  it('falls back wholesale when nothing is stored', () => {
+    expect(normalisePrizes(null, fallback)).toEqual(fallback)
+  })
+
+  it('defaults fourth place on blobs written before it existed', () => {
+    const stored = {
+      divisionPrizes: [
+        { divisionId: 'men', championCents: 100, runnerUpCents: 50, thirdPlaceCents: 25 },
+      ],
+    } as Partial<PrizeSettings>
+    const prizes = normalisePrizes(stored, fallback)
+    expect(prizes.divisionPrizes[0].fourthPlaceCents).toBe(0)
+    // Without this the board rendered "$NaN".
+    expect(Number.isFinite(totalPrizePoolCents(prizes))).toBe(true)
+  })
+
+  it('coerces junk money to zero', () => {
+    const stored = {
+      divisionPrizes: [
+        {
+          divisionId: 'men',
+          championCents: Number.NaN,
+          runnerUpCents: 'lots',
+          thirdPlaceCents: 25,
+          fourthPlaceCents: 10,
+        },
+      ],
+    } as unknown as Partial<PrizeSettings>
+    const prizes = normalisePrizes(stored, fallback)
+    expect(prizes.divisionPrizes[0].championCents).toBe(0)
+    expect(prizes.divisionPrizes[0].runnerUpCents).toBe(0)
+  })
+})
+
+describe('totalPrizePoolCents', () => {
+  it('pays every placing twice, because every placing is a pair', () => {
+    const prizes: PrizeSettings = {
+      ...defaultTournamentSettings().prizes,
+      divisionPrizes: [
+        { divisionId: 'men', championCents: 100, runnerUpCents: 50, thirdPlaceCents: 25, fourthPlaceCents: 10 },
+      ],
+    }
+    expect(totalPrizePoolCents(prizes)).toBe((100 + 50 + 25 + 10) * PLAYERS_PER_PAIR)
   })
 })

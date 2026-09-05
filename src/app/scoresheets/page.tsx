@@ -4,7 +4,7 @@ import { EmptyState, Snowfall } from '@/components/ui'
 import { ShuttlecockIcon } from '@/components/icons'
 import { DemoNotice } from '@/components/players/DemoNotice'
 import { ScoresheetIndexList } from '@/components/scoresheet'
-import { requireAuth } from '@/lib/auth'
+import { requireApprovedPlayer } from '@/lib/registration-gate-server'
 
 import { loadScoresheetIndex } from './data'
 
@@ -24,7 +24,7 @@ export const dynamic = 'force-dynamic'
  * work without Supabase.
  */
 export default async function ScoresheetsPage() {
-  await requireAuth('/scoresheets')
+  await requireApprovedPlayer('/scoresheets')
 
   const { demo, now, items, isTabulator, viewerName } = await loadScoresheetIndex()
 

@@ -82,7 +82,7 @@ export const SITE_PAGES: readonly SitePage[] = [
     key: 'register',
     href: '/register',
     label: 'Register',
-    description: 'The entry form and the partner invites that go with it.',
+    description: 'The pre-registration entry form.',
     phase: 'pre-registration',
     hiddenTitle: 'Registration isn’t open yet',
     hiddenMessage:

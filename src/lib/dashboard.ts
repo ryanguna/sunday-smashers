@@ -606,13 +606,21 @@ export interface StatusView {
 }
 
 /** The "are you actually in?" line: approved / pending / waitlisted / not registered. */
-export function registrationStatusView(status: RegistrationStatus | null): StatusView {
+export function registrationStatusView(
+  status: RegistrationStatus | null,
+  /**
+   * The committee's own approval wording, from `SiteCopy.approvedMessage`.
+   * Optional so the pure tests and the demo dataset keep working without a
+   * copy blob.
+   */
+  approvedMessage?: string,
+): StatusView {
   switch (status) {
     case 'approved':
       return {
         tone: 'success',
         label: 'Approved',
-        message: 'You’re in! Your spot on the draw is locked in. 🎄',
+        message: approvedMessage?.trim() || 'You’re in! Your spot on the draw is locked in. 🎄',
         nudge: null,
         href: null,
         actionLabel: null,
@@ -760,6 +768,8 @@ export interface DashboardInput {
   /** Resolved by the caller (never `Date.now()` inside a component). */
   now: number
   tournamentDateIso?: string
+  /** `SiteCopy.approvedMessage`, so the approved card speaks for the committee. */
+  approvedMessage?: string
 }
 
 /** One call that turns raw public data into everything `/dashboard` renders. */
@@ -807,7 +817,7 @@ export function buildPlayerDashboard(input: DashboardInput): PlayerDashboard {
     gamesLeft,
     podium,
     celebrate,
-    registrationView: registrationStatusView(registration?.status ?? null),
+    registrationView: registrationStatusView(registration?.status ?? null, input.approvedMessage),
     paymentView: registration ? paymentStatusView(registration) : null,
   }
 }

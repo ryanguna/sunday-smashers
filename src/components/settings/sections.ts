@@ -8,6 +8,7 @@ import {
   RacketIcon,
   ShuttlecockIcon,
   SnowflakeIcon,
+  SparkleIcon,
 } from '@/components/icons'
 
 /**
@@ -52,6 +53,12 @@ export const SETTINGS_SECTIONS: SettingsSection[] = [
     label: 'Pages',
     description: 'Which parts of the site players can see right now.',
     icon: HollyIcon,
+  },
+  {
+    href: '/admin/settings/copy',
+    label: 'Messages',
+    description: 'What the site tells players while they wait, and when they are approved or declined.',
+    icon: SparkleIcon,
   },
   {
     href: '/admin/settings/roles',

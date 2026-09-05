@@ -20,6 +20,7 @@ import {
   defaultTournamentSettings,
   divisionSettingsFromRow,
   EMPTY_DRAW_STATE,
+  normalisePrizes,
   type AssignableRole,
   type DrawState,
   type LiveStatus,
@@ -303,9 +304,12 @@ async function loadLive(): Promise<SettingsPageRows> {
 
   const fallback = defaultTournamentSettings()
   const extras = parseJson<ExtrasBlob>((extrasRes.data as SiteContentRow | null)?.body_markdown) ?? {}
-  const prizes =
-    parseJson<TournamentSettings['prizes']>((prizesRes.data as SiteContentRow | null)?.body_markdown) ??
-    fallback.prizes
+  const prizes = normalisePrizes(
+    parseJson<Partial<TournamentSettings['prizes']>>(
+      (prizesRes.data as SiteContentRow | null)?.body_markdown,
+    ),
+    fallback.prizes,
+  )
 
   const divisionRows = (divisionsRes.data as DivisionRow[] | null) ?? []
   const divisions = divisionRows.length

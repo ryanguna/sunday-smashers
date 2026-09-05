@@ -3,7 +3,6 @@ import { cache } from 'react'
 import { createClient } from '@/lib/supabase/server'
 import type {
   DivisionRow,
-  PartnerInviteRow,
   PaymentRow,
   ProfileRow,
   RegistrationRow,
@@ -13,13 +12,12 @@ import type {
 import {
   derivePaymentStatus,
   type AdminDivision,
-  type AdminPartnerInvite,
   type AdminRegistration,
   type PaymentMethod,
 } from '@/lib/admin'
 import { loadEntryFeeResolver } from '@/lib/entry-fee'
 import { loadLiveOrDemo, rowsOrThrow } from '@/lib/demo-mode'
-import { DEMO_ADMIN_DIVISIONS, DEMO_ADMIN_INVITES, DEMO_ADMIN_REGISTRATIONS } from './demo'
+import { DEMO_ADMIN_DIVISIONS, DEMO_ADMIN_REGISTRATIONS } from './demo'
 
 /**
  * The ONLY data source the admin pages read from. Wrapped in React's
@@ -41,7 +39,6 @@ import { DEMO_ADMIN_DIVISIONS, DEMO_ADMIN_INVITES, DEMO_ADMIN_REGISTRATIONS } fr
 interface AdminConsoleRows {
   divisions: AdminDivision[]
   registrations: AdminRegistration[]
-  pendingInvites: AdminPartnerInvite[]
 }
 
 export interface AdminConsoleData extends AdminConsoleRows {
@@ -55,12 +52,11 @@ function demoRows(): AdminConsoleRows {
   return {
     divisions: DEMO_ADMIN_DIVISIONS,
     registrations: DEMO_ADMIN_REGISTRATIONS,
-    pendingInvites: DEMO_ADMIN_INVITES,
   }
 }
 
 function emptyRows(): AdminConsoleRows {
-  return { divisions: [], registrations: [], pendingInvites: [] }
+  return { divisions: [], registrations: [] }
 }
 
 function isPaymentMethod(value: string | null): value is PaymentMethod {
@@ -90,7 +86,6 @@ async function loadLive(): Promise<AdminConsoleRows> {
     teamResult,
     teamMemberResult,
     paymentResult,
-    inviteResult,
   ] = await Promise.all([
     supabase.from('divisions').select('*'),
     supabase.from('registrations').select('*'),
@@ -98,7 +93,6 @@ async function loadLive(): Promise<AdminConsoleRows> {
     supabase.from('teams').select('*'),
     supabase.from('team_members').select('*'),
     supabase.from('payments').select('*'),
-    supabase.from('partner_invites').select('*').eq('status', 'pending'),
   ])
 
   const entryFee = await loadEntryFeeResolver(supabase)
@@ -109,7 +103,6 @@ async function loadLive(): Promise<AdminConsoleRows> {
   const teams = rowsOrThrow(teamResult) as TeamRow[]
   const teamMembers = rowsOrThrow(teamMemberResult) as TeamMemberRow[]
   const payments = rowsOrThrow(paymentResult) as PaymentRow[]
-  const invites = rowsOrThrow(inviteResult) as PartnerInviteRow[]
 
   const divisionById = new Map(divisions.map((d) => [d.id, d]))
   const profileById = new Map(profiles.map((p) => [p.id, p]))
@@ -165,14 +158,6 @@ async function loadLive(): Promise<AdminConsoleRows> {
     }
   })
 
-  const pendingInvites: AdminPartnerInvite[] = invites.map((invite) => ({
-    id: invite.id,
-    divisionName: divisionById.get(invite.division_id)?.name ?? 'Unknown division',
-    inviterName: nameOf(invite.inviter_id),
-    inviteeLabel: invite.invitee_id ? nameOf(invite.invitee_id) : (invite.invitee_email ?? 'Unknown invitee'),
-    createdAt: invite.created_at,
-  }))
-
   return {
     divisions: divisions.map((d) => ({
       id: d.id,
@@ -181,6 +166,5 @@ async function loadLive(): Promise<AdminConsoleRows> {
       maxTeams: d.max_teams,
     })),
     registrations: adminRegistrations.sort((a, b) => a.playerName.localeCompare(b.playerName)),
-    pendingInvites,
   }
 }

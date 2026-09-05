@@ -5,7 +5,7 @@ import { notFound } from 'next/navigation'
 import { Snowfall } from '@/components/ui'
 import { DemoNotice } from '@/components/players/DemoNotice'
 import { ScoringConsole } from '@/components/scoring'
-import { requireAuth } from '@/lib/auth'
+import { requireApprovedPlayer } from '@/lib/registration-gate-server'
 import { dutyRoleLabel, stageLabel } from '@/lib/dashboard'
 
 import { loadScoringMatch } from '../data'
@@ -28,7 +28,7 @@ export default async function ScoringMatchPage({
   params: Promise<{ matchId: string }>
 }) {
   const { matchId } = await params
-  await requireAuth(`/scoring/${matchId}`)
+  await requireApprovedPlayer(`/scoring/${matchId}`)
 
   const data = await loadScoringMatch(matchId)
   if (!data) notFound()

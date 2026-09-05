@@ -4,7 +4,7 @@ import { EmptyState, SectionHeading, Snowfall } from '@/components/ui'
 import { ShuttlecockIcon } from '@/components/icons'
 import { DemoNotice } from '@/components/players/DemoNotice'
 import { ScoringMatchList } from '@/components/scoring'
-import { requireAuth } from '@/lib/auth'
+import { requireApprovedPlayer } from '@/lib/registration-gate-server'
 import { isSupabaseConfigured } from '@/lib/supabase/config'
 
 import { loadScoringList } from './data'
@@ -25,7 +25,7 @@ export const dynamic = 'force-dynamic'
  * page that cannot work without Supabase.
  */
 export default async function ScoringPage() {
-  await requireAuth('/scoring')
+  await requireApprovedPlayer('/scoring')
 
   const { demo, player, groups } = await loadScoringList()
   const total = groups.live.length + groups.upcoming.length + groups.done.length

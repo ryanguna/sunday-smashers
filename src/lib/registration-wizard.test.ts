@@ -4,6 +4,7 @@ import {
   buildWizardSteps,
   canAdvance,
   firstIncompleteStepIndex,
+  PARTNER_STEP_ID,
   isStepComplete,
   isWizardComplete,
   REVIEW_STEP_ID,
@@ -22,6 +23,7 @@ const CONTEXT: ValidationContext = {
 
 const COMPLETE: RegistrationFormValues = {
   divisionId: 'div-mens',
+  nominatedPartner: '',
   skillLevel: 'intermediate',
   phone: '0412 345 678',
   emergencyContactName: 'Mrs Claus',
@@ -57,10 +59,31 @@ describe('buildWizardSteps', () => {
     // to no step (unreachable, blocks submit forever) or to two (asked twice).
     // Removing the partner questions is exactly the change that can strand a
     // field, so this is the assertion that has to keep passing.
-    const steps = buildWizardSteps()
+    const steps = buildWizardSteps({ askPartnerNomination: true })
     const seen = steps.flatMap((step) => step.fields)
     expect(new Set(seen).size).toBe(seen.length)
     expect([...seen].sort()).toEqual(Object.keys(EMPTY_REGISTRATION_FORM).sort())
+  })
+
+  it('only asks for a partner nomination when the caller asks for it', () => {
+    // The men's divisions nominate a partner; the women's do not, and the
+    // committee pairs on skill level instead. A step that renders for a
+    // division that never asked would be an unanswerable question between the
+    // player and the submit button.
+    const withPartner = buildWizardSteps({ askPartnerNomination: true })
+    const withoutPartner = buildWizardSteps()
+    expect(withPartner.some((step) => step.id === PARTNER_STEP_ID)).toBe(true)
+    expect(withoutPartner.some((step) => step.id === PARTNER_STEP_ID)).toBe(false)
+    expect(withoutPartner).toHaveLength(withPartner.length - 1)
+  })
+
+  it('leaves the skipped nomination out of the completion check', () => {
+    // `nominatedPartner` is optional, so a form that never showed the step
+    // must still read as complete.
+    expect(isWizardComplete(COMPLETE, CONTEXT)).toBe(true)
+    expect(firstIncompleteStepIndex(buildWizardSteps(), COMPLETE, CONTEXT)).toBe(
+      buildWizardSteps().findIndex((step) => step.id === REVIEW_STEP_ID),
+    )
   })
 })
 

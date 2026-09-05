@@ -3,36 +3,33 @@
 import { Badge } from '@/components/ui'
 import { RacketIcon, ShuttlecockIcon, SparkleIcon } from '@/components/icons'
 import { cn } from '@/lib/cn'
-import {
-  divisionCapacity,
-  divisionEligibilityHint,
-  isDivisionEligible,
-  type DivisionSummary,
-  type ProfileGender,
-} from '@/lib/registration'
+import { divisionCapacity, type DivisionSummary } from '@/lib/registration'
 
 export interface DivisionPickerProps {
   divisions: DivisionSummary[]
   value: string
   onChange: (divisionId: string) => void
-  profileGender: ProfileGender
   error?: string
   disabled?: boolean
 }
 
 /**
- * Big, thumb-friendly radio cards for the two doubles divisions, each with a
- * live "spots left" meter. Ineligible divisions stay visible (so players can
- * see the whole tournament) but are disabled with a plain-English reason.
+ * Big, thumb-friendly radio cards for the two doubles divisions.
  *
- * The meter width is an integer percentage, so its inline style serialises
- * identically on the server and the client — no hydration mismatch.
+ * Two things it deliberately no longer does. It does not show a "6 spots left
+ * of 24" meter: the number is a count of *player slots derived from a team
+ * cap*, which read to players as a countdown and put people off entering at
+ * all — and a pre-registration the committee reviews by hand does not race.
+ * It also does not disable a division based on the gender on the profile;
+ * players pick their own draw and the committee confirms it.
+ *
+ * A division that is genuinely full still says so, because that changes what
+ * submitting does (a waitlist entry rather than an entry).
  */
 export function DivisionPicker({
   divisions,
   value,
   onChange,
-  profileGender,
   error,
   disabled = false,
 }: DivisionPickerProps) {
@@ -44,10 +41,9 @@ export function DivisionPicker({
 
       <div className="grid gap-3 sm:grid-cols-2">
         {divisions.map((division) => {
-          const eligible = isDivisionEligible(division.gender, profileGender)
           const capacity = divisionCapacity(division)
           const selected = value === division.id
-          const isDisabled = disabled || !eligible
+          const isDisabled = disabled
 
           return (
             <label
@@ -100,31 +96,11 @@ export function DivisionPicker({
                 )}
               </span>
 
-              {capacity.playerCapacity !== null && (
-                <span
-                  aria-hidden="true"
-                  className="h-2 w-full overflow-hidden rounded-full bg-[var(--color-brand-lilac-light)]"
-                >
-                  <span
-                    className={cn(
-                      'block h-full rounded-full',
-                      capacity.isFull
-                        ? 'bg-[var(--color-danger)]'
-                        : 'bg-[image:var(--gradient-mint-sky)]'
-                    )}
-                    style={{ width: `${capacity.percentFull ?? 0}%` }}
-                  />
+              {capacity.isFull && (
+                <span className="flex flex-wrap items-center gap-2">
+                  <Badge status="unpaid">Full — you’ll join the waitlist</Badge>
                 </span>
               )}
-
-              <span className="flex flex-wrap items-center gap-2">
-                <Badge status={capacity.isFull ? 'unpaid' : 'approved'}>{capacity.label}</Badge>
-                {!eligible && (
-                  <span className="text-xs font-semibold text-[var(--color-ink-muted)]">
-                    {divisionEligibilityHint(division.gender)}
-                  </span>
-                )}
-              </span>
             </label>
           )
         })}

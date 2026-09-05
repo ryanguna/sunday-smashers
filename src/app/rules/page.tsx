@@ -4,6 +4,7 @@ import { Markdown } from '@/components/Markdown'
 import { loadSiteContent } from '@/lib/site-content'
 import { PageGate } from '@/components/PageGate'
 import { loadPublicTournamentConfig } from '@/lib/tournament-config'
+import { loadSiteCopy } from '@/lib/site-copy-server'
 import { formatTournamentDateLabel } from '@/lib/tournament'
 
 export const metadata: Metadata = {
@@ -15,8 +16,8 @@ export const metadata: Metadata = {
 /**
  * Hard-coded fallback content for demo mode (no Supabase env vars) or if
  * Supabase is configured but the `site_content` rows haven't been seeded
- * yet. Same substance as `supabase/seed.sql`'s `draft-rules-v1` / `faq`
- * rows, reorganised under explicit headings (Eliminations / Semis & Finals
+ * yet. Same substance as `supabase/seed.sql`'s `draft-rules-v1` row,
+ * reorganised under explicit headings (Eliminations / Semis & Finals
  * / Officiating & Scoresheets / Forfeits) for scannability.
  */
 const FALLBACK_RULES_MARKDOWN = `
@@ -44,26 +45,18 @@ const FALLBACK_RULES_MARKDOWN = `
 
 ## Forfeits
 
-**Late arrival or a no-show forfeits that game automatically.**
-`.trim()
-
-const FALLBACK_FAQ_MARKDOWN = `
-**When does registration open?** 6 September 2026.
-
-**What do I need to bring?** Your own racket, non-marking court shoes, and a water bottle. Shuttles are provided.
-
-**What if my partner can't make it?** Use the partner invite flow to find a replacement before the registration deadline, or contact an admin.
+- A pair has **3 minutes** from their match being called to be on court and ready. This is a fixed limit — the umpire starts it when the call goes out.
+- **Late arrival or a no-show forfeits that game automatically** once those 3 minutes are up.
 `.trim()
 
 export default async function RulesPage() {
-  const [rulesRow, faqRow, { dates }] = await Promise.all([
+  const [rulesRow, { dates }, copy] = await Promise.all([
     loadSiteContent('draft-rules-v1'),
-    loadSiteContent('faq'),
     loadPublicTournamentConfig(),
+    loadSiteCopy(),
   ])
 
   const rulesMarkdown = rulesRow?.body_markdown ?? FALLBACK_RULES_MARKDOWN
-  const faqMarkdown = faqRow?.body_markdown ?? FALLBACK_FAQ_MARKDOWN
 
   return (
     <PageGate pageKey="rules">
@@ -78,18 +71,36 @@ export default async function RulesPage() {
             description="Everything you need to know about how the Sunday Smashers Christmas Mini Tournament is played and officiated."
           />
 
-          <div
-            role="note"
-            aria-label="Draft status notice"
-            className="mt-8 flex flex-wrap items-center gap-3 rounded-[var(--radius-lg)] border-2 border-dashed border-[var(--color-brand-gold-dark)] bg-[var(--color-warn-bg)] p-4"
-          >
-            <Badge status="pending">Draft — not yet final</Badge>
-            <p className="text-sm text-[var(--color-ink-soft)]">
-              These rules are a working draft from the organising committee and may still change
-              before tournament day. Check back closer to {formatTournamentDateLabel(dates.tournamentDate)}{' '}
-              for the confirmed version.
-            </p>
-          </div>
+          {/* The banner used to be unconditional, which meant the rules were
+              stamped "draft" forever — there was no way to ever mark them
+              final. It now follows the committee's own switch in
+              /admin/settings/copy. */}
+          {copy.rulesAreFinal ? (
+            <div
+              role="note"
+              aria-label="Rules status notice"
+              className="mt-8 flex flex-wrap items-center gap-3 rounded-[var(--radius-lg)] border border-[var(--color-brand-mint)]/50 bg-[var(--color-brand-mint-light)]/40 p-4"
+            >
+              <Badge status="approved">Final</Badge>
+              <p className="text-sm text-[var(--color-ink-soft)]">
+                These are the confirmed rules for {formatTournamentDateLabel(dates.tournamentDate)}.
+                Play them as written 🎄
+              </p>
+            </div>
+          ) : (
+            <div
+              role="note"
+              aria-label="Draft status notice"
+              className="mt-8 flex flex-wrap items-center gap-3 rounded-[var(--radius-lg)] border-2 border-dashed border-[var(--color-brand-gold-dark)] bg-[var(--color-warn-bg)] p-4"
+            >
+              <Badge status="pending">Draft — not yet final</Badge>
+              <p className="text-sm text-[var(--color-ink-soft)]">
+                These rules are a working draft from the organising committee and may still change
+                before tournament day. Check back closer to {formatTournamentDateLabel(dates.tournamentDate)}{' '}
+                for the confirmed version.
+              </p>
+            </div>
+          )}
         </section>
 
         <section aria-labelledby="format-heading" className="relative z-10 mx-auto max-w-3xl px-4 pb-10 sm:px-6">
@@ -120,18 +131,6 @@ export default async function RulesPage() {
           </Card>
         </section>
 
-        <section aria-labelledby="faq-heading" className="relative z-10 mx-auto max-w-3xl px-4 pb-20 sm:px-6">
-          <SectionHeading
-            eyebrow="Still have questions?"
-            title={<span id="faq-heading">FAQ</span>}
-            align="left"
-          />
-          <Card variant="default" className="mt-6">
-            <CardBody>
-              <Markdown content={faqMarkdown} />
-            </CardBody>
-          </Card>
-        </section>
       </main>
     </PageGate>
   )

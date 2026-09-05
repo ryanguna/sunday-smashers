@@ -5,7 +5,7 @@ import { notFound } from 'next/navigation'
 import { Snowfall } from '@/components/ui'
 import { DemoNotice } from '@/components/players/DemoNotice'
 import { OfficialsPanel, RallyLog, ScoreSummary, ScoresheetPanel } from '@/components/scoresheet'
-import { requireAuth } from '@/lib/auth'
+import { requireApprovedPlayer } from '@/lib/registration-gate-server'
 import { scoreForSide, sideName } from '@/lib/scoring'
 
 import { loadScoresheet } from '../data'
@@ -30,7 +30,7 @@ export default async function ScoresheetPage({
   params: Promise<{ matchId: string }>
 }) {
   const { matchId } = await params
-  await requireAuth(`/scoresheets/${matchId}`)
+  await requireApprovedPlayer(`/scoresheets/${matchId}`)
 
   const data = await loadScoresheet(matchId)
   if (!data) notFound()

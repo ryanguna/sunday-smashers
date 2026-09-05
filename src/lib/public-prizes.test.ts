@@ -35,9 +35,9 @@ function division(id: string, name: string, enabled: boolean): DivisionSettings 
 
 const prizes: PrizeSettings = {
   divisionPrizes: [
-    { divisionId: 'men', championCents: 30000, runnerUpCents: 15000, thirdPlaceCents: 7500 },
-    { divisionId: 'women', championCents: 20000, runnerUpCents: 10000, thirdPlaceCents: 5000 },
-    { divisionId: 'ghost', championCents: 99900, runnerUpCents: 0, thirdPlaceCents: 0 },
+    { divisionId: 'men', championCents: 30000, runnerUpCents: 15000, thirdPlaceCents: 7500, fourthPlaceCents: 3750 },
+    { divisionId: 'women', championCents: 20000, runnerUpCents: 10000, thirdPlaceCents: 5000, fourthPlaceCents: 2500 },
+    { divisionId: 'ghost', championCents: 99900, runnerUpCents: 0, thirdPlaceCents: 0, fourthPlaceCents: 0 },
   ],
   trophyCount: 4,
   medalCount: 16,
@@ -80,12 +80,12 @@ describe('publicPrizeBoard', () => {
     ])
 
     expect(board.divisionPrizes.map((p) => p.divisionId)).toEqual(['men'])
-    expect(board.totalPoolCents).toBe(30000 + 15000 + 7500)
+    expect(board.totalPoolCents).toBe((30000 + 15000 + 7500 + 3750) * 2)
   })
 
   it('totals only what it actually publishes', () => {
     const board = publicPrizeBoard(prizes, divisions)
-    expect(board.totalPoolCents).toBe(30000 + 15000 + 7500 + 20000 + 10000 + 5000)
+    expect(board.totalPoolCents).toBe((30000 + 15000 + 7500 + 3750) * 2 + (20000 + 10000 + 5000 + 2500) * 2)
   })
 })
 

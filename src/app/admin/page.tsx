@@ -68,14 +68,14 @@ export default async function AdminDashboardPage() {
   // PII, so it does not rely on a parent layout alone for its guard.
   await requireAdmin('/admin')
 
-  const { divisions, registrations, pendingInvites, isDemo, error } = await getAdminConsoleData()
+  const { divisions, registrations, isDemo, error } = await getAdminConsoleData()
   const dateLabel = formatTournamentDateLabel((await loadPublicTournamentConfig()).dates.tournamentDate)
 
   const statusCounts = countByStatus(registrations)
   const summaries = summariseByDivision(registrations, divisions)
   const totals = computeReconciliation(registrations)
   const agents = freeAgents(registrations)
-  const alerts = buildAlerts(registrations, divisions, pendingInvites.length)
+  const alerts = buildAlerts(registrations, divisions)
   const collectionPercent = Math.round(totals.collectionRate * 100)
 
   // Day zero on a real, connected project: no entries at all. Zeroes in every
@@ -146,13 +146,6 @@ export default async function AdminDashboardPage() {
             hint="Waiting to be paired up"
             tone="sky"
             icon={<RacketIcon size={20} />}
-          />
-          <StatCard
-            label="Pending invites"
-            value={pendingInvites.length}
-            hint="Partner invites not yet accepted"
-            tone="gold"
-            icon={<SparkleIcon size={20} />}
           />
         </div>
       </section>

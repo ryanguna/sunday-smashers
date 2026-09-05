@@ -302,24 +302,9 @@ game**.
 
 ## Forfeits
 
-**Late arrival or a no-show forfeits that game automatically.**
-$md$,
-  true,
-  '00000000-0000-0000-0000-000000000001'
-),
-(
-  'faq',
-  'Frequently Asked Questions',
-  $md$
-# FAQ
-
-**When does registration open?** 6 September 2026.
-
-**What do I need to bring?** Your own racket, non-marking court shoes,
-and a water bottle. Shuttles are provided.
-
-**What if my partner can't make it?** Use the partner invite flow to find
-a replacement before the registration deadline, or contact an admin.
+A pair has **3 minutes** from their match being called to be on court and
+ready. **Late arrival or a no-show forfeits that game automatically** once
+those 3 minutes are up.
 $md$,
   true,
   '00000000-0000-0000-0000-000000000001'

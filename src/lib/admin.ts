@@ -118,14 +118,6 @@ export interface AdminRegistration {
   payment: AdminPaymentInfo
 }
 
-export interface AdminPartnerInvite {
-  id: string
-  divisionName: string
-  inviterName: string
-  inviteeLabel: string
-  createdAt: string
-}
-
 // ---------------------------------------------------------------------------
 // Status transitions
 // ---------------------------------------------------------------------------
@@ -421,13 +413,11 @@ export interface AdminAlert {
 /**
  * The dashboard's "what needs my attention" list, in priority order:
  * a tournament nobody can enter, money owed by approved players, divisions
- * running out of room, the pending review queue, unpaired free agents and
- * outstanding invites.
+ * running out of room, the pending review queue and unpaired free agents.
  */
 export function buildAlerts(
   rows: readonly AdminRegistration[],
-  divisions: readonly AdminDivision[],
-  pendingInvites = 0
+  divisions: readonly AdminDivision[]
 ): AdminAlert[] {
   const alerts: AdminAlert[] = []
 
@@ -504,15 +494,6 @@ export function buildAlerts(
       title: `${agents} ${agents === 1 ? 'player needs' : 'players need'} a partner`,
       detail: 'Pair them up so the draw can be generated.',
       href: '/admin/registrations?free=1',
-    })
-  }
-
-  if (pendingInvites > 0) {
-    alerts.push({
-      id: 'pending-invites',
-      tone: 'info',
-      title: `${pendingInvites} partner ${pendingInvites === 1 ? 'invite' : 'invites'} still pending`,
-      detail: 'Nudge the invitees — unaccepted invites block team confirmation.',
     })
   }
 

@@ -10,9 +10,6 @@
  * `/register` renders (and can be reviewed end to end) without a database.
  *
  * RLS notes (see `supabase/schema.sql`):
- *   - `profiles` is readable only by its owner, so a partner handle can only
- *     be resolved to a `invitee_id` when the row happens to be visible;
- *     otherwise we fall back to `invitee_email`/an admin-readable note.
  *   - `registrations` are readable only by their owner, so live occupancy is
  *     derived from `teams` (readable for published divisions) instead.
  */
@@ -21,7 +18,6 @@ import { createClient } from '@/lib/supabase/client'
 import { isSupabaseConfigured } from '@/lib/supabase/config'
 import type {
   DivisionRow,
-  PartnerInviteRow,
   ProfileRow,
   RegistrationRow,
   RegistrationStatus,
@@ -30,11 +26,9 @@ import type {
 import { getAllDemoBundles } from '@/lib/demo-data'
 import {
   buildRegistrationNotes,
-  REGISTRATION_PARTNER_MODE,
   buildTeamName,
   PLAYERS_PER_TEAM,
   type DivisionSummary,
-  type PartnerWarningCode,
   type RegistrationFormValues,
   type RegistrationIntent,
 } from '@/lib/registration'
@@ -63,8 +57,6 @@ export interface RegistrationContext {
   divisions: DivisionSummary[]
   /** The signed-in player's existing entries, used to block double-registration. */
   myRegistrations: Pick<RegistrationRow, 'id' | 'division_id' | 'status'>[]
-  /** Number of pending invites addressed to this player. */
-  pendingInviteCount: number
 }
 
 /** Demo fixtures used whenever Supabase is not configured. */
@@ -93,7 +85,6 @@ export function demoRegistrationContext(): RegistrationContext {
     tournamentId: 'demo-tournament',
     divisions: DEMO_REGISTRATION_DIVISIONS,
     myRegistrations: [],
-    pendingInviteCount: 1,
   }
 }
 
@@ -128,7 +119,6 @@ export async function loadRegistrationContext(): Promise<RegistrationContext> {
       tournamentId: null,
       divisions: [],
       myRegistrations: [],
-      pendingInviteCount: 0,
     }
   }
 
@@ -171,18 +161,12 @@ export async function loadRegistrationContext(): Promise<RegistrationContext> {
       tournamentId: tournament.id,
       divisions,
       myRegistrations: [],
-      pendingInviteCount: 0,
     }
   }
 
-  const [{ data: profileData }, { data: registrationData }, { count: inviteCount }] = await Promise.all([
+  const [{ data: profileData }, { data: registrationData }] = await Promise.all([
     supabase.from('profiles').select('*').eq('id', user.id).maybeSingle(),
     supabase.from('registrations').select('id, division_id, status').eq('player_id', user.id),
-    supabase
-      .from('partner_invites')
-      .select('id', { count: 'exact', head: true })
-      .eq('invitee_id', user.id)
-      .eq('status', 'pending'),
   ])
 
   return {
@@ -193,7 +177,6 @@ export async function loadRegistrationContext(): Promise<RegistrationContext> {
     tournamentId: tournament.id,
     divisions,
     myRegistrations: (registrationData ?? []) as Pick<RegistrationRow, 'id' | 'division_id' | 'status'>[],
-    pendingInviteCount: inviteCount ?? 0,
   }
 }
 
@@ -209,28 +192,16 @@ export interface SubmitRegistrationResult {
   status: RegistrationStatus
   /** The division the entry was made in, so the confirmation screen can name it. */
   divisionId: string
-  /** True when a `partner_invites` row was created. */
-  invitedPartner: boolean
-  /** True when the player joined the free-agent pool instead of inviting someone. */
+  /** Always true: the committee pairs every entry. */
   freeAgent: boolean
   /** Set when the write failed — already a friendly, festive message. */
   error?: string
-  /**
-   * Set when the entry saved but the partner invite did not. The registration
-   * is still `ok` — telling the player their whole entry failed would be worse
-   * than telling them the truth, which is that they need to chase the partner.
-   *
-   * A code rather than a sentence: this travels to the confirmation screen as
-   * a query parameter, and anyone can edit those. Rendering arbitrary text
-   * from the URL would let a link put any message we like on our own page.
-   */
-  partnerWarning?: PartnerWarningCode
 }
 
 /**
- * Persists the registration: profile details first (so the loot bag and the
- * emergency contact are always current), then the `registrations` row, then
- * the optional `partner_invites` row.
+ * Persists the registration: profile details first (so the emergency contact
+ * is always current), then the `registrations` row. There is no invite row —
+ * the committee pairs every entry itself.
  */
 export async function submitRegistration(input: SubmitRegistrationInput): Promise<SubmitRegistrationResult> {
   const { context, values, status, intent } = input
@@ -242,7 +213,6 @@ export async function submitRegistration(input: SubmitRegistrationInput): Promis
       ok: true,
       status,
       divisionId: values.divisionId,
-      invitedPartner: false,
       freeAgent: true,
     }
   }
@@ -252,7 +222,6 @@ export async function submitRegistration(input: SubmitRegistrationInput): Promis
       ok: false,
       status,
       divisionId: values.divisionId,
-      invitedPartner: false,
       freeAgent: false,
       error: 'Your session expired while you were filling this in. Sign in again and we’ll keep your spot warm.',
     }
@@ -275,15 +244,13 @@ export async function submitRegistration(input: SubmitRegistrationInput): Promis
       ok: false,
       status,
       divisionId: values.divisionId,
-      invitedPartner: false,
       freeAgent: false,
       error: `We couldn’t save your player details: ${profileError.message}`,
     }
   }
 
   const notes = buildRegistrationNotes({
-    partnerMode: REGISTRATION_PARTNER_MODE,
-    partnerIdentifier: '',
+    nominatedPartner: values.nominatedPartner,
     dietaryNotes: values.dietaryNotes,
     codeOfConductAcceptedAt: new Date().toISOString(),
     intent,
@@ -315,7 +282,6 @@ export async function submitRegistration(input: SubmitRegistrationInput): Promis
       ok: false,
       status,
       divisionId: values.divisionId,
-      invitedPartner: false,
       freeAgent: false,
       error: duplicate
         ? 'You’re already on the list for this division — one entry per player, even at Christmas 🎄'
@@ -327,250 +293,14 @@ export async function submitRegistration(input: SubmitRegistrationInput): Promis
 
   void inserted
 
-  // No partner invite is sent: the wizard does not ask for one. Every entry
-  // reaches the committee as a free agent and pairs are built on
-  // `/admin/teams`. The `partner_invites` table and the lookup helpers below
-  // are left in place for when the question comes back.
-  const invitedPartner = false
-  const partnerWarning: PartnerWarningCode | undefined = undefined
+  // No invite is sent, and nothing waits on a second player. A nominated
+  // partner is recorded in the notes for the committee to act on; the pair
+  // itself is built on `/admin/teams`.
 
   return {
     ok: true,
     status,
     divisionId: values.divisionId,
-    invitedPartner,
     freeAgent: true,
-    partnerWarning,
-  }
-}
-
-/**
- * Best-effort handle → user id lookup. `profiles` RLS hides other players'
- * rows from non-admins, so this usually returns `null` and the invite falls
- * back to an email/admin-matched invite. Documented in the flow's copy.
- */
-/** The outcome of looking a `@handle` up, so each failure gets its own message. */
-// ---------------------------------------------------------------------------
-// Partner invites
-// ---------------------------------------------------------------------------
-
-export interface InviteView {
-  id: string
-  divisionId: string
-  divisionName: string
-  inviterName: string
-  status: PartnerInviteRow['status']
-  createdAt: string
-  /** True when the signed-in player is the one who sent it. */
-  outgoing: boolean
-  /** For outgoing invites: who it was sent to. */
-  sentTo: string | null
-}
-
-const DEMO_INVITES: InviteView[] = [
-  {
-    id: 'demo-invite-1',
-    divisionId: 'womens_doubles',
-    divisionName: "Women's Doubles",
-    inviterName: 'Amy Chen',
-    status: 'pending',
-    createdAt: '2026-09-08T09:15:00.000Z',
-    outgoing: false,
-    sentTo: null,
-  },
-  {
-    id: 'demo-invite-2',
-    divisionId: 'womens_doubles',
-    divisionName: "Women's Doubles",
-    inviterName: 'You',
-    status: 'pending',
-    createdAt: '2026-09-07T21:02:00.000Z',
-    outgoing: true,
-    sentTo: 'cleo.manu@example.com',
-  },
-  {
-    id: 'demo-invite-3',
-    divisionId: 'womens_doubles',
-    divisionName: "Women's Doubles",
-    inviterName: 'Bree Walsh',
-    status: 'declined',
-    createdAt: '2026-09-06T18:40:00.000Z',
-    outgoing: false,
-    sentTo: null,
-  },
-]
-
-export interface InvitesResult {
-  configured: boolean
-  signedIn: boolean
-  invites: InviteView[]
-}
-
-export async function loadInvites(): Promise<InvitesResult> {
-  if (!isSupabaseConfigured()) {
-    return { configured: false, signedIn: true, invites: DEMO_INVITES }
-  }
-
-  const supabase = createClient()
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
-  if (!user) return { configured: true, signedIn: false, invites: [] }
-
-  const { data } = await supabase
-    .from('partner_invites')
-    .select('*')
-    // `invitee_id` is guaranteed to be populated for anyone who has an
-    // account: migration 0010 resolves it at insert time, and claims any
-    // invite addressed to a new user's email the moment they sign up. Before
-    // that, an invite sent to someone who had not yet registered was keyed
-    // only by email and was therefore invisible to them forever.
-    .or(`invitee_id.eq.${user.id},inviter_id.eq.${user.id}`)
-    .order('created_at', { ascending: false })
-
-  const rows = (data ?? []) as PartnerInviteRow[]
-  const divisionIds = Array.from(new Set(rows.map((row) => row.division_id)))
-  const divisionNames = new Map<string, string>()
-
-  if (divisionIds.length > 0) {
-    const { data: divisionData } = await supabase.from('divisions').select('id, name').in('id', divisionIds)
-    for (const division of (divisionData ?? []) as Pick<DivisionRow, 'id' | 'name'>[]) {
-      divisionNames.set(division.id, division.name)
-    }
-  }
-
-  return {
-    configured: true,
-    signedIn: true,
-    invites: rows.map((row) => ({
-      id: row.id,
-      divisionId: row.division_id,
-      divisionName: divisionNames.get(row.division_id) ?? 'Your division',
-      // Denormalised at insert (migration 0010). `profiles` is owner-only
-      // under RLS, so without this the invitee is asked to partner up with
-      // "a fellow smasher" — which nobody accepts.
-      inviterName:
-        row.inviter_id === user.id ? 'You' : (row.inviter_name?.trim() || 'A fellow smasher'),
-      status: row.status,
-      createdAt: row.created_at,
-      outgoing: row.inviter_id === user.id,
-      sentTo: row.invitee_email,
-    })),
-  }
-}
-
-export interface RespondToInviteResult {
-  ok: boolean
-  /** True when the `teams` + `team_members` rows were created. */
-  teamCreated: boolean
-  /**
-   * True when the player is now on a team but still has no `registrations`
-   * row. Accepting an invite pairs you; it does not enter you. Without this,
-   * half of every pair could reach match day never having given the committee
-   * an emergency contact or paid an entry fee.
-   */
-  needsRegistration?: boolean
-  message: string
-}
-
-/**
- * Accepts or declines a pending invite. On acceptance we create the `teams`
- * row and both `team_members` rows so the pair exists in the draw.
- *
- * Team creation can legitimately fail under the current RLS policy (see the
- * note in the final report) — when it does, the invite is still recorded as
- * accepted and an admin finalises the pairing, so the player is never left
- * with a dead end.
- */
-export async function respondToInvite(inviteId: string, accept: boolean): Promise<RespondToInviteResult> {
-  if (!isSupabaseConfigured()) {
-    return {
-      ok: true,
-      teamCreated: accept,
-      message: accept
-        ? 'Demo mode: in the real app you and your partner would now be a team 🎉'
-        : 'Demo mode: the invite would be politely declined.',
-    }
-  }
-
-  const supabase = createClient()
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
-  if (!user) {
-    return { ok: false, teamCreated: false, message: 'Your session expired — sign in and try again.' }
-  }
-
-  const { data: inviteData } = await supabase
-    .from('partner_invites')
-    .select('*')
-    .eq('id', inviteId)
-    .maybeSingle()
-  const invite = inviteData as PartnerInviteRow | null
-
-  if (!invite || invite.status !== 'pending') {
-    return { ok: false, teamCreated: false, message: 'That invite has already been answered.' }
-  }
-
-  if (!accept) {
-    const { error } = await supabase
-      .from('partner_invites')
-      .update({ status: 'declined', responded_at: new Date().toISOString() } as never)
-      .eq('id', inviteId)
-    return error
-      ? { ok: false, teamCreated: false, message: `We couldn’t save that: ${error.message}` }
-      : { ok: true, teamCreated: false, message: 'Declined — no hard feelings, there are plenty of shuttles in the tube.' }
-  }
-
-  // One RPC, not three separate writes. The previous version inserted the
-  // team while the invite was still pending (denied — the teams policy
-  // requires an already-accepted invite) and then inserted BOTH players in a
-  // single statement (denied — a player may only insert themselves). Neither
-  // error was checked, so the UI cheerfully reported "You're a pair!" while
-  // no team and no members existed. `accept_partner_invite` (migration 0009)
-  // verifies the caller is the invitee and does all three writes atomically.
-  const { data: newTeamId, error } = await supabase.rpc('accept_partner_invite', {
-    p_invite_id: inviteId,
-    p_team_name: buildTeamName('Pair', 'TBC'),
-  } as never)
-
-  if (error) {
-    return { ok: false, teamCreated: false, message: `We couldn’t save that: ${error.message}` }
-  }
-
-  const teamId = (newTeamId as string | null) ?? null
-  if (!teamId) {
-    return {
-      ok: false,
-      teamCreated: false,
-      message: 'We couldn’t create your pair just then — give it another go.',
-    }
-  }
-
-  // Being on a team is not the same as having entered. `accept_partner_invite`
-  // writes `teams` and both `team_members` rows, but no `registrations` row —
-  // so an invitee who only ever tapped "accept" has no emergency contact, has
-  // not accepted the code of conduct, owes no entry fee the committee can see,
-  // and reads "Not registered yet" on their own dashboard, all while appearing
-  // in the draw. The old message ("You're a pair!") told them they were done.
-  const { data: existing, error: registrationError } = await supabase
-    .from('registrations')
-    .select('id')
-    .eq('division_id', invite.division_id)
-    .eq('player_id', user.id)
-    .maybeSingle()
-
-  // On a failed read, prompt anyway: sending an already-registered player to a
-  // wizard that tells them so is a far smaller harm than letting an
-  // unregistered one believe they are finished.
-  const needsRegistration = registrationError ? true : !existing
-
-  return {
-    ok: true,
-    teamCreated: true,
-    needsRegistration,
-    message: needsRegistration
-      ? 'You’re a pair! One thing left — finish your own entry so the committee has your details.'
-      : 'You’re a pair! Your team is off to the committee for approval 🎉',
   }
 }

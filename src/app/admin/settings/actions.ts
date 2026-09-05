@@ -21,6 +21,7 @@ import {
   divisionExtras,
   divisionRowPatch,
   hasErrors,
+  isPersistedId,
   ROLE_LABELS,
   validateCourts,
   validateDivision,
@@ -386,18 +387,28 @@ async function saveDivisions(
 
   for (const division of divisions) {
     const patch = divisionRowPatch(division)
-    const known = current.settings.divisions.some((d) => d.id === division.id)
-    const { error } = known
+    // Persisted means "the database gave us this id", not "it was in the
+    // settings we loaded" — those settings may be the placeholder defaults.
+    const { error } = isPersistedId(division.id)
       ? await supabase.from('divisions').update(patch).eq('id', division.id)
-      : await supabase.from('divisions').insert({
-          ...patch,
-          tournament_id: current.tournamentId,
-          gender: division.gender,
-        })
+      : // Upsert rather than insert so a retry is harmless. This loop is not a
+        // transaction: it used to fail partway, leaving the rows before the
+        // error already inserted, and the next attempt hit
+        // `divisions_tournament_id_name_key` on the names that had gone in.
+        await supabase.from('divisions').upsert(
+          {
+            ...patch,
+            tournament_id: current.tournamentId,
+            gender: division.gender,
+          },
+          { onConflict: 'tournament_id,name' },
+        )
     if (error) return { ok: false, message: `Could not save ${division.name}: ${error.message}` }
   }
 
-  const removed = current.settings.divisions.filter((d) => !divisions.some((next) => next.id === d.id))
+  const removed = current.settings.divisions.filter(
+    (d) => isPersistedId(d.id) && !divisions.some((next) => next.id === d.id),
+  )
   for (const division of removed) {
     const { error } = await supabase.from('divisions').delete().eq('id', division.id)
     if (error) {
@@ -465,36 +476,42 @@ export async function saveCourtsAndSlotsAction(input: {
   const tournamentId = current.tournamentId
 
   for (const court of input.courts) {
-    const known = current.settings.courts.some((c) => c.id === court.id)
-    const { error } = known
+    // See `isPersistedId`: `court-1` is a placeholder from the default
+    // settings, not a row, and updating by it asks Postgres to parse it as a
+    // uuid.
+    const { error } = isPersistedId(court.id)
       ? await supabase
           .from('courts')
           .update({ name: court.name.trim(), sort_order: court.sortOrder })
           .eq('id', court.id)
-      : await supabase
-          .from('courts')
-          .insert({ tournament_id: tournamentId, name: court.name.trim(), sort_order: court.sortOrder })
+      : await supabase.from('courts').upsert(
+          { tournament_id: tournamentId, name: court.name.trim(), sort_order: court.sortOrder },
+          { onConflict: 'tournament_id,name' },
+        )
     if (error) return { ok: false, message: `Could not save ${court.name}: ${error.message}` }
   }
   for (const court of current.settings.courts) {
+    if (!isPersistedId(court.id)) continue
     if (input.courts.some((c) => c.id === court.id)) continue
     const { error } = await supabase.from('courts').delete().eq('id', court.id)
     if (error) return { ok: false, message: `Could not remove ${court.name}: ${error.message}` }
   }
 
   for (const slot of input.timeSlots) {
-    const known = current.settings.timeSlots.some((s) => s.id === slot.id)
     const payload = {
       starts_at: slot.startsAt,
       ends_at: slot.endsAt,
       label: slot.label.trim() || null,
     }
-    const { error } = known
+    const { error } = isPersistedId(slot.id)
       ? await supabase.from('time_slots').update(payload).eq('id', slot.id)
-      : await supabase.from('time_slots').insert({ ...payload, tournament_id: tournamentId })
+      : await supabase
+          .from('time_slots')
+          .upsert({ ...payload, tournament_id: tournamentId }, { onConflict: 'tournament_id,starts_at' })
     if (error) return { ok: false, message: `Could not save ${slot.label || 'a time slot'}: ${error.message}` }
   }
   for (const slot of current.settings.timeSlots) {
+    if (!isPersistedId(slot.id)) continue
     if (input.timeSlots.some((s) => s.id === slot.id)) continue
     const { error } = await supabase.from('time_slots').delete().eq('id', slot.id)
     if (error) return { ok: false, message: `Could not remove ${slot.label || 'a time slot'}: ${error.message}` }

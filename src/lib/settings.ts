@@ -136,12 +136,25 @@ export interface LootBagItem {
   notes: string
 }
 
+/**
+ * Prize money for one division, **per player**.
+ *
+ * Doubles pays two people per placing, so a per-pair figure has to be halved
+ * in someone's head before it means anything to the player being handed an
+ * envelope. Storing the per-player amount is the number the committee counts
+ * out, and `totalPrizePoolCents` does the doubling.
+ */
 export interface DivisionPrize {
   divisionId: string
   championCents: number
   runnerUpCents: number
   thirdPlaceCents: number
+  /** Loser of the Battle for 3rd. */
+  fourthPlaceCents: number
 }
+
+/** Everyone on the podium is a pair, so every placing is paid twice. */
+export const PLAYERS_PER_PAIR = 2
 
 export interface PrizeSettings {
   divisionPrizes: DivisionPrize[]
@@ -272,9 +285,11 @@ export function defaultTournamentSettings(): TournamentSettings {
     prizes: {
       divisionPrizes: divisions.map((d) => ({
         divisionId: d.id,
-        championCents: 30000,
-        runnerUpCents: 15000,
-        thirdPlaceCents: 7500,
+        // Per player. A champion pair therefore costs $300.
+        championCents: 15000,
+        runnerUpCents: 7500,
+        thirdPlaceCents: 3750,
+        fourthPlaceCents: 0,
       })),
       trophyCount: 4,
       medalCount: 16,
@@ -807,6 +822,7 @@ export function validatePrizes(prizes: PrizeSettings, divisions: readonly Divisi
       ['championCents', prize.championCents],
       ['runnerUpCents', prize.runnerUpCents],
       ['thirdPlaceCents', prize.thirdPlaceCents],
+      ['fourthPlaceCents', prize.fourthPlaceCents],
     ]
     for (const [field, cents] of amounts) {
       if (!Number.isInteger(cents) || cents < 0) {
@@ -818,6 +834,9 @@ export function validatePrizes(prizes: PrizeSettings, divisions: readonly Divisi
     }
     if (prize.thirdPlaceCents > prize.runnerUpCents) {
       issues.push(warn(`${base}.thirdPlaceCents`, 'Third place is being paid more than the runner-up.'))
+    }
+    if (prize.fourthPlaceCents > prize.thirdPlaceCents) {
+      issues.push(warn(`${base}.fourthPlaceCents`, 'Fourth place is being paid more than third.'))
     }
   }
 
@@ -1338,6 +1357,7 @@ export function diffPrizes(before: PrizeSettings, after: PrizeSettings): Setting
     pushChange(changes, `${base}.championCents`, 'Champion prize', formatCents(previous?.championCents ?? 0), formatCents(prize.championCents))
     pushChange(changes, `${base}.runnerUpCents`, 'Runner-up prize', formatCents(previous?.runnerUpCents ?? 0), formatCents(prize.runnerUpCents))
     pushChange(changes, `${base}.thirdPlaceCents`, 'Third place prize', formatCents(previous?.thirdPlaceCents ?? 0), formatCents(prize.thirdPlaceCents))
+    pushChange(changes, `${base}.fourthPlaceCents`, 'Fourth place prize', formatCents(previous?.fourthPlaceCents ?? 0), formatCents(prize.fourthPlaceCents))
   }
 
   pushChange(changes, 'prizes.trophyCount', 'Trophies', before.trophyCount, after.trophyCount)
@@ -1493,17 +1513,19 @@ function sydneyOffsetMs(date: Date): number {
  * `<input type="datetime-local">`. Deterministic on server and client (it
  * pins the zone rather than using the viewer's), so no hydration mismatch.
  */
-export function toDateTimeLocal(iso: string): string {
+export function toDateTimeLocal(iso: string, opts: { withSeconds?: boolean } = {}): string {
   const date = new Date(iso)
   if (Number.isNaN(date.getTime())) return ''
   const p = sydneyParts(date)
-  return `${p.year}-${p.month}-${p.day}T${p.hour === '24' ? '00' : p.hour}:${p.minute}`
+  const stamp = `${p.year}-${p.month}-${p.day}T${p.hour === '24' ? '00' : p.hour}:${p.minute}`
+  return opts.withSeconds ? `${stamp}:${p.second}` : stamp
 }
 
-/** `YYYY-MM-DDTHH:mm` in Sydney time -> UTC ISO timestamp. */
+/** `YYYY-MM-DDTHH:mm[:ss]` in Sydney time -> UTC ISO timestamp. */
 export function fromDateTimeLocal(value: string): string {
-  if (!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/.test(value)) return ''
-  const naive = Date.parse(`${value.slice(0, 16)}:00Z`)
+  const match = /^(\d{4}-\d{2}-\d{2}T\d{2}:\d{2})(:\d{2})?/.exec(value)
+  if (!match) return ''
+  const naive = Date.parse(`${match[1]}${match[2] ?? ':00'}Z`)
   if (Number.isNaN(naive)) return ''
   // Two passes so the DST changeover resolves correctly.
   let ts = naive - sydneyOffsetMs(new Date(naive))
@@ -1540,7 +1562,8 @@ export function slotDurationMinutes(slot: TimeSlotSettings): number {
   const start = Date.parse(slot.startsAt)
   const end = Date.parse(slot.endsAt)
   if (Number.isNaN(start) || Number.isNaN(end)) return 0
-  return Math.round((end - start) / 60_000)
+  // Halves, not whole minutes: 12.5-minute slots are a legitimate timetable.
+  return Math.round((end - start) / 30_000) / 2
 }
 
 export interface GenerateSlotsInput {
@@ -1581,12 +1604,52 @@ export function generateTimeSlots(input: GenerateSlotsInput): TimeSlotSettings[]
   })
 }
 
-/** Total prize money across every configured division, in cents. */
+/**
+ * Total cash the committee actually hands out, in cents.
+ *
+ * The per-division amounts are per *player*, and every placing is a pair, so
+ * the real outlay is twice the sum. The old total added the four placings once
+ * and called it the prize pool — which was the figure for one player from each
+ * pair, half of what the committee had to bring, and the reason the number
+ * never matched the budget.
+ */
 export function totalPrizePoolCents(prizes: PrizeSettings): number {
   return prizes.divisionPrizes.reduce(
-    (total, prize) => total + prize.championCents + prize.runnerUpCents + prize.thirdPlaceCents,
+    (total, prize) =>
+      total +
+      PLAYERS_PER_PAIR *
+        (prize.championCents + prize.runnerUpCents + prize.thirdPlaceCents + prize.fourthPlaceCents),
     0,
   )
+}
+
+/**
+ * Fills in prize fields that a stored blob predates.
+ *
+ * Prizes live as JSON in `site_content`, so a blob written before a field
+ * existed simply lacks it. `fourthPlaceCents` was added after the first
+ * tournament was configured, and `undefined` in a sum turns the whole total
+ * into `NaN` — a prize board reading "$NaN" rather than an obviously missing
+ * number. Every read path goes through here.
+ */
+export function normalisePrizes(
+  parsed: Partial<PrizeSettings> | null | undefined,
+  fallback: PrizeSettings,
+): PrizeSettings {
+  if (!parsed) return fallback
+  const money = (value: unknown): number => (typeof value === 'number' && Number.isFinite(value) ? value : 0)
+  return {
+    ...fallback,
+    ...parsed,
+    divisionPrizes: (parsed.divisionPrizes ?? fallback.divisionPrizes).map((prize) => ({
+      divisionId: prize.divisionId,
+      championCents: money(prize.championCents),
+      runnerUpCents: money(prize.runnerUpCents),
+      thirdPlaceCents: money(prize.thirdPlaceCents),
+      fourthPlaceCents: money(prize.fourthPlaceCents),
+    })),
+    lootBagItems: parsed.lootBagItems ?? fallback.lootBagItems,
+  }
 }
 
 /** Loot bag items needed for `playerCount` players. */
@@ -1603,9 +1666,11 @@ export function lootBagTotals(prizes: PrizeSettings, playerCount: number): { nam
 export interface PublicDivisionPrize {
   divisionId: string
   divisionName: string
+  /** All amounts are per player — see `DivisionPrize`. */
   championCents: number
   runnerUpCents: number
   thirdPlaceCents: number
+  fourthPlaceCents: number
 }
 
 /**
@@ -1649,6 +1714,7 @@ export function publicPrizeBoard(
       championCents: prize.championCents,
       runnerUpCents: prize.runnerUpCents,
       thirdPlaceCents: prize.thirdPlaceCents,
+      fourthPlaceCents: prize.fourthPlaceCents,
     })
   }
 
@@ -1658,7 +1724,10 @@ export function publicPrizeBoard(
     medalCount: prizes.medalCount,
     lootBagItems: prizes.lootBagItems.map((item) => ({ name: item.name, quantity: item.quantity })),
     totalPoolCents: divisionPrizes.reduce(
-      (total, p) => total + p.championCents + p.runnerUpCents + p.thirdPlaceCents,
+      (total, p) =>
+        total +
+        PLAYERS_PER_PAIR *
+          (p.championCents + p.runnerUpCents + p.thirdPlaceCents + p.fourthPlaceCents),
       0,
     ),
   }
@@ -1670,6 +1739,28 @@ export function newId(prefix: string, existing: readonly { id: string }[]): stri
   const taken = new Set(existing.map((row) => row.id))
   while (taken.has(`${prefix}-${n}`)) n++
   return `${prefix}-${n}`
+}
+
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+
+/**
+ * Whether an id refers to a row that actually exists in the database.
+ *
+ * Two kinds of id flow through the settings console. Saved rows carry the
+ * database's `uuid`. Everything else carries a readable stand-in: `newId()`
+ * mints `division-3` for a row the admin just added, and
+ * `defaultTournamentSettings()` ships `div-mens`, `court-1`, `slot-1` for the
+ * placeholder settings shown before anything has been saved.
+ *
+ * The save actions used to decide insert-vs-update by asking whether the id
+ * appeared in the settings they had just loaded — which is true for the
+ * placeholders, because those *are* what was loaded. So a committee filling in
+ * divisions for the first time issued `update ... where id = 'div-mens'` and
+ * got `invalid input syntax for type uuid: "div-mens"`. Same for `court-1`.
+ * The console was unusable for exactly the case it exists to serve.
+ */
+export function isPersistedId(id: string): boolean {
+  return UUID.test(id)
 }
 
 // ---------------------------------------------------------------------------

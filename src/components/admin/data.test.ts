@@ -76,7 +76,6 @@ describe('getAdminConsoleData', () => {
     expect(data.error).toBeNull()
     expect(data.registrations).toEqual([])
     expect(data.divisions).toEqual([])
-    expect(data.pendingInvites).toEqual([])
   })
 
   it('surfaces a query failure instead of swallowing it into demo data', async () => {

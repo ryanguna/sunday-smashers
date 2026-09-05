@@ -52,17 +52,12 @@ export interface WizardStep {
 /**
  * Every step in order.
  *
- * The committee pairs players, so the wizard does not ask about partners. It
- * used to: a "do you have a partner?" step followed by a conditional invite
- * step. Both are gone because every entry now joins the free-agent pool and
- * the committee builds the pairs on `/admin/teams`, where they can see the
- * whole field at once instead of inheriting whatever pairings happened to be
- * arranged first.
- *
- * The invite machinery underneath (the `partner_invites` table, `partnerMode`
- * on the submission, the free-agent flag) is deliberately left intact rather
- * than torn out, so restoring the two steps is a change to this list rather
- * than a migration.
+ * The committee builds every pair on `/admin/teams`, so the wizard does not
+ * run an invite flow: there is no "invite your partner, wait for them to
+ * accept, and be blocked until they do". What it does ask — on the men's
+ * draw, where players habitually enter as an established pair — is who you
+ * would *like* to be paired with. That answer is a note for the committee,
+ * nothing more.
  *
  * The final `review` step deliberately owns no fields: it is a read-back of
  * everything before submitting, so a player is never asked to trust that we
@@ -76,6 +71,15 @@ const ALL_STEPS: WizardStep[] = [
     blurb: 'Pick the division you want to play in.',
     badge: 'Division',
     cheer: 'Locked in. 🏸',
+  },
+  {
+    id: 'partner',
+    fields: ['nominatedPartner'],
+    question: 'Anyone you’d like to play with?',
+    blurb: 'Name who you’d like as your partner. The committee still confirms every pair.',
+    badge: 'Partner',
+    cheer: 'We’ll pass it to the committee. 🎁',
+    optional: true,
   },
   {
     id: 'skill',
@@ -131,17 +135,31 @@ const ALL_STEPS: WizardStep[] = [
 /** The id of the step that reads everything back before submitting. */
 export const REVIEW_STEP_ID = 'review'
 
+/** The id of the optional partner-nomination step. */
+export const PARTNER_STEP_ID = 'partner'
+
+export interface WizardStepOptions {
+  /**
+   * Whether to ask who the player would like to be paired with. Driven by the
+   * selected division, because it is only the men's draw that enters as
+   * established pairs; the women's draw is paired on skill level, and asking
+   * there would set an expectation the committee has said it will not meet.
+   */
+  askPartnerNomination?: boolean
+}
+
 /**
- * The steps the wizard shows.
+ * The steps the wizard shows, for the answers given so far.
  *
- * No step is conditional now that the partner questions are gone, so this is
- * a copy of `ALL_STEPS`. It stays a function because the progress bar, the
- * "are we finished" check and the review screen must always agree about which
- * steps exist, and one call site is the only way to guarantee that when a
- * conditional step returns.
+ * This must stay the single call site: the progress garland, the "are we
+ * finished" check and the review screen all have to agree about which steps
+ * exist, and a step that appears and disappears as the division changes is
+ * exactly where they would otherwise drift apart.
  */
-export function buildWizardSteps(): WizardStep[] {
-  return [...ALL_STEPS]
+export function buildWizardSteps(options: WizardStepOptions = {}): WizardStep[] {
+  return ALL_STEPS.filter(
+    (step) => step.id !== PARTNER_STEP_ID || options.askPartnerNomination === true,
+  )
 }
 
 /**

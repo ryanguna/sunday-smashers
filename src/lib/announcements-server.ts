@@ -1,5 +1,7 @@
 import { unstable_cache } from 'next/cache'
 import { createPublicClient } from '@/lib/supabase/public'
+import { loadSitePageVisibility } from '@/lib/site-pages-server'
+import { isPageVisible } from '@/lib/site-pages'
 import {
   getPublishedAnnouncements,
   type Announcement,
@@ -44,11 +46,20 @@ const cachedAnnouncements = unstable_cache(
   { revalidate: REVALIDATE_SECONDS, tags: [ANNOUNCEMENTS_TAG] },
 )
 
+/**
+ * The announcements strip is embedded on the landing page and the dashboard,
+ * not just on `/announcements`, so hiding the page in the console has to hide
+ * the strip too — otherwise switching the section off leaves it showing on the
+ * two surfaces most people actually look at.
+ */
 export async function loadPublicAnnouncementsFeed(): Promise<{
   now: number
   announcements: Announcement[]
 }> {
   const now = Date.now()
+  if (!isPageVisible(await loadSitePageVisibility(), 'announcements')) {
+    return { now, announcements: [] }
+  }
   // Bucketed to the TTL so the cache key is stable within a window. Passing a
   // raw `Date.now()` would mint a fresh cache entry on every single request,
   // which is an unbounded cache that never hits.

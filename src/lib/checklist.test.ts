@@ -89,8 +89,8 @@ const REGISTRATIONS: AdminRegistration[] = [
 
 const PRIZES: PrizeSettings = {
   divisionPrizes: [
-    { divisionId: 'div-mens', championCents: 30000, runnerUpCents: 15000, thirdPlaceCents: 7500 },
-    { divisionId: 'div-womens', championCents: 30000, runnerUpCents: 15000, thirdPlaceCents: 7500 },
+    { divisionId: 'div-mens', championCents: 30000, runnerUpCents: 15000, thirdPlaceCents: 7500, fourthPlaceCents: 3750 },
+    { divisionId: 'div-womens', championCents: 30000, runnerUpCents: 15000, thirdPlaceCents: 7500, fourthPlaceCents: 3750 },
   ],
   trophyCount: 2,
   medalCount: 12,
@@ -191,8 +191,10 @@ describe('deriveQuantities', () => {
     expect(DERIVED.trophiesNeeded).toBe(2)
   })
 
-  it('totals prize money across every division', () => {
-    expect(DERIVED.prizePoolCents).toBe(105000)
+  it('totals prize money across every division, paying both partners', () => {
+    // Amounts are per player and every placing is a pair, so the envelope pile
+    // is twice the sum of the placings in each division.
+    expect(DERIVED.prizePoolCents).toBe((30000 + 15000 + 7500 + 3750) * 2 * 2)
   })
 
   it('multiplies loot bag contents out by player count', () => {
@@ -231,7 +233,7 @@ describe('quantityText', () => {
     expect(quantityText('teams', DERIVED)).toBe('2 pairs')
     expect(quantityText('medals', DERIVED)).toBe('12 needed · 12 ordered')
     expect(quantityText('trophies', DERIVED)).toBe('2 needed · 2 ordered')
-    expect(quantityText('prizeMoney', DERIVED)).toBe('$1,050.00')
+    expect(quantityText('prizeMoney', DERIVED)).toBe('$2,250.00')
     expect(quantityText('shuttleTubes', DERIVED)).toContain('tubes')
   })
 

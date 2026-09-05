@@ -328,7 +328,11 @@ export default async function HomePage() {
         {prizeBoard && prizeBoard.divisionPrizes.length > 0 && (
           <div className="mt-8 min-w-0 overflow-x-auto rounded-[var(--radius-lg)] border border-[var(--color-line)] bg-white/70">
             <table className="w-full min-w-[30rem] border-collapse text-left text-sm">
-              <caption className="sr-only">Prize money by division and placing</caption>
+              <caption className="px-4 py-3 text-left text-sm text-[var(--color-ink-soft)]">
+                Prize money by division and placing. Amounts are{' '}
+                <strong className="text-[var(--color-plum)]">per player</strong> — each placing is a
+                pair, so both partners take home the figure shown.
+              </caption>
               <thead>
                 <tr className="bg-[var(--color-brand-gold-light)]/40">
                   <th scope="col" className="px-4 py-3 font-extrabold text-[var(--color-plum)]">
@@ -342,6 +346,9 @@ export default async function HomePage() {
                   </th>
                   <th scope="col" className="px-4 py-3 text-right font-extrabold text-[var(--color-plum)]">
                     3rd
+                  </th>
+                  <th scope="col" className="px-4 py-3 text-right font-extrabold text-[var(--color-plum)]">
+                    4th
                   </th>
                 </tr>
               </thead>
@@ -359,6 +366,9 @@ export default async function HomePage() {
                     </td>
                     <td className="px-4 py-3 text-right tabular-nums text-[var(--color-ink)]">
                       {formatCents(prize.thirdPlaceCents)}
+                    </td>
+                    <td className="px-4 py-3 text-right tabular-nums text-[var(--color-ink)]">
+                      {formatCents(prize.fourthPlaceCents)}
                     </td>
                   </tr>
                 ))}

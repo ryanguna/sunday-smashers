@@ -11,8 +11,10 @@ import {
   lootBagTotals,
   newId,
   parseMoneyToCents,
+  PLAYERS_PER_PAIR,
   totalPrizePoolCents,
   validatePrizes,
+  type DivisionPrize,
   type DivisionSettings,
   type PrizeSettings,
   type SettingsIssue,
@@ -40,7 +42,7 @@ export function PrizesEditor({ initial, divisions, playerCount, save, readOnly =
   const { draft, setDraft, issues } = form
 
   const updatePrize = useCallback(
-    (divisionId: string, patch: Partial<{ championCents: number; runnerUpCents: number; thirdPlaceCents: number }>) => {
+    (divisionId: string, patch: Partial<Omit<DivisionPrize, 'divisionId'>>) => {
       setDraft((current) => ({
         ...current,
         divisionPrizes: current.divisionPrizes.some((prize) => prize.divisionId === divisionId)
@@ -49,7 +51,14 @@ export function PrizesEditor({ initial, divisions, playerCount, save, readOnly =
             )
           : [
               ...current.divisionPrizes,
-              { divisionId, championCents: 0, runnerUpCents: 0, thirdPlaceCents: 0, ...patch },
+              {
+                divisionId,
+                championCents: 0,
+                runnerUpCents: 0,
+                thirdPlaceCents: 0,
+                fourthPlaceCents: 0,
+                ...patch,
+              },
             ],
       }))
     },
@@ -102,7 +111,13 @@ export function PrizesEditor({ initial, divisions, playerCount, save, readOnly =
           {divisions.map((division) => {
             const prize =
               draft.divisionPrizes.find((row) => row.divisionId === division.id) ??
-              { divisionId: division.id, championCents: 0, runnerUpCents: 0, thirdPlaceCents: 0 }
+              {
+                divisionId: division.id,
+                championCents: 0,
+                runnerUpCents: 0,
+                thirdPlaceCents: 0,
+                fourthPlaceCents: 0,
+              }
             const base = `prizes.${division.id}`
 
             return (
@@ -142,18 +157,43 @@ export function PrizesEditor({ initial, divisions, playerCount, save, readOnly =
                     disabled={readOnly}
                   />
                   <TextField
-                    label="🥉 Battle for 3rd"
+                    label="🥉 3rd place"
                     inputMode="decimal"
                     defaultValue={(prize.thirdPlaceCents / 100).toFixed(2)}
                     onChange={(event) => {
                       const cents = parseMoneyToCents(event.target.value)
                       if (cents !== null) updatePrize(division.id, { thirdPlaceCents: cents })
                     }}
-                    hint={formatCents(prize.thirdPlaceCents)}
+                    hint={`Winner of the Battle for 3rd — ${formatCents(prize.thirdPlaceCents)}`}
                     error={firstErrorFor(issues, `${base}.thirdPlaceCents`)}
                     disabled={readOnly}
                   />
+                  <TextField
+                    label="4th place"
+                    inputMode="decimal"
+                    defaultValue={(prize.fourthPlaceCents / 100).toFixed(2)}
+                    onChange={(event) => {
+                      const cents = parseMoneyToCents(event.target.value)
+                      if (cents !== null) updatePrize(division.id, { fourthPlaceCents: cents })
+                    }}
+                    hint={`Loser of the Battle for 3rd — ${formatCents(prize.fourthPlaceCents)}`}
+                    error={firstErrorFor(issues, `${base}.fourthPlaceCents`)}
+                    disabled={readOnly}
+                  />
                 </FieldGrid>
+                <p className="mt-3 text-sm text-[var(--color-ink-soft)]">
+                  Per player. {division.name} pays{' '}
+                  <strong className="text-[var(--color-plum)]">
+                    {formatCents(
+                      PLAYERS_PER_PAIR *
+                        (prize.championCents +
+                          prize.runnerUpCents +
+                          prize.thirdPlaceCents +
+                          prize.fourthPlaceCents),
+                    )}
+                  </strong>{' '}
+                  in total, because every placing is a pair.
+                </p>
               </div>
             )
           })}

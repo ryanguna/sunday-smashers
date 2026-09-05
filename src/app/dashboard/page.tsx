@@ -9,7 +9,6 @@ import {
   DutiesList,
   FinishedPanel,
   FixturesList,
-  InvitesCard,
   NextDutyCard,
   NextMatchHero,
   NotRegisteredPanel,
@@ -19,7 +18,7 @@ import {
   StatusCard,
   TeamCard,
 } from '@/components/dashboard'
-import { requireAuth } from '@/lib/auth'
+import { requireApprovedPlayer } from '@/lib/registration-gate-server'
 import { loadPublicTournamentConfig } from '@/lib/tournament-config'
 import { loadDashboardData } from './data'
 
@@ -42,7 +41,7 @@ export const dynamic = 'force-dynamic'
  * deployment it redirects to `/setup` rather than serving that to the public.
  */
 export default async function DashboardPage() {
-  await requireAuth('/dashboard')
+  await requireApprovedPlayer('/dashboard')
 
   const { demo, profile, dashboard, announcements, now } = await loadDashboardData()
   const { dates } = await loadPublicTournamentConfig()
@@ -114,7 +113,6 @@ export default async function DashboardPage() {
         <section aria-label="Your entry" className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           <StatusCard title="Registration" view={registrationView} icon="gift" />
           {paymentView && <StatusCard title="Entry fee" view={paymentView} icon="sparkle" />}
-          <InvitesCard />
         </section>
 
         <section aria-label="Your pair" className="grid gap-4 sm:grid-cols-2">

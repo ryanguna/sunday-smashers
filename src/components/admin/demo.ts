@@ -15,7 +15,7 @@
  */
 
 import { getAllDemoBundles } from '@/lib/demo-data'
-import { DEFAULT_ENTRY_FEE_CENTS, type AdminDivision, type AdminPartnerInvite, type AdminRegistration, type PaymentMethod } from '@/lib/admin'
+import { DEFAULT_ENTRY_FEE_CENTS, type AdminDivision, type AdminRegistration, type PaymentMethod } from '@/lib/admin'
 import type { PaymentStatus, RegistrationStatus } from '@/lib/supabase/types'
 
 export const DEMO_ADMIN_DIVISIONS: AdminDivision[] = [
@@ -210,26 +210,3 @@ function buildDemoRegistrations(): AdminRegistration[] {
 
 export const DEMO_ADMIN_REGISTRATIONS: AdminRegistration[] = buildDemoRegistrations()
 
-export const DEMO_ADMIN_INVITES: AdminPartnerInvite[] = [
-  {
-    id: 'demo-invite-1',
-    divisionName: "Men's Doubles",
-    inviterName: 'Rangi Waaka',
-    inviteeLabel: 'sam.okafor@smashers.example',
-    createdAt: '2026-10-02T04:00:00.000Z',
-  },
-  {
-    id: 'demo-invite-2',
-    divisionName: "Women's Doubles",
-    inviterName: 'Willow Nguyen',
-    inviteeLabel: 'Xanthe Brooks',
-    createdAt: '2026-10-05T04:00:00.000Z',
-  },
-  {
-    id: 'demo-invite-3',
-    divisionName: "Women's Doubles",
-    inviterName: 'Zara Ihaka',
-    inviteeLabel: 'a.friend@smashers.example',
-    createdAt: '2026-10-09T04:00:00.000Z',
-  },
-]
