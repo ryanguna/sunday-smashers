@@ -227,7 +227,7 @@ export function RulesEditor({
   return (
     <div className="space-y-5">
       <SettingsCard
-        title="Rules are a draft — change them here"
+        title="Scoring & format"
         description="Every value below feeds the draw, scoring and standings engines directly."
         icon={<RacketIcon size={20} />}
         tone="gold"

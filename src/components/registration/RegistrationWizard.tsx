@@ -43,6 +43,14 @@ import { submitRegistration, type RegistrationContext, type SubmitRegistrationRe
 const FOCUS_RING =
   ' peer-focus-visible:outline-3 peer-focus-visible:outline-offset-2 peer-focus-visible:outline-[var(--color-brand-lilac-dark)]'
 
+/**
+ * How long a cheer stays on screen, in milliseconds. Must match the
+ * `ss-cheer-toast` keyframes in `globals.css`: those fade the pill out at the
+ * end of their own run, and if this timer fired first the pill would be
+ * unmounted mid-fade — exactly the snap this is here to avoid.
+ */
+const CHEER_MS = 1400
+
 export interface RegistrationWizardProps {
   context: RegistrationContext
   /** Committee-editable disclaimers shown alongside the questions. */
@@ -98,7 +106,13 @@ export function RegistrationWizard({ context, copy, window: registrationWindow, 
   const [showErrors, setShowErrors] = useState(false)
   const [serverError, setServerError] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
-  const [cheer, setCheer] = useState<string | null>(null)
+  /**
+   * The cheer shown after each answer. `id` increments per cheer so two
+   * identical cheers in a row still restart the animation, and so the
+   * dismissal effect re-arms rather than reusing a timer that is already
+   * halfway through.
+   */
+  const [cheer, setCheer] = useState<{ text: string; id: number } | null>(null)
 
   const headingRef = useRef<HTMLHeadingElement>(null)
   const firstRender = useRef(true)
@@ -153,6 +167,17 @@ export function RegistrationWizard({ context, copy, window: registrationWindow, 
     headingRef.current?.focus()
   }, [safeIndex])
 
+  // Clearing the cheer from an effect rather than a bare `setTimeout` in the
+  // click handler. The old version leaked: tapping Next twice in quick
+  // succession left the first timer running, so it fired mid-way through the
+  // second cheer and cut it short — and a timer still pending when the wizard
+  // unmounted set state on a dead component.
+  useEffect(() => {
+    if (!cheer) return
+    const timer = globalThis.setTimeout(() => setCheer(null), CHEER_MS)
+    return () => globalThis.clearTimeout(timer)
+  }, [cheer])
+
   function update<K extends keyof RegistrationFormValues>(key: K, value: RegistrationFormValues[K]) {
     setValues((current) => ({ ...current, [key]: value }))
     setShowErrors(false)
@@ -166,8 +191,8 @@ export function RegistrationWizard({ context, copy, window: registrationWindow, 
     }
     setShowErrors(false)
     if (step.cheer) {
-      setCheer(step.cheer)
-      globalThis.setTimeout(() => setCheer(null), 1600)
+      const text = step.cheer
+      setCheer((current) => ({ text, id: (current?.id ?? 0) + 1 }))
     }
     setIndex((current) => Math.min(current + 1, steps.length - 1))
   }, [step, values, validationContext, steps.length])
@@ -231,7 +256,7 @@ export function RegistrationWizard({ context, copy, window: registrationWindow, 
 
         {/* Announces each new question, and each cheer, to screen readers. */}
         <p aria-live="polite" className="sr-only">
-          {cheer ? `${cheer} ` : ''}
+          {cheer ? `${cheer.text} ` : ''}
           Question {progress.current} of {progress.total}: {step.question}
         </p>
 
@@ -253,12 +278,22 @@ export function RegistrationWizard({ context, copy, window: registrationWindow, 
         <p className="mt-1.5 mb-5 text-[var(--color-ink-soft)]">{step.blurb}</p>
 
         {cheer && (
+          // Overlaid, not in the flow. This used to be a block above the
+          // question, so every "Next" pushed the whole form down and then —
+          // 1.6s later, long after the player had started reading the next
+          // question — snatched it back up. Two unannounced reflows per step
+          // is what made the wizard feel like it was struggling to keep up.
+          // As a floating pill it costs no layout, and it fades itself out
+          // instead of disappearing between frames.
           <div
+            key={cheer.id}
             aria-hidden="true"
-            className="mb-4 flex items-center gap-2 rounded-[var(--radius-md)] bg-[var(--color-success-bg)] px-4 py-2.5 font-[family-name:var(--font-heading)] font-bold text-[var(--color-success)]"
+            className="animate-cheer-toast pointer-events-none absolute inset-x-0 top-2 z-20 flex justify-center px-4"
           >
-            <SparkleIcon size={18} />
-            {cheer}
+            <span className="inline-flex items-center gap-2 rounded-[var(--radius-pill)] bg-[var(--color-success-bg)] px-4 py-2 font-[family-name:var(--font-heading)] font-bold text-[var(--color-success)] shadow-[var(--shadow-lift)]">
+              <SparkleIcon size={18} />
+              {cheer.text}
+            </span>
           </div>
         )}
 

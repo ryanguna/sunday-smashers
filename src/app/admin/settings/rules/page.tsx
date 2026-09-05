@@ -1,9 +1,11 @@
 import { requireAdmin } from '@/lib/auth'
 import { DemoModeNotice } from '@/components/auth'
 import { AdminDataErrorBanner, NoTournamentBanner } from '@/components/admin/AdminUI'
-import { RulesEditor } from '@/components/settings'
+import { RulesEditor, RulesPublishCard } from '@/components/settings'
+import { loadSiteCopy } from '@/lib/site-copy-server'
 import { loadSettingsPageData } from '../data'
 import { saveRulesAction } from '../actions'
+import { setRulesPublishedAction } from '../copy/actions'
 
 /**
  * Signed-in only: never prerender. Without this the auth check runs at build
@@ -19,12 +21,14 @@ export default async function SettingsRulesPage() {
   // stand-in organiser, so the console stays reviewable in CI.
   await requireAdmin('/admin/settings/rules')
   const { settings, entryCounts, drawState, isDemo, error, tournamentId } = await loadSettingsPageData()
+  const copy = await loadSiteCopy()
 
   return (
     <div className="space-y-5">
       {isDemo && <DemoModeNotice what="Saving rules" />}
       {!isDemo && !tournamentId && <NoTournamentBanner />}
       {error && <AdminDataErrorBanner message={error} />}
+      <RulesPublishCard published={copy.rulesAreFinal} publish={setRulesPublishedAction} />
       <RulesEditor
         initial={settings.divisions}
         entryCounts={entryCounts}

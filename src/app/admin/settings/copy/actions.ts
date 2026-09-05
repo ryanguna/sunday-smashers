@@ -14,6 +14,53 @@ import { withDemoHint } from '@/lib/demo-mode'
 const COPY_PATH = '/admin/settings/copy'
 
 /**
+ * Publish the rules, or pull them back to draft.
+ *
+ * This is the same `rulesAreFinal` flag the Messages editor exposes, but it
+ * lives on the Rules page too because that is where somebody who has just
+ * finished settling the format goes looking for a "publish" button. Filing the
+ * only copy of it under "Messages" meant the Rules page could tell an admin the
+ * rules were a draft while offering no way to change that.
+ *
+ * It deliberately writes through the same blob rather than keeping a second
+ * flag: two sources of truth for "are the rules final" is exactly how a site
+ * ends up showing "Final" on one page and "Draft" on another.
+ */
+export async function setRulesPublishedAction(final: boolean): Promise<ActionResult> {
+  if (!isSupabaseConfigured()) {
+    return {
+      ok: true,
+      demo: true,
+      message: withDemoHint(
+        final
+          ? 'Demo mode — the banner would clear, but there is no database to remember it.'
+          : 'Demo mode — the draft banner would come back.',
+      ),
+      changes: [],
+    }
+  }
+
+  const current = await loadSiteCopy()
+  if (current.rulesAreFinal === final) {
+    return {
+      ok: true,
+      message: final ? 'Already published.' : 'Already marked as a draft.',
+      changes: [],
+    }
+  }
+
+  const result = await saveSiteCopyAction({ ...current, rulesAreFinal: final })
+  if (!result.ok) return result
+
+  return {
+    ...result,
+    message: final
+      ? 'Rules published — the draft banner is gone from the public page 🎄'
+      : 'Back to draft — the public page says the rules may still change.',
+  }
+}
+
+/**
  * Save the committee's own wording.
  *
  * The row is written `is_published: true` deliberately. The public loader

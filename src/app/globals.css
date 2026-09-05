@@ -269,6 +269,28 @@ body {
   }
 }
 
+/*
+ * The registration wizard's per-step cheer. It carries its own exit fade so
+ * the pill is never removed between one frame and the next — a cheer that
+ * simply disappears reads as the page stuttering, which is precisely what it
+ * was doing before.
+ */
+@keyframes ss-cheer-toast {
+  0% {
+    opacity: 0;
+    transform: translateY(-6px) scale(0.96);
+  }
+  12%,
+  72% {
+    opacity: 1;
+    transform: none;
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(-4px) scale(0.98);
+  }
+}
+
 /* ============================================================
    Motion utility classes
    ============================================================ */
@@ -304,6 +326,10 @@ body {
 
 .animate-fade-in {
   animation: ss-fade-in 0.2s ease-out both;
+}
+
+.animate-cheer-toast {
+  animation: ss-cheer-toast 1.4s ease-out both;
 }
 
 .hover-lift {
