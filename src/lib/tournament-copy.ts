@@ -164,3 +164,81 @@ export function howItWorksSteps(divisions: readonly PublicDivisionSummary[]): Ho
 
   return steps
 }
+
+/**
+ * The rules page's fallback body, built from the configured divisions.
+ *
+ * ## Why this is generated
+ *
+ * `/rules` renders an admin-editable `site_content` row, and falls back to
+ * built-in markdown when that row does not exist — which is the normal state
+ * until somebody writes one. That fallback used to quote "first to 15 points"
+ * and "first to 21 points" as literal text, so the moment a division was
+ * configured with anything else the page contradicted the engine that actually
+ * scores the games. The committee could publish those rules as final and
+ * players would be reading a promise the scoring console had no intention of
+ * keeping.
+ *
+ * Only the numbers are derived. Officiating, scoresheets and the three-minute
+ * forfeit are prose decisions rather than settings, so they stay written.
+ */
+export function defaultRulesMarkdown(divisions: readonly PublicDivisionSummary[]): string {
+  const elims = divisions.length
+    ? describeTarget(divisions.map((d) => d.elims))
+    : 'first to 15 points (no deuce)'
+  const finals = divisions.length
+    ? describeTarget(divisions.map((d) => d.finals))
+    : 'first to 21 points (no deuce)'
+
+  const places = divisions.length ? distinctAscending(divisions.map((d) => d.qualifyingPlaces)) : [4]
+  const placesLabel = joinWithOr(places)
+  const mostPlaces = places[places.length - 1]
+  const fewestPlaces = places[0]
+
+  const knockout =
+    fewestPlaces >= 4
+      ? [
+          '## Semis & Finals',
+          '',
+          `- **Semi-finals**: the top ${placesLabel} ranked pairs qualify. M1 = Rank 1 vs Rank ${mostPlaces}, M2 = Rank 2 vs Rank ${mostPlaces - 1}. Games are ${finals}.`,
+          '- **Battle for 3rd**: the losers of M1 and M2 play off for third place.',
+          '- **Championship**: the winners of M1 and M2 play for the title.',
+        ]
+      : mostPlaces >= 2
+        ? [
+            '## Finals',
+            '',
+            `- The top ${placesLabel} ranked pairs qualify for the knockout stage. Games are ${finals}.`,
+            '- **Championship**: the qualifiers play off for the title.',
+          ]
+        : [
+            '## No knockout stage',
+            '',
+            '- The round robin ranking is the final standing — there is no semi final or final.',
+          ]
+
+  return [
+    '## Eliminations',
+    '',
+    '- Single round robin — every pair plays every other pair in their pool exactly once.',
+    `- Games are played ${elims}.`,
+    '- Ranking is by number of **wins**; ties are broken by **head-to-head** result (or a mini league / point difference / points scored for 3+ way ties).',
+    '',
+    ...knockout,
+    '',
+    '## Officiating & Scoresheets',
+    '',
+    '- Scoresheets are provided **per court** and must be **signed by both pairs after every game**.',
+    '- The players in the **next match-up on that court** are rostered as:',
+    '- **Umpire / Scorer**',
+    '- **Scoresheet person**',
+    '- **2x Line persons**',
+    "- The umpire's and line judges' calls are **final**.",
+    '- The scoresheet person **submits the signed scoresheet to the Tabulator at the end of each game**.',
+    '',
+    '## Forfeits',
+    '',
+    '- A pair has **3 minutes** from their match being called to be on court and ready. This is a fixed limit — the umpire starts it when the call goes out.',
+    '- **Late arrival or a no-show forfeits that game automatically** once those 3 minutes are up.',
+  ].join('\n')
+}

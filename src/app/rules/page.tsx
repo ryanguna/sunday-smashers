@@ -6,6 +6,7 @@ import { PageGate } from '@/components/PageGate'
 import { loadPublicTournamentConfig } from '@/lib/tournament-config'
 import { loadSiteCopy } from '@/lib/site-copy-server'
 import { formatTournamentDateLabel } from '@/lib/tournament'
+import { defaultRulesMarkdown } from '@/lib/tournament-copy'
 
 export const metadata: Metadata = {
   title: 'Rules & Info',
@@ -13,50 +14,16 @@ export const metadata: Metadata = {
     'Draft rules for the Sunday Smashers Christmas Mini Tournament — eliminations, semis & finals, officiating, scoresheets and forfeits.',
 }
 
-/**
- * Hard-coded fallback content for demo mode (no Supabase env vars) or if
- * Supabase is configured but the `site_content` rows haven't been seeded
- * yet. Same substance as `supabase/seed.sql`'s `draft-rules-v1` row,
- * reorganised under explicit headings (Eliminations / Semis & Finals
- * / Officiating & Scoresheets / Forfeits) for scannability.
- */
-const FALLBACK_RULES_MARKDOWN = `
-## Eliminations
-
-- Single round robin — every pair plays every other pair in their pool exactly once.
-- Games are played first to **15 points, no deuce**.
-- Ranking is by number of **wins**; ties are broken by **head-to-head** result (or a mini league / point difference / points scored for 3+ way ties).
-
-## Semis & Finals
-
-- **Semi-finals**: the top 4 ranked pairs qualify. M1 = Rank 1 vs Rank 4, M2 = Rank 2 vs Rank 3. First to **21 points, no deuce**.
-- **Battle for 3rd**: the losers of M1 and M2 play off for third place.
-- **Championship**: the winners of M1 and M2 play for the title.
-
-## Officiating & Scoresheets
-
-- Scoresheets are provided **per court** and must be **signed by both pairs after every game**.
-- The players in the **next match-up on that court** are rostered as:
-- **Umpire / Scorer**
-- **Scoresheet person**
-- **2x Line persons**
-- The umpire's and line judges' calls are **final**.
-- The scoresheet person **submits the signed scoresheet to the Tabulator at the end of each game**.
-
-## Forfeits
-
-- A pair has **3 minutes** from their match being called to be on court and ready. This is a fixed limit — the umpire starts it when the call goes out.
-- **Late arrival or a no-show forfeits that game automatically** once those 3 minutes are up.
-`.trim()
-
 export default async function RulesPage() {
-  const [rulesRow, { dates }, copy] = await Promise.all([
+  const [rulesRow, { dates, divisions }, copy] = await Promise.all([
     loadSiteContent('draft-rules-v1'),
     loadPublicTournamentConfig(),
     loadSiteCopy(),
   ])
 
-  const rulesMarkdown = rulesRow?.body_markdown ?? FALLBACK_RULES_MARKDOWN
+  // Built from the published divisions rather than quoted, so the page can
+  // never promise a scoring target the engine is not using.
+  const rulesMarkdown = rulesRow?.body_markdown ?? defaultRulesMarkdown(divisions)
 
   return (
     <PageGate pageKey="rules">
