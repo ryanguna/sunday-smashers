@@ -20,7 +20,7 @@ import {
   StatusCard,
   TeamCard,
 } from '@/components/dashboard'
-import { requireApprovedPlayer } from '@/lib/registration-gate-server'
+import { promptRegistrationIfNeeded, requireApprovedPlayer } from '@/lib/registration-gate-server'
 import { loadPublicTournamentConfig } from '@/lib/tournament-config'
 import { loadDashboardData } from './data'
 
@@ -44,6 +44,10 @@ export const dynamic = 'force-dynamic'
  */
 export default async function DashboardPage() {
   await requireApprovedPlayer('/dashboard')
+  // An account with no entry is mid-signup, not a player with an empty
+  // dashboard. Sending them to the form is the whole of what this page would
+  // otherwise show them, minus the step of noticing a button.
+  await promptRegistrationIfNeeded()
 
   const { demo, profile, dashboard, announcements, now } = await loadDashboardData()
   const { dates } = await loadPublicTournamentConfig()

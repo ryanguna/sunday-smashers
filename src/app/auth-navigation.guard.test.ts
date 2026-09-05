@@ -42,10 +42,15 @@ describe('handing over after an auth state change', () => {
     expect(handoff).not.toMatch(/router\.(push|replace)\(/)
   })
 
-  it('finishing onboarding reaches the dashboard with a real page load', () => {
+  it('finishing onboarding reaches the entry form with a real page load', () => {
+    // The destination is `/register`, not `/dashboard`: signing up and
+    // entering are one journey — see `registration-prompt.guard.test.ts`.
+    // What this test guards is the *how*, which is unchanged. The profile
+    // that was just written is what the next page reads, and the router
+    // cache in front of it predates both the profile and the session.
     const handoff = successHandoff(files.onboarding, 'if (error) {')
-    expect(handoff).toContain("window.location.assign('/dashboard')")
-    expect(handoff).not.toMatch(/router\.(push|replace)\('\/dashboard'\)/)
+    expect(handoff).toContain("window.location.assign('/register')")
+    expect(handoff).not.toMatch(/router\.(push|replace)\('\/(dashboard|register)'\)/)
   })
 
   it('sign-in still does the same thing, which is where the rule came from', () => {

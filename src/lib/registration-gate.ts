@@ -35,9 +35,11 @@ export interface RegistrationGateInput {
  * Resolves what a signed-in viewer should see.
  *
  * Note that "has not registered at all" resolves to `allow`, not `pending`.
- * Someone who has an account but no entry is mid-signup, and the dashboard
- * already has a panel that walks them into the entry form; bouncing them to a
- * status page about an entry they never made would be a dead end.
+ * Someone who has an account but no entry is mid-signup, and a status page
+ * about an entry they never made would be a dead end. Where they *should* go
+ * is the entry form itself — that is `shouldPromptRegistration` below, kept
+ * separate because it is a question about finishing signup, not about whether
+ * the committee has made a decision.
  */
 export function resolveRegistrationGate({ status, isStaff }: RegistrationGateInput): RegistrationGateOutcome {
   if (isStaff) return 'allow'
@@ -54,6 +56,54 @@ export function resolveRegistrationGate({ status, isStaff }: RegistrationGateInp
       return 'allow'
   }
 }
+
+export interface RegistrationPromptInput {
+  /** The viewer's registration status, or `null` when they have not entered. */
+  status: RegistrationStatus | null
+  /** See `RegistrationGateInput.isStaff`. */
+  isStaff: boolean
+  /**
+   * Whether `/register` currently has a form that can actually be submitted —
+   * `RegistrationWindowInfo.acceptsSubmissions`. True while entries are open
+   * and while the waitlist is taking names; false before the sheet opens and
+   * once the tournament is under way.
+   */
+  acceptsSubmissions: boolean
+}
+
+/**
+ * Whether a signed-in viewer should be taken straight to the entry form.
+ *
+ * Creating an account and entering the tournament are one intention, not two.
+ * Landing a brand-new player on a dashboard about a tournament they have not
+ * entered, behind a "Register to play" button they have to notice, loses
+ * people who believed signing up *was* entering — the account exists, the
+ * entry never does, and the committee sees a name in `profiles` with nothing
+ * in `registrations`.
+ *
+ * Deliberately narrow, because a redirect that fires when there is nothing to
+ * do at the other end is a trap:
+ *
+ * - **Staff are exempt.** An organiser who never enters would be bounced out
+ *   of their own dashboard on every visit.
+ * - **Only when the form accepts submissions.** Before the sheet opens, or
+ *   once the tournament has started, `/register` has no form — the dashboard
+ *   is the more useful page and `NotRegisteredPanel` still explains.
+ * - **Only with no entry at all.** Pending, waitlisted and declined players
+ *   are the approval gate's business, and it sends them to `/status`.
+ */
+export function shouldPromptRegistration({
+  status,
+  isStaff,
+  acceptsSubmissions,
+}: RegistrationPromptInput): boolean {
+  if (isStaff) return false
+  if (!acceptsSubmissions) return false
+  return status === null
+}
+
+/** Route an account with no entry is prompted to complete. */
+export const REGISTRATION_FORM_PATH = '/register'
 
 /** Route the gate sends a not-yet-approved player to. */
 export const REGISTRATION_STATUS_PATH = '/status'

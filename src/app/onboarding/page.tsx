@@ -144,11 +144,17 @@ export default function OnboardingPage() {
       setServerError(error.message)
       return
     }
+    // Straight on to the entry form, not the dashboard. Creating an account
+    // and entering the tournament are one intention; a player who stopped
+    // here believing they had entered would exist in `profiles` and nowhere
+    // in `registrations`, and nobody would find out until the draw. If they
+    // have somehow already entered, `/register` forwards them onward.
+    //
     // Full document load rather than `router.push` — see `/signup`. The
-    // profile that was just written is what `/dashboard` renders, and the
+    // profile that was just written is what the next page reads, and the
     // router cache in front of it predates both the profile and the session.
     // eslint-disable-next-line @next/next/no-location-assign-relative-destination -- discarding the client router cache is the point, not a side effect.
-    window.location.assign('/dashboard')
+    window.location.assign('/register')
   }
 
   if (!isSupabaseConfigured()) {
@@ -175,7 +181,7 @@ export default function OnboardingPage() {
       subtitle={
         step === 0
           ? "Step 1 of 2 — the basics so we know who's smashing."
-          : 'Step 2 of 2 — your game & safety details.'
+          : 'Step 2 of 2 — your game & safety details, then straight to your entry.'
       }
     >
       {serverError && <AlertBanner>{serverError}</AlertBanner>}
@@ -268,7 +274,7 @@ export default function OnboardingPage() {
               Back
             </Button>
             <Button type="submit" className="flex-1" loading={saving}>
-              Finish sign-up
+              Next: enter the tournament
             </Button>
           </div>
         </form>

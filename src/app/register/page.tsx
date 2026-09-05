@@ -1,4 +1,5 @@
 import type { Metadata } from 'next'
+import { redirect } from 'next/navigation'
 import { isSupabaseConfigured } from '@/lib/supabase/config'
 import { getRegistrationWindow } from '@/lib/registration'
 import { loadPublicTournamentConfig } from '@/lib/tournament-config'
@@ -8,6 +9,8 @@ import { RegistrationShell } from '@/components/registration/RegistrationShell'
 import { RegisterExperience, type RegisterPreview } from '@/components/registration/RegisterExperience'
 import { PageGate } from '@/components/PageGate'
 import { loadSiteCopy } from '@/lib/site-copy-server'
+import { loadViewerRegistrationStatus } from '@/lib/registration-gate-server'
+import { REGISTRATION_STATUS_PATH } from '@/lib/registration-gate'
 
 // The register link is the one most likely to be pasted into a group chat,
 // so its description must name the date the organiser actually saved.
@@ -57,6 +60,18 @@ export default async function RegisterPage({
 }) {
   const params = await searchParams
   const preview = readPreview(params.preview)
+  // A player who has already entered has no use for a blank wizard, and
+  // `/dashboard` now sends anyone *without* an entry here — so without this
+  // the two pages would volley an entered player back and forth. `/status`
+  // tells a pending or waitlisted player where they stand and forwards an
+  // approved one to their dashboard.
+  //
+  // `?again=1` is the way out: entries are per division and the database
+  // allows a second one, so this must be a redirect a player can decline
+  // rather than a wall across a legitimate path.
+  if (params.again == null && (await loadViewerRegistrationStatus()) !== null) {
+    redirect(REGISTRATION_STATUS_PATH)
+  }
   // Dates and the open/closed switch come from the tournament row, so the
   // committee can open the sheet for a test run without a redeploy (audit B4).
   const config = await loadPublicTournamentConfig()

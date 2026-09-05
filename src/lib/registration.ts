@@ -182,7 +182,7 @@ function registrationWindowForPhase(
         phase: phaseInfo.phase,
         countdownTarget: phaseInfo.countdownTarget,
         countdownLabel: phaseInfo.countdownLabel,
-        heading: 'Registration has closed — but the waitlist is open',
+        heading: 'Pre-registration has closed — but the waitlist is open',
         message:
           'The draw is being finalised. Pop your name on the waitlist and we’ll call you in the moment a spot opens up 🎅',
         acceptsSubmissions: true,

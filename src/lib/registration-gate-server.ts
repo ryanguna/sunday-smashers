@@ -14,10 +14,14 @@ import { createClient } from '@/lib/supabase/server'
 import type { RegistrationStatus, UserRole } from '@/lib/supabase/types'
 import {
   bestRegistrationStatus,
+  REGISTRATION_FORM_PATH,
   REGISTRATION_STATUS_PATH,
   resolveRegistrationGate,
+  shouldPromptRegistration,
   type RegistrationGateOutcome,
 } from '@/lib/registration-gate'
+import { getRegistrationWindow } from '@/lib/registration'
+import { loadPublicTournamentConfig } from '@/lib/tournament-config'
 
 /**
  * The signed-in viewer's entry status, or `null` when they have not entered.
@@ -84,4 +88,43 @@ export async function requireApprovedPlayer(currentPath: string): Promise<void> 
   await requireAuth(currentPath)
   if (!isSupabaseConfigured()) return
   if ((await viewerGateOutcome()) !== 'allow') redirect(REGISTRATION_STATUS_PATH)
+}
+
+/**
+ * Whether the signed-in viewer still has to enter the tournament.
+ *
+ * Gathers the three inputs `shouldPromptRegistration` needs: their entry
+ * status, whether they are staff, and whether `/register` currently has a
+ * form worth sending them to.
+ */
+export async function viewerNeedsRegistration(): Promise<boolean> {
+  if (!isSupabaseConfigured()) return false
+  const [status, roles, config] = await Promise.all([
+    loadViewerRegistrationStatus(),
+    // Same reasoning as `viewerGateOutcome`: an unreadable role list means
+    // "not staff" here, which at worst sends an organiser to the entry form
+    // they can walk away from.
+    getUserRoles().catch(() => [] as UserRole[]),
+    loadPublicTournamentConfig(),
+  ])
+  const window = getRegistrationWindow(new Date(), {
+    dates: config.dates,
+    isRegistrationOpen: config.isRegistrationOpen,
+  })
+  return shouldPromptRegistration({
+    status,
+    isStaff: roles.some((role) => role !== 'player'),
+    acceptsSubmissions: window.acceptsSubmissions,
+  })
+}
+
+/**
+ * Sends an account that has not entered yet to the entry form.
+ *
+ * Call this *after* `requireApprovedPlayer` on pages that only make sense once
+ * a player is in the draw. It is a nudge, not a wall — `/register` carries the
+ * full site navigation, so anyone who genuinely wants to look around can.
+ */
+export async function promptRegistrationIfNeeded(): Promise<void> {
+  if (await viewerNeedsRegistration()) redirect(REGISTRATION_FORM_PATH)
 }

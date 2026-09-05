@@ -33,7 +33,9 @@ function validate(
 }
 
 /**
- * Create a player account and go straight to the profile questions.
+ * Create a player account and go straight to the profile questions, which in
+ * turn hand off to the entry form. Signing up and entering the tournament are
+ * one intention and are presented as one flow.
  *
  * Email confirmation is switched **off** in the Supabase project, because the
  * tournament has no SMTP server to send the confirmation with. So signup now
@@ -115,8 +117,11 @@ export default function SignupPage() {
     <AuthShell
       icon={<GiftIcon size={26} />}
       eyebrow="Join the smash"
-      title="Create your account"
-      subtitle="One quick sign-up and you're on the entry list for the Christmas Mini Tournament."
+      title="Create your account & enter"
+      // Names the next two screens, because it is one journey. This used to
+      // claim the account alone put you in the draw and then hand people a
+      // dashboard, leaving them signed up and not entered.
+      subtitle="Three quick steps — your login, your player details, then your tournament entry."
       footer={
         <>
           Already playing?{' '}
