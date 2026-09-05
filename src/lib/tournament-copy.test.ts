@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import { DEFAULT_SITE_COPY } from './site-copy'
 import {
   DEFAULT_HOW_IT_WORKS,
   describeTarget,
@@ -209,7 +210,27 @@ describe('defaultRulesMarkdown', () => {
 
   it('keeps the prose rules that are not settings', () => {
     const markdown = defaultRulesMarkdown([division()])
-    expect(markdown).toContain('**3 minutes**')
     expect(markdown).toContain('Umpire / Scorer')
+    expect(markdown).toContain('signed by both pairs after every game')
+  })
+
+  it('prints the configured forfeit grace period', () => {
+    // This was written prose, which made it the one rule on the page nobody
+    // could change without a deploy — and it is the first thing shortened
+    // when a round robin starts running late.
+    expect(defaultRulesMarkdown([division()], 2)).toContain('**2 minutes**')
+    expect(defaultRulesMarkdown([division()], 5)).toContain('**5 minutes**')
+    expect(defaultRulesMarkdown([division()], 5)).not.toContain('3 minutes')
+  })
+
+  it('does not write "1 minutes" on a page published as final', () => {
+    expect(defaultRulesMarkdown([division()], 1)).toContain('**1 minute**')
+    expect(defaultRulesMarkdown([division()], 1)).not.toContain('1 minutes')
+  })
+
+  it('defaults to the committee-agreed grace period when none is passed', () => {
+    expect(defaultRulesMarkdown([division()])).toContain(
+      `**${DEFAULT_SITE_COPY.forfeitGraceMinutes} minutes**`,
+    )
   })
 })

@@ -39,6 +39,16 @@ export interface SiteCopy {
    * missing is a player turning up to a format they never agreed to.
    */
   rulesAreFinal: boolean
+  /**
+   * How long a pair has, from their match being called, before the game is
+   * forfeited.
+   *
+   * The rules page used to state three minutes as prose, which made it the one
+   * rule on the page a committee could not change without a deploy — and the
+   * grace period is exactly the sort of thing that gets shortened once you see
+   * how long a day of round robin actually runs.
+   */
+  forfeitGraceMinutes: number
   /** Shown on the entry form and the confirmation. Refunds are real money, so this is theirs to word. */
   refundPolicyNote: string
   /** Reassurance for anyone registering without a partner. */
@@ -55,8 +65,12 @@ export interface SiteCopy {
   waitlistedMessage: string
 }
 
+/** Below this a pair could not cross a hall in time; above it the day stops moving. */
+export const FORFEIT_GRACE_MINUTES_RANGE = { min: 1, max: 15 } as const
+
 export const DEFAULT_SITE_COPY: SiteCopy = {
   rulesAreFinal: false,
+  forfeitGraceMinutes: 2,
   refundPolicyNote:
     'Entry fees can be refunded up to 30 November 2026. After that date your fee covers courts, shuttles and prizes that are already paid for, so it can no longer be returned.',
   partnerDisclaimer:
@@ -73,6 +87,21 @@ export const DEFAULT_SITE_COPY: SiteCopy = {
     'You are on the waitlist. The draw is full for now, but spots open up more often than you would think — we will contact you if one does.',
 }
 
+/**
+ * Coerces a stored grace period into a usable whole number of minutes.
+ *
+ * A blob written before this field existed has no value at all, and the number
+ * is printed into the rules as a promise about when somebody loses a game, so
+ * anything unparseable falls back rather than reaching the page.
+ */
+function minutes(value: unknown, fallback: number): number {
+  if (typeof value !== 'number' || !Number.isFinite(value)) return fallback
+  const whole = Math.round(value)
+  const { min, max } = FORFEIT_GRACE_MINUTES_RANGE
+  if (whole < min || whole > max) return fallback
+  return whole
+}
+
 function text(value: unknown, fallback: string): string {
   return typeof value === 'string' && value.trim().length > 0 ? value : fallback
 }
@@ -83,6 +112,7 @@ export function normaliseSiteCopy(parsed: unknown): SiteCopy {
   const raw = parsed as Partial<Record<keyof SiteCopy, unknown>>
   return {
     rulesAreFinal: raw.rulesAreFinal === true,
+    forfeitGraceMinutes: minutes(raw.forfeitGraceMinutes, DEFAULT_SITE_COPY.forfeitGraceMinutes),
     refundPolicyNote: text(raw.refundPolicyNote, DEFAULT_SITE_COPY.refundPolicyNote),
     partnerDisclaimer: text(raw.partnerDisclaimer, DEFAULT_SITE_COPY.partnerDisclaimer),
     skillPairingDisclaimer: text(raw.skillPairingDisclaimer, DEFAULT_SITE_COPY.skillPairingDisclaimer),
@@ -107,8 +137,8 @@ export interface SiteCopyField {
   key: keyof SiteCopy
   label: string
   hint: string
-  /** Long copy gets a textarea; the rules toggle gets a checkbox. */
-  kind: 'toggle' | 'text'
+  /** Long copy gets a textarea, the rules toggle a checkbox, a duration a number input. */
+  kind: 'toggle' | 'text' | 'minutes'
 }
 
 /** Drives the admin editor, so a new field shows up there by adding it here. */
@@ -118,6 +148,12 @@ export const SITE_COPY_FIELDS: readonly SiteCopyField[] = [
     label: 'Rules are final',
     hint: 'Clears the “working draft” banner on the Rules page. Leave off while the format can still change.',
     kind: 'toggle',
+  },
+  {
+    key: 'forfeitGraceMinutes',
+    label: 'Forfeit grace period (minutes)',
+    hint: 'How long a pair has from their match being called before they forfeit the game. Printed straight into the Rules page.',
+    kind: 'minutes',
   },
   {
     key: 'refundPolicyNote',

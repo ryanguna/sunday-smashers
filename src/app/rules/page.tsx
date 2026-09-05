@@ -23,7 +23,8 @@ export default async function RulesPage() {
 
   // Built from the published divisions rather than quoted, so the page can
   // never promise a scoring target the engine is not using.
-  const rulesMarkdown = rulesRow?.body_markdown ?? defaultRulesMarkdown(divisions)
+  const rulesMarkdown =
+    rulesRow?.body_markdown ?? defaultRulesMarkdown(divisions, copy.forfeitGraceMinutes)
 
   return (
     <PageGate pageKey="rules">

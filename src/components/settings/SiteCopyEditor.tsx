@@ -4,7 +4,7 @@ import { useCallback } from 'react'
 import { SettingsCard } from './Chrome'
 import { SaveBar } from './SaveBar'
 import { useSettingsDraft, type DraftSaveResult } from './useSettingsDraft'
-import { SITE_COPY_FIELDS, type SiteCopy } from '@/lib/site-copy'
+import { FORFEIT_GRACE_MINUTES_RANGE, SITE_COPY_FIELDS, type SiteCopy } from '@/lib/site-copy'
 import type { SettingsChange, SettingsIssue } from '@/lib/settings'
 import { GiftIcon } from '@/components/icons'
 
@@ -26,6 +26,20 @@ export interface SiteCopyEditorProps {
 export function SiteCopyEditor({ initial, save, disabled }: SiteCopyEditorProps) {
   const validate = useCallback((draft: SiteCopy): SettingsIssue[] => {
     const issues: SettingsIssue[] = []
+    const { min, max } = FORFEIT_GRACE_MINUTES_RANGE
+    if (
+      !Number.isInteger(draft.forfeitGraceMinutes) ||
+      draft.forfeitGraceMinutes < min ||
+      draft.forfeitGraceMinutes > max
+    ) {
+      issues.push({
+        path: 'copy.forfeitGraceMinutes',
+        severity: 'error',
+        // Saved out of range this silently falls back to the default, so the
+        // committee would read one number here and players another on /rules.
+        message: `Forfeit grace period must be a whole number between ${min} and ${max} minutes.`,
+      })
+    }
     for (const field of SITE_COPY_FIELDS) {
       if (field.kind !== 'text') continue
       if (String(draft[field.key]).trim().length === 0) {
@@ -83,6 +97,36 @@ export function SiteCopyEditor({ initial, save, disabled }: SiteCopyEditorProps)
                   <span className="mt-1 block text-[var(--color-ink-muted)]">{field.hint}</span>
                 </span>
               </label>
+            ) : field.kind === 'minutes' ? (
+              <div key={field.key}>
+                <label
+                  htmlFor={`copy-${field.key}`}
+                  className="block font-semibold text-[var(--color-plum)]"
+                >
+                  {field.label}
+                </label>
+                <p id={`copy-${field.key}-hint`} className="mt-0.5 text-sm text-[var(--color-ink-muted)]">
+                  {field.hint}
+                </p>
+                <input
+                  id={`copy-${field.key}`}
+                  aria-describedby={`copy-${field.key}-hint`}
+                  type="number"
+                  inputMode="numeric"
+                  min={FORFEIT_GRACE_MINUTES_RANGE.min}
+                  max={FORFEIT_GRACE_MINUTES_RANGE.max}
+                  step={1}
+                  disabled={disabled}
+                  value={String(draft[field.key])}
+                  onChange={(event) =>
+                    setDraft((current) => ({
+                      ...current,
+                      [field.key]: Number(event.target.value),
+                    }))
+                  }
+                  className="mt-2 w-32 rounded-[var(--radius-md)] border border-black/10 bg-white p-3 text-sm text-[var(--color-ink)] disabled:opacity-50"
+                />
+              </div>
             ) : (
               <div key={field.key}>
                 <label

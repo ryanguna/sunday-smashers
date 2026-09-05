@@ -302,9 +302,10 @@ game**.
 
 ## Forfeits
 
-A pair has **3 minutes** from their match being called to be on court and
+A pair has **2 minutes** from their match being called to be on court and
 ready. **Late arrival or a no-show forfeits that game automatically** once
-those 3 minutes are up.
+those 2 minutes are up.
+
 $md$,
   true,
   '00000000-0000-0000-0000-000000000001'

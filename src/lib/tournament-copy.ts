@@ -23,6 +23,7 @@
  * seeded draft-rules copy, so the page never renders "first to points".
  */
 
+import { DEFAULT_SITE_COPY } from '@/lib/site-copy'
 import type { PublicDivisionSummary } from '@/lib/tournament-config'
 import type { StageRulesConfig } from '@/lib/settings'
 
@@ -179,10 +180,15 @@ export function howItWorksSteps(divisions: readonly PublicDivisionSummary[]): Ho
  * players would be reading a promise the scoring console had no intention of
  * keeping.
  *
- * Only the numbers are derived. Officiating, scoresheets and the three-minute
- * forfeit are prose decisions rather than settings, so they stay written.
+ * Only the numbers are derived. Officiating and scoresheets are prose
+ * decisions rather than settings, so they stay written; the forfeit grace
+ * period is configurable, because it decides when somebody loses a game and
+ * it is the first thing shortened when a round robin runs long.
  */
-export function defaultRulesMarkdown(divisions: readonly PublicDivisionSummary[]): string {
+export function defaultRulesMarkdown(
+  divisions: readonly PublicDivisionSummary[],
+  forfeitGraceMinutes: number = DEFAULT_SITE_COPY.forfeitGraceMinutes,
+): string {
   const elims = divisions.length
     ? describeTarget(divisions.map((d) => d.elims))
     : 'first to 15 points (no deuce)'
@@ -217,6 +223,11 @@ export function defaultRulesMarkdown(divisions: readonly PublicDivisionSummary[]
             '- The round robin ranking is the final standing — there is no semi final or final.',
           ]
 
+  // Singular reads badly as "1 minutes" on a page the committee publishes as
+  // final, and the number is the difference between a pair walking on and a
+  // pair losing a game they turned up for.
+  const graceLabel = `${forfeitGraceMinutes} ${forfeitGraceMinutes === 1 ? 'minute' : 'minutes'}`
+
   return [
     '## Eliminations',
     '',
@@ -238,7 +249,7 @@ export function defaultRulesMarkdown(divisions: readonly PublicDivisionSummary[]
     '',
     '## Forfeits',
     '',
-    '- A pair has **3 minutes** from their match being called to be on court and ready. This is a fixed limit — the umpire starts it when the call goes out.',
-    '- **Late arrival or a no-show forfeits that game automatically** once those 3 minutes are up.',
+    `- A pair has **${graceLabel}** from their match being called to be on court and ready. This is a fixed limit — the umpire starts it when the call goes out.`,
+    `- **Late arrival or a no-show forfeits that game automatically** once ${graceLabel} is up.`,
   ].join('\n')
 }

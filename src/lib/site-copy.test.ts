@@ -75,3 +75,39 @@ describe('diffSiteCopy', () => {
     expect(changes.map((change) => change.label).join(' ')).toMatch(/rules/i)
   })
 })
+
+describe('forfeit grace period', () => {
+  it('is a real setting rather than prose in the rules page', () => {
+    expect(SITE_COPY_FIELDS.some((field) => field.key === 'forfeitGraceMinutes')).toBe(true)
+  })
+
+  it('keeps a whole number of minutes', () => {
+    expect(normaliseSiteCopy({ forfeitGraceMinutes: 3 }).forfeitGraceMinutes).toBe(3)
+    expect(normaliseSiteCopy({ forfeitGraceMinutes: 2.4 }).forfeitGraceMinutes).toBe(2)
+  })
+
+  it('falls back rather than printing nonsense into the rules', () => {
+    // The number decides when somebody loses a game they turned up for, so an
+    // absent, negative, absurd or non-numeric value must never reach the page.
+    const fallback = DEFAULT_SITE_COPY.forfeitGraceMinutes
+    expect(normaliseSiteCopy({}).forfeitGraceMinutes).toBe(fallback)
+    expect(normaliseSiteCopy({ forfeitGraceMinutes: 0 }).forfeitGraceMinutes).toBe(fallback)
+    expect(normaliseSiteCopy({ forfeitGraceMinutes: -3 }).forfeitGraceMinutes).toBe(fallback)
+    expect(normaliseSiteCopy({ forfeitGraceMinutes: 999 }).forfeitGraceMinutes).toBe(fallback)
+    expect(normaliseSiteCopy({ forfeitGraceMinutes: '2' }).forfeitGraceMinutes).toBe(fallback)
+    expect(normaliseSiteCopy({ forfeitGraceMinutes: Number.NaN }).forfeitGraceMinutes).toBe(fallback)
+  })
+
+  it('shows up in the audit log when the committee changes it', () => {
+    // Shortening the grace period costs somebody a game. It should be as
+    // traceable as changing the scoring target.
+    const after = { ...DEFAULT_SITE_COPY, forfeitGraceMinutes: 5 }
+    expect(diffSiteCopy(DEFAULT_SITE_COPY, after)).toEqual([
+      {
+        label: 'Forfeit grace period (minutes)',
+        from: String(DEFAULT_SITE_COPY.forfeitGraceMinutes),
+        to: '5',
+      },
+    ])
+  })
+})
