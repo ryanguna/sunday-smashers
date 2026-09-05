@@ -68,7 +68,11 @@ export default async function AdminRegistrationsPage({
         <AdminEmptyState
           title="The nice list is empty — for now"
           description="Nobody has signed up yet. Share the registration link with the club and entries will land here the moment they arrive, ready for you to approve."
-          href="/register"
+          // `?again=1` because an organiser who has entered the tournament
+          // themselves would otherwise be redirected to their own status page
+          // — the one thing this link must never do is hide the public form
+          // from the person checking it.
+          href="/register?again=1"
           linkLabel="See the registration page"
         />
       ) : (

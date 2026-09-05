@@ -633,7 +633,10 @@ export function registrationStatusView(
         // No mailer exists, so nothing here may promise one. This page is
         // where the answer appears.
         nudge: 'Nothing to do — this card updates as soon as the committee decides.',
-        href: '/register',
+        // `/status`, not `/register`: an entry already exists, so the form has
+        // nothing to offer and now bounces an entered player here anyway.
+        // Linking straight to the destination beats relying on a redirect.
+        href: '/status',
         actionLabel: 'Review your entry',
       }
     case 'waitlisted':
@@ -642,7 +645,7 @@ export function registrationStatusView(
         label: 'Waitlisted',
         message: 'Your division filled up, so you’re first in line if a spot opens.',
         nudge: 'Keep your Sunday free and check back here — waitlist spots often come good.',
-        href: '/register',
+        href: '/status',
         actionLabel: 'Check your entry',
       }
     case 'rejected':

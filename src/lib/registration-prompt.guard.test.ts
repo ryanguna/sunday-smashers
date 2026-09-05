@@ -87,3 +87,49 @@ describe('the signup journey ends at the entry form', () => {
     expect(signup).toMatch(/tournament entry/i)
   })
 })
+
+describe('the register buttons elsewhere agree with the new flow', () => {
+  it('sends a pending or waitlisted player to their status, not the form', () => {
+    // These cards used to link to `/register`, which now bounces an entered
+    // player to `/status` anyway. Relying on a redirect to correct a link is
+    // how a link quietly breaks the next time the redirect moves.
+    const dashboard = read('lib/dashboard.ts')
+    const pending = dashboard.slice(dashboard.indexOf("case 'pending':"), dashboard.indexOf("case 'rejected':"))
+    expect(pending).not.toContain("href: '/register'")
+    expect(pending.match(/href: '\/status'/g)).toHaveLength(2)
+  })
+
+  it('still sends an unentered player to the form', () => {
+    const dashboard = read('lib/dashboard.ts')
+    expect(dashboard).toContain("actionLabel: 'Register now'")
+    expect(dashboard.slice(dashboard.indexOf("label: 'Not registered yet'"))).toContain("href: '/register'")
+  })
+
+  it('lets an organiser preview the public form even when they have entered', () => {
+    // Without `?again=1` this link would redirect the organiser to their own
+    // status page — hiding the public form from the one person checking it.
+    expect(read('app/admin/registrations/page.tsx')).toContain('href="/register?again=1"')
+  })
+
+  it('leads with "create an account" on the entry form sign-in wall', () => {
+    // Everyone here clicked something saying "register". The account is the
+    // first step of entering, not a separate errand, so it takes the primary
+    // button; `variant="secondary"` marks the fallback for returning players.
+    const states = read('components/registration/RegistrationStates.tsx')
+    const panel = states.slice(states.indexOf('export function SignInPromptPanel'))
+    expect(panel.indexOf('href="/signup"')).toBeLessThan(panel.indexOf('href="/login?next=%2Fregister"'))
+    expect(panel).toContain('href="/login?next=%2Fregister" size="lg" variant="secondary"')
+  })
+
+  it('keeps the header CTA hidden from signed-in visitors', () => {
+    // Otherwise a signed-in player would have a "Register" button in the
+    // header competing with the redirect that already takes them there.
+    expect(read('components/site-nav.ts')).toContain("return input.accountState !== 'signed-in'")
+  })
+
+  it('lands a returning player who never entered on the form', () => {
+    // `/login` defaults to `/dashboard`, which now forwards them. This is the
+    // path that catches accounts created before any of this existed.
+    expect(read('lib/auth-utils.ts')).toContain("if (!next) return '/dashboard'")
+  })
+})

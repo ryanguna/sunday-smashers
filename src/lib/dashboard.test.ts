@@ -666,11 +666,16 @@ describe('registration and payment status', () => {
     expect(view.nudge).toBeNull()
   })
 
-  it('nudges the states a player can still act on towards /register', () => {
+  it('sends each undecided state somewhere it can actually act', () => {
+    // An entry that exists belongs on `/status`; the form has nothing left to
+    // offer it and now redirects there anyway. Only "never entered" goes to
+    // the form. Every one of them keeps a nudge — a status card with no next
+    // step is just a label.
+    expect(registrationStatusView('pending').href).toBe('/status')
+    expect(registrationStatusView('waitlisted').href).toBe('/status')
+    expect(registrationStatusView(null).href).toBe('/register')
     for (const status of ['pending', 'waitlisted', null] as const) {
-      const view = registrationStatusView(status)
-      expect(view.href).toBe('/register')
-      expect(view.nudge).not.toBeNull()
+      expect(registrationStatusView(status).nudge).not.toBeNull()
     }
   })
 

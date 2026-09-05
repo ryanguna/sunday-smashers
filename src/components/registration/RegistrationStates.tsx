@@ -98,17 +98,22 @@ export function SignInPromptPanel() {
       >
         <RacketIcon size={28} />
       </span>
-      <h2 className="text-2xl font-bold text-[var(--color-plum)]">Sign in to claim your spot</h2>
+      <h2 className="text-2xl font-bold text-[var(--color-plum)]">Create your account to enter</h2>
       <p className="mx-auto mt-2 max-w-md text-[var(--color-ink-soft)]">
-        Registration is tied to your player account so we can text you your court times, track your loot bag and
-        match you with a partner. It takes about 30 seconds 🎄
+        Your entry is tied to a player account so we can text you your court times, track your loot bag and
+        match you with a partner. Signing up takes you straight through to this form — about 30 seconds 🎄
       </p>
+      {/* Creating an account leads, signing in follows. Everyone arriving here
+          clicked something that said "register", and the account is the first
+          step of entering rather than a separate errand — so the button that
+          starts that journey should not be the quiet one. Returning players
+          know to look for "sign in". */}
       <div className="mt-5 flex flex-wrap justify-center gap-3">
-        <Button href="/login?next=%2Fregister" size="lg">
-          Sign in
-        </Button>
-        <Button href="/signup" size="lg" variant="secondary">
+        <Button href="/signup" size="lg">
           Create an account
+        </Button>
+        <Button href="/login?next=%2Fregister" size="lg" variant="secondary">
+          Sign in
         </Button>
       </div>
       <p className="mt-4 text-sm text-[var(--color-ink-muted)]">
