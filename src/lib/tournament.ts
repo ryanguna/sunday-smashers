@@ -201,7 +201,7 @@ export function getTournamentPhase(
       phase: 'registration-closed',
       countdownTarget: dates.tournamentDate,
       countdownLabel: 'The Christmas battle begins in',
-      heading: 'Registration is closed — see you on court!',
+      heading: 'Pre-registration is closed — see you on court!',
     }
   }
 
