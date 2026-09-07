@@ -40,6 +40,8 @@ const INITIAL_VALUES: SetupFormValues = {
   name: 'Sunday Smashers Christmas Mini Tournament',
   slug: 'sunday-smashers-christmas-2026',
   tournamentDate: toLocalInput(TOURNAMENT_DATE),
+  startTime: '',
+  endTime: '',
   venueName: '',
   venueAddress: '',
   description: '',

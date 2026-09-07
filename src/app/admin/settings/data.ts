@@ -343,6 +343,11 @@ async function loadLive(): Promise<SettingsPageRows> {
       details: {
         name: tournament.name,
         tournamentDate: tournament.tournament_date,
+        // Trimmed to HH:MM: the column is `time` so it arrives as
+        // "11:00:00", and the <input type="time"> the console renders will
+        // silently reject the seconds.
+        startTime: (tournament.start_time ?? '').slice(0, 5),
+        endTime: (tournament.end_time ?? '').slice(0, 5),
         venueName: tournament.venue_name ?? '',
         venueAddress: tournament.venue_address ?? '',
         description: tournament.description ?? '',

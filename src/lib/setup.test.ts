@@ -28,6 +28,8 @@ const form = (over: Partial<SetupFormValues> = {}): SetupFormValues => ({
   name: 'Sunday Smashers Christmas Mini Tournament',
   slug: 'sunday-smashers-christmas-2026',
   tournamentDate: '2026-12-13T09:00:00+11:00',
+  startTime: '11:00',
+  endTime: '17:00',
   venueName: 'Olympic Park Sports Centre',
   venueAddress: 'Sydney Olympic Park NSW',
   description: 'Men\u2019s and women\u2019s doubles.',

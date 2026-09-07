@@ -143,6 +143,12 @@ export type TournamentRow = {
   contact_email: string | null
   /** When players should arrive — distinct from the first serve. */
   doors_open_at: string | null
+  /**
+   * First serve and expected finish, as venue wall-clock `HH:MM:SS` strings
+   * (migration 0019). `tournament_date` is a `date` and can hold neither.
+   */
+  start_time: string | null
+  end_time: string | null
   created_at: string
   updated_at: string
 }

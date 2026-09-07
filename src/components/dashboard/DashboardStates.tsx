@@ -65,7 +65,7 @@ export function DashboardGreeting({
         {STAGE_EYEBROW[stage]}
       </p>
       <h1 className="font-[family-name:var(--font-heading)] text-3xl font-extrabold sm:text-5xl" style={{ color: 'var(--color-plum)' }}>
-        Kia ora, {firstName}! 🎄
+        Kamusta, {firstName}! 🎄
       </h1>
       <p className="mt-2 max-w-2xl text-[var(--color-ink-soft)]">
         {STAGE_BLURB[stage]}

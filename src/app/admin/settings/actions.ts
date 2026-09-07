@@ -208,6 +208,10 @@ async function createTournamentFromDetails(
       name,
       slug: slugify(name) || 'sunday-smashers',
       tournament_date: details.tournamentDate,
+      // Empty means "not decided". Null it rather than storing '' so the
+      // public surfaces can omit the clause instead of printing a blank.
+      start_time: details.startTime.trim() || null,
+      end_time: details.endTime.trim() || null,
       registration_opens_at: details.registrationOpensAt,
       registration_closes_at: details.registrationClosesAt,
       venue_name: details.venueName.trim() || null,
@@ -306,6 +310,10 @@ export async function saveTournamentDetailsAction(details: TournamentDetails): P
     .update({
       name: details.name.trim(),
       tournament_date: details.tournamentDate,
+      // Empty means "not decided". Null it rather than storing '' so the
+      // public surfaces can omit the clause instead of printing a blank.
+      start_time: details.startTime.trim() || null,
+      end_time: details.endTime.trim() || null,
       registration_opens_at: details.registrationOpensAt,
       registration_closes_at: details.registrationClosesAt,
       venue_name: details.venueName.trim() || null,

@@ -91,8 +91,18 @@ export interface DivisionSettings {
 
 export interface TournamentDetails {
   name: string
-  /** ISO timestamp of the first serve. */
+  /**
+   * The tournament day. Stored as a `date` — it carries no time, despite the
+   * ISO string it travels in. Use `startTime` / `endTime` for the clock.
+   */
   tournamentDate: string
+  /**
+   * First serve and expected finish, as `HH:MM` wall-clock at the venue
+   * (migration 0019). Empty string means "not decided", which every public
+   * surface treats as "say nothing" rather than guessing a start.
+   */
+  startTime: string
+  endTime: string
   venueName: string
   venueAddress: string
   description: string
@@ -296,6 +306,8 @@ export function defaultTournamentSettings(): TournamentSettings {
     details: {
       name: 'Sunday Smashers Christmas Mini Tournament',
       tournamentDate: TOURNAMENT_DATE,
+      startTime: '',
+      endTime: '',
       venueName: 'Sunday Smashers Badminton Hall',
       venueAddress: '',
       description:
@@ -615,6 +627,22 @@ export function firstErrorFor(issues: readonly SettingsIssue[], path: string): s
   return issues.find((issue) => issue.path === path && issue.severity === 'error')?.message
 }
 
+/**
+ * `HH:MM` to minutes since midnight, or `null` if it is not a real time.
+ *
+ * Minutes rather than a `Date` on purpose: these are wall-clock values at a
+ * venue, and the only question ever asked of them is which comes first.
+ */
+export function parseWallClock(value: string | null | undefined): number | null {
+  if (!value) return null
+  const match = /^(\d{1,2}):(\d{2})/.exec(value.trim())
+  if (!match) return null
+  const hours = Number(match[1])
+  const minutes = Number(match[2])
+  if (hours < 0 || hours > 23 || minutes < 0 || minutes > 59) return null
+  return hours * 60 + minutes
+}
+
 export function validateTournamentDetails(details: TournamentDetails): SettingsIssue[] {
   const issues: SettingsIssue[] = []
 
@@ -623,6 +651,28 @@ export function validateTournamentDetails(details: TournamentDetails): SettingsI
   }
   if (details.name.length > 120) {
     issues.push(err('details.name', 'Keep the name under 120 characters.'))
+  }
+
+  // Both empty is fine — the committee may not have settled the day's shape
+  // yet, and every public surface omits the clause rather than guessing. One
+  // without the other is not: "from 11am" with no finish is what people plan
+  // a whole Sunday around and get wrong.
+  const startMinutes = parseWallClock(details.startTime)
+  const endMinutes = parseWallClock(details.endTime)
+  if (details.startTime && startMinutes == null) {
+    issues.push(err('details.startTime', 'Pick a valid start time.'))
+  }
+  if (details.endTime && endMinutes == null) {
+    issues.push(err('details.endTime', 'Pick a valid finish time.'))
+  }
+  if (details.startTime && !details.endTime) {
+    issues.push(err('details.endTime', 'Set when play finishes, or clear the start time too.'))
+  }
+  if (details.endTime && !details.startTime) {
+    issues.push(err('details.startTime', 'Set when the first serve is, or clear the finish time too.'))
+  }
+  if (startMinutes != null && endMinutes != null && endMinutes <= startMinutes) {
+    issues.push(err('details.endTime', 'Play must finish after the first serve.'))
   }
 
   const date = Date.parse(details.tournamentDate)
@@ -1260,6 +1310,8 @@ function pushChange(
 const DETAIL_LABELS: Record<keyof TournamentDetails, string> = {
   name: 'Tournament name',
   tournamentDate: 'Tournament date',
+  startTime: 'First serve',
+  endTime: 'Play finishes',
   venueName: 'Venue',
   venueAddress: 'Venue address',
   description: 'Description',
@@ -1586,6 +1638,42 @@ export function formatSydney(iso: string, opts: { withTime?: boolean } = {}): st
     month: 'short',
     year: 'numeric',
     ...(opts.withTime === false ? {} : { hour: 'numeric', minute: '2-digit' }),
+  }).format(date)
+}
+
+/**
+ * The `YYYY-MM-DD` an `<input type="date">` expects.
+ *
+ * Takes the leading date off whatever it is given rather than round-tripping
+ * through `Date`. `tournament_date` is a `date` column, so a `new Date()` of
+ * it is UTC midnight — format that anywhere west of Greenwich and the input
+ * shows the previous day.
+ */
+export function toDateInput(value: string | null | undefined): string {
+  if (!value) return ''
+  const match = /^(\d{4}-\d{2}-\d{2})/.exec(value.trim())
+  return match ? match[1] : ''
+}
+
+/**
+ * A calendar date read back as prose — "Sun, 13 Dec 2026".
+ *
+ * Built from the date parts explicitly, for the same reason as `toDateInput`:
+ * the value is a day, not an instant, and nothing about it should shift with
+ * a time zone.
+ */
+export function formatSydneyDate(value: string | null | undefined): string {
+  const iso = toDateInput(value)
+  if (!iso) return '—'
+  const [year, month, day] = iso.split('-').map(Number)
+  const date = new Date(Date.UTC(year, month - 1, day))
+  if (Number.isNaN(date.getTime())) return '—'
+  return new Intl.DateTimeFormat('en-AU', {
+    timeZone: 'UTC',
+    weekday: 'short',
+    day: 'numeric',
+    month: 'short',
+    year: 'numeric',
   }).format(date)
 }
 

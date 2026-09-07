@@ -7,7 +7,9 @@ import {
   diffDetails,
   firstErrorFor,
   formatSydney,
+  formatSydneyDate,
   fromDateTimeLocal,
+  toDateInput,
   toDateTimeLocal,
   validateTournamentDetails,
   type SettingsChange,
@@ -78,15 +80,38 @@ export function TournamentDetailsForm({ initial, save, readOnly = false }: Tourn
               required
             />
           </div>
+          {/* A date input, not datetime-local. The column is a `date` and
+              always was, so any time typed here was discarded on save while
+              the hint read it back as "11:00 am (Sydney time)" — a start time
+              the committee never set, invented by parsing a bare date as UTC
+              midnight. First serve is its own field below. */}
           <TextField
-            label="Tournament day (first serve)"
-            type="datetime-local"
-            value={toDateTimeLocal(draft.tournamentDate)}
-            onChange={(event) => set('tournamentDate', fromDateTimeLocal(event.target.value))}
-            hint={`Currently ${formatSydney(draft.tournamentDate)} (Sydney time).`}
+            label="Tournament day"
+            type="date"
+            value={toDateInput(draft.tournamentDate)}
+            onChange={(event) => set('tournamentDate', event.target.value)}
+            hint={`Currently ${formatSydneyDate(draft.tournamentDate)}.`}
             error={error('details.tournamentDate')}
             disabled={readOnly}
           />
+          <div className="grid grid-cols-2 gap-3">
+            <TextField
+              label="First serve"
+              type="time"
+              value={draft.startTime}
+              onChange={(event) => set('startTime', event.target.value)}
+              error={error('details.startTime')}
+              disabled={readOnly}
+            />
+            <TextField
+              label="Play finishes"
+              type="time"
+              value={draft.endTime}
+              onChange={(event) => set('endTime', event.target.value)}
+              error={error('details.endTime')}
+              disabled={readOnly}
+            />
+          </div>
           <TextField
             label="Venue"
             value={draft.venueName}

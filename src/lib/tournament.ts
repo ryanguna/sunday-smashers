@@ -62,6 +62,50 @@ export function formatTournamentDateLabel(iso: string | null | undefined): strin
 }
 
 /**
+ * Formats a stored wall-clock time — "11am", "5:30pm" — for public copy.
+ *
+ * Takes the `HH:MM:SS` string straight from the `time` column rather than a
+ * `Date`. Building a `Date` to format it is what produces the phantom start
+ * times this pair of columns exists to fix: a bare value parsed in the
+ * server's zone and rendered in Sydney lands hours away from what the
+ * committee typed.
+ *
+ * Drops ":00" so a whole hour reads as "11am" rather than "11:00am", and
+ * returns an empty string for anything unparseable so callers can omit the
+ * clause instead of printing "Invalid Date" at a visitor.
+ */
+export function formatTournamentTime(value: string | null | undefined): string {
+  if (!value) return ''
+  const match = /^(\d{1,2}):(\d{2})/.exec(value.trim())
+  if (!match) return ''
+  const hours = Number(match[1])
+  const minutes = Number(match[2])
+  if (!Number.isInteger(hours) || hours < 0 || hours > 23) return ''
+  if (!Number.isInteger(minutes) || minutes < 0 || minutes > 59) return ''
+  const suffix = hours < 12 ? 'am' : 'pm'
+  const hour12 = hours % 12 === 0 ? 12 : hours % 12
+  return minutes === 0 ? `${hour12}${suffix}` : `${hour12}:${match[2]}${suffix}`
+}
+
+/**
+ * The playing window as one phrase — "11am to 5pm".
+ *
+ * Returns an empty string unless both ends are known. A half-stated window
+ * ("from 11am", with no finish) is the sort of thing people plan a Sunday
+ * around and then discover they were wrong about, so it is better to say
+ * nothing until the committee has settled both.
+ */
+export function formatTournamentTimeRange(
+  startTime: string | null | undefined,
+  endTime: string | null | undefined,
+): string {
+  const start = formatTournamentTime(startTime)
+  const end = formatTournamentTime(endTime)
+  if (!start || !end) return ''
+  return `${start} to ${end}`
+}
+
+/**
  * Formats a date without the weekday — "6 September 2026" — for the places
  * that read as a sentence ("Pre-registration opens 6 September 2026").
  */

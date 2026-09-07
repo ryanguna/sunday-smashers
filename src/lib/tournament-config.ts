@@ -64,6 +64,13 @@ export interface PublicTournamentConfig {
   contactEmail: string | null
   contactPhone: string | null
   doorsOpenAt: string | null
+  /**
+   * First serve and expected finish, as venue wall-clock `HH:MM:SS` (migration
+   * 0019). Null means the committee has not settled them — say nothing rather
+   * than advertise a guess.
+   */
+  startTime: string | null
+  endTime: string | null
 }
 
 const FALLBACK: PublicTournamentConfig = {
@@ -79,6 +86,8 @@ const FALLBACK: PublicTournamentConfig = {
   contactEmail: null,
   contactPhone: null,
   doorsOpenAt: null,
+  startTime: null,
+  endTime: null,
 }
 
 type PublicDivisionRow = Pick<
@@ -159,6 +168,8 @@ async function fetchPublicTournamentConfig(): Promise<PublicTournamentConfig> {
       contactEmail: row.contact_email,
       contactPhone: row.contact_phone,
       doorsOpenAt: row.doors_open_at,
+      startTime: row.start_time,
+      endTime: row.end_time,
     }
   } catch {
     // The public site must render even if the database is unreachable.

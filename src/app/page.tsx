@@ -23,7 +23,11 @@ import { loadSitePageVisibility } from '@/lib/site-pages-server'
 import { isPageVisible } from '@/lib/site-pages'
 import { hasAnyWinners } from '@/lib/awards'
 import { getPublicAwards } from './awards/data'
-import { formatTournamentDate, formatTournamentDateLabel } from '@/lib/tournament'
+import {
+  formatTournamentDate,
+  formatTournamentDateLabel,
+  formatTournamentTimeRange,
+} from '@/lib/tournament'
 import { howItWorksSteps } from '@/lib/tournament-copy'
 import { loadPublicPrizeBoard } from '@/lib/public-prizes'
 import type { PublicPrizeBoard } from '@/lib/settings'
@@ -194,6 +198,7 @@ export default async function HomePage() {
   // organiser who moves the date in Settings must see the hero move with it.
   const dateLabel = formatTournamentDateLabel(tournament.dates.tournamentDate)
   const entryFee = describeEntryFee(tournament.entryFeeCents)
+  const timeRange = formatTournamentTimeRange(tournament.startTime, tournament.endTime)
   const opensLabel = formatTournamentDate(tournament.dates.preRegistrationOpensAt)
   // Scoring and qualifying places are per-division settings, so the "how it
   // works" copy is generated rather than written — see `tournament-copy.ts`.
@@ -260,6 +265,14 @@ export default async function HomePage() {
             <span className="font-[family-name:var(--font-heading)] font-bold text-[var(--color-plum)]">
               {dateLabel}
             </span>
+            {/* A date with no time leaves people guessing whether to keep the
+                whole Sunday free. The times are configured, so say them here
+                rather than only in a card most of the way down the page. */}
+            {timeRange && (
+              <span className="font-[family-name:var(--font-heading)] font-bold text-[var(--color-brand-pink-dark)]">
+                · {timeRange}
+              </span>
+            )}
           </div>
           {/* "How much?" is the first question anyone asks, and the answer
               used to live in a "what to bring" card most of the way down the
@@ -522,6 +535,12 @@ export default async function HomePage() {
                     >
                       {tournament.venueAddress}
                     </a>
+                  )}
+                  {timeRange && (
+                    <>
+                      <br />
+                      Play runs {timeRange}.
+                    </>
                   )}
                   {tournament.doorsOpenAt && (
                     <>
