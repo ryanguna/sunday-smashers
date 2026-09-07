@@ -14,6 +14,9 @@ import {
   type AssignableRole,
   type ManagedUser,
 } from '@/lib/settings'
+import type { AdminRegistration } from '@/lib/admin'
+import { analysePersonDeletion } from '@/lib/admin-delete'
+import { DeleteConfirmDialog } from '@/components/admin/DeleteConfirmDialog'
 import { SettingsCard, StatPill } from './Chrome'
 
 export interface RoleUpdateResult {
@@ -44,6 +47,17 @@ export interface RolesManagerProps {
    * can still be rendered on surfaces that do not offer it.
    */
   resetPassword?: (input: { targetUserId: string }) => Promise<PasswordResetOutcome>
+  /**
+   * Permanently removes an account. Optional for the same reason as
+   * `resetPassword`: surfaces that only assign roles need not offer it.
+   */
+  deleteUser?: (input: { targetUserId: string }) => Promise<RoleUpdateResult>
+  /**
+   * Entries, so the delete dialog can name what goes with the account —
+   * including money already taken. Optional: without it the dialog still warns
+   * that the account and everything attached to it disappears.
+   */
+  registrations?: readonly AdminRegistration[]
   readOnly?: boolean
 }
 
@@ -52,13 +66,22 @@ export interface RolesManagerProps {
  * guard applied optimistically in the UI *and* re-checked in the Server
  * Action — a blocked toggle is disabled with the reason as its tooltip.
  */
-export function RolesManager({ initialUsers, currentUserId, updateRole, resetPassword, readOnly = false }: RolesManagerProps) {
+export function RolesManager({
+  initialUsers,
+  currentUserId,
+  updateRole,
+  resetPassword,
+  deleteUser,
+  registrations,
+  readOnly = false,
+}: RolesManagerProps) {
   const [users, setUsers] = useState(initialUsers)
   const [query, setQuery] = useState('')
   const [pending, setPending] = useState<string | null>(null)
   const [feedback, setFeedback] = useState<RoleUpdateResult | null>(null)
   const [celebrate, setCelebrate] = useState(false)
   const [issued, setIssued] = useState<{ userId: string; name: string } & PasswordResetOutcome | null>(null)
+  const [removing, setRemoving] = useState<ManagedUser | null>(null)
   const [, startTransition] = useTransition()
 
   const results = useMemo(() => searchUsers(users, query), [users, query])
@@ -125,9 +148,38 @@ export function RolesManager({ initialUsers, currentUserId, updateRole, resetPas
     })
   }
 
+  function confirmRemove() {
+    const user = removing
+    if (!deleteUser || !user) return
+    setPending(`${user.id}:delete`)
+    startTransition(async () => {
+      const result = await deleteUser({ targetUserId: user.id })
+      setPending(null)
+      setFeedback(result)
+      if (result.ok) {
+        setRemoving(null)
+        setUsers((current) => current.filter((row) => row.id !== user.id))
+      }
+    })
+  }
+
   return (
     <div className="space-y-5">
       <Confetti active={celebrate} count={24} />
+      {removing && (
+        <DeleteConfirmDialog
+          open
+          onClose={() => setRemoving(null)}
+          plan={analysePersonDeletion({
+            actorUserId: actorId,
+            targetUserId: removing.id,
+            users,
+            registrations,
+          })}
+          onConfirm={confirmRemove}
+          pending={pending === `${removing.id}:delete`}
+        />
+      )}
 
       <SettingsCard
         title="Who can do what"
@@ -302,6 +354,37 @@ export function RolesManager({ initialUsers, currentUserId, updateRole, resetPas
                         🔑 Reset password
                       </Button>
                     )}
+                    {deleteUser &&
+                      (() => {
+                        // The same verdict the action re-checks. Blocked cases
+                        // (yourself, the last admin) keep the button visible but
+                        // disabled with the reason, rather than hiding it and
+                        // leaving an organiser hunting for a delete that is not
+                        // there.
+                        const plan = analysePersonDeletion({
+                          actorUserId: actorId,
+                          targetUserId: user.id,
+                          users,
+                        })
+                        return (
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="ghost"
+                            className="text-[var(--color-danger)]"
+                            loading={pending === `${user.id}:delete`}
+                            disabled={readOnly || !plan.allowed || pending !== null}
+                            title={
+                              plan.allowed
+                                ? `Permanently delete ${user.fullName}'s account`
+                                : plan.blockedReason
+                            }
+                            onClick={() => setRemoving(user)}
+                          >
+                            🗑 Delete
+                          </Button>
+                        )
+                      })()}
                   </div>
                 </li>
               )

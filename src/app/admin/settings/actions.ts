@@ -49,6 +49,7 @@ import { PUBLIC_PRIZES_SLUG } from '@/lib/public-prizes'
 import { slugify } from '@/lib/setup'
 import { blockerIsSuccess, settingsSaveBlocker } from '@/lib/settings-save-guard'
 import { withDemoHint } from '@/lib/demo-mode'
+import { analysePersonDeletion } from '@/lib/admin-delete'
 
 /**
  * Server Actions for `/admin/settings`.
@@ -763,6 +764,101 @@ export async function resetUserPasswordAction(input: {
     temporaryPassword,
     email: data.user?.email ?? target?.email ?? undefined,
   }
+}
+
+/**
+ * Permanently deletes a person's account.
+ *
+ * The important detail is *which row* this deletes. `profiles.id` is a foreign
+ * key **to** `auth.users` with `on delete cascade`, so the cascade runs one way
+ * only: deleting the auth user removes the profile, but deleting the profile
+ * leaves the auth user behind. That would be the worst of both worlds — the
+ * person could still sign in, to an account with no profile, and
+ * `handle_new_user` only fires on *insert* to `auth.users`, so the profile
+ * would never come back. So this deletes the auth user and lets the cascade
+ * take the profile, the entries, the roles, the team places and the duties.
+ *
+ * Like the password reset, removing another user is a Supabase Auth *admin*
+ * operation needing the service-role key, so the admin check happens first and
+ * the privileged client is built only after it passes.
+ */
+export async function deleteUserAction(input: { targetUserId: string }): Promise<ActionResult> {
+  const actor = await ensureAdmin()
+  const current = await loadSettingsPageData()
+  const actorId = current.isDemo ? (current.currentUserId ?? actor?.id ?? '') : (actor?.id ?? '')
+
+  const plan = analysePersonDeletion({
+    actorUserId: actorId,
+    targetUserId: input.targetUserId,
+    users: current.users,
+  })
+
+  // Re-checked server-side: the dialog hides the button in these cases, but an
+  // action is a public POST endpoint and the last-admin rule is the difference
+  // between a runnable tournament and a locked console.
+  if (!plan.allowed) {
+    return { ok: false, message: plan.blockedReason ?? 'That account cannot be deleted.' }
+  }
+
+  const target = current.users.find((user) => user.id === input.targetUserId)
+  const who = target?.fullName ?? 'that player'
+
+  if (!isSupabaseConfigured()) {
+    return { ok: true, demo: true, message: `Demo mode — ${who}’s account would be deleted.` }
+  }
+
+  const admin = createAdminClient()
+  if (!admin) {
+    return { ok: false, message: SERVICE_ROLE_SETUP_HINT }
+  }
+
+  // Written before the delete: afterwards there is no profile left to name, and
+  // "who was this?" is exactly what you ask when reviewing a deletion later.
+  // The payment totals go in for the same reason they do on registration
+  // deletes — the cascade destroys `payments` outright, so this row becomes the
+  // committee's only record that money was ever taken from this person.
+  const supabase = await createClient()
+  const { data: paid } = await supabase
+    .from('registrations')
+    .select('id, division_id, payments(amount_paid_cents)')
+    .eq('player_id', input.targetUserId)
+
+  const entries = (paid ?? []) as unknown as Array<{
+    id: string
+    division_id: string
+    payments: { amount_paid_cents: number }[] | null
+  }>
+
+  await writeAudit(
+    supabase,
+    actorId,
+    buildAuditEntry('settings.user.deleted', 'profile', input.targetUserId, [], {
+      target_name: who,
+      target_email: target?.email ?? null,
+      roles: target?.roles ?? [],
+      registration_ids: entries.map((entry) => entry.id),
+      amount_paid_cents: entries.reduce(
+        (total, entry) =>
+          total +
+          (entry.payments ?? []).reduce(
+            (sum, payment) => sum + (payment.amount_paid_cents ?? 0),
+            0,
+          ),
+        0,
+      ),
+    }),
+  )
+
+  const { error } = await admin.auth.admin.deleteUser(input.targetUserId)
+  if (error) {
+    return { ok: false, message: `Could not delete the account: ${error.message}` }
+  }
+
+  revalidatePath(SETTINGS_PATH)
+  revalidatePath('/admin')
+  revalidatePath('/admin/registrations')
+  revalidatePath('/players')
+  return { ok: true, message: `${who}’s account and everything attached to it is gone.` }
 }
 
 // ---------------------------------------------------------------------------

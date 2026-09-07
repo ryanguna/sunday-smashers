@@ -217,3 +217,93 @@ export async function updatePaymentAction(input: PaymentUpdateInput): Promise<Ac
   revalidateAdmin()
   return { ok: true, message: `Payment saved — marked ${status}. 🎁` }
 }
+
+/**
+ * Permanently deletes tournament entries.
+ *
+ * Rejecting is the normal way to turn somebody away — it keeps the record of
+ * the decision. This is for duplicates, test rows and genuine mistakes, and it
+ * has to do two things the database will not do for us:
+ *
+ * 1. **Clear team membership first.** `team_members.registration_id` is
+ *    `on delete set null`, so deleting the entry alone leaves the player sitting
+ *    on a team with no entry behind it — and the draw builds from teams, so they
+ *    would still be dealt into fixtures. Removing the membership row is part of
+ *    deleting the entry, not a follow-up chore for the organiser.
+ * 2. **Record the money before it cascades.** `payments.registration_id` is
+ *    `on delete cascade`, so any recorded payment is destroyed with no trace.
+ *    The amount goes into the audit metadata first, so a committee reconciling
+ *    cash at the end of the day can still find what was taken and from whom.
+ */
+export async function deleteRegistrationsAction(
+  registrationIds: string[]
+): Promise<ActionResult> {
+  if (registrationIds.length === 0) {
+    return { ok: false, message: 'Select at least one registration first.' }
+  }
+  if (!isSupabaseConfigured()) return DEMO_RESULT
+  if (!(await isAdmin())) {
+    return { ok: false, message: 'Only admins can delete registrations.' }
+  }
+
+  const supabase = await createClient()
+
+  // Read the whole picture before any of it is destroyed: after the delete
+  // there is nothing left to describe in the audit log.
+  const { data: before } = await supabase
+    .from('registrations')
+    .select('id, status, player_id, division_id, payments(amount_cents, amount_paid_cents)')
+    .in('id', registrationIds)
+
+  const found = (before ?? []) as unknown as Array<{
+    id: string
+    status: RegistrationStatus
+    player_id: string
+    division_id: string
+    payments: { amount_cents: number; amount_paid_cents: number }[] | null
+  }>
+
+  if (found.length === 0) {
+    return { ok: false, message: 'Those registrations have already been deleted.' }
+  }
+
+  const { error: membershipError } = await supabase
+    .from('team_members')
+    .delete()
+    .in('registration_id', registrationIds)
+
+  if (membershipError) {
+    return {
+      ok: false,
+      message: `Could not take them off their team, so nothing was deleted: ${membershipError.message}`,
+    }
+  }
+
+  const { error } = await supabase.from('registrations').delete().in('id', registrationIds)
+  if (error) return { ok: false, message: `Could not delete: ${error.message}` }
+
+  await writeAudit(
+    found.map((row) => ({
+      action: 'registration.deleted',
+      entity_type: 'registration',
+      entity_id: row.id,
+      metadata: {
+        status: row.status,
+        player_id: row.player_id,
+        division_id: row.division_id,
+        // The payments row is gone by now; this is the only surviving record.
+        amount_paid_cents: (row.payments ?? []).reduce(
+          (total, payment) => total + (payment.amount_paid_cents ?? 0),
+          0
+        ),
+      },
+    }))
+  )
+
+  revalidateAdmin()
+  const count = found.length
+  return {
+    ok: true,
+    message: `${count} registration${count === 1 ? '' : 's'} deleted. Their accounts are untouched, so they can enter again.`,
+  }
+}

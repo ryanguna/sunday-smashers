@@ -35,7 +35,9 @@ import {
 } from '@/lib/admin'
 import type { BadgeStatus } from '@/components/ui'
 import type { RegistrationStatus } from '@/lib/supabase/types'
-import { updateRegistrationStatusAction } from './actions'
+import { deleteRegistrationsAction, updateRegistrationStatusAction } from './actions'
+import { DeleteConfirmDialog } from './DeleteConfirmDialog'
+import { planRegistrationDeletion } from '@/lib/admin-delete'
 import { AdminFilterBar } from './AdminFilterBar'
 
 /**
@@ -184,6 +186,9 @@ export function RegistrationsClient({
   })
   const [selected, setSelected] = useState<string[]>([])
   const [expanded, setExpanded] = useState<string | null>(null)
+  // The rows a delete is pending confirmation for. Held separately from
+  // `selected` so a per-row delete does not disturb a bulk selection.
+  const [deleting, setDeleting] = useState<AdminRegistration[]>([])
   const [pending, startTransition] = useTransition()
   const { toast } = useToast()
 
@@ -235,8 +240,36 @@ export function RegistrationsClient({
     })
   }
 
+  function confirmDelete() {
+    const rows = deleting
+    startTransition(async () => {
+      const result = await deleteRegistrationsAction(rows.map((row) => row.id))
+      toast({
+        variant: result.ok ? 'success' : result.demo ? 'default' : 'danger',
+        title: result.ok ? 'Deleted' : 'Not deleted',
+        description: result.message,
+      })
+      if (result.ok) {
+        setDeleting([])
+        const gone = new Set(rows.map((row) => row.id))
+        setSelected((current) => current.filter((id) => !gone.has(id)))
+        setExpanded((current) => (current && gone.has(current) ? null : current))
+      }
+    })
+  }
+
   return (
     <>
+      {deleting.length > 0 && (
+        <DeleteConfirmDialog
+          open
+          onClose={() => setDeleting([])}
+          plan={planRegistrationDeletion(deleting)}
+          onConfirm={confirmDelete}
+          pending={pending}
+        />
+      )}
+
       <AdminFilterBar
         filters={filters}
         divisions={divisions}
@@ -289,6 +322,15 @@ export function RegistrationsClient({
               {REGISTRATION_STATUS_LABELS[status]}
             </Button>
           ))}
+          <Button
+            type="button"
+            size="sm"
+            variant="danger"
+            disabled={selectedRows.length === 0 || pending}
+            onClick={() => setDeleting(selectedRows)}
+          >
+            Delete
+          </Button>
         </div>
       </div>
 
@@ -504,6 +546,25 @@ export function RegistrationsClient({
                           <dd>{row.notes ?? '—'}</dd>
                         </div>
                       </dl>
+                      {/* Sits behind "Show details" rather than beside the
+                          review buttons: deleting is not a fourth way to
+                          review somebody, and it should not be one slip of
+                          the thumb away from "Reject". */}
+                      <div className="mt-3 border-t border-[var(--color-brand-lilac-light)] pt-3">
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="danger"
+                          disabled={pending}
+                          onClick={() => setDeleting([row])}
+                        >
+                          Delete this entry
+                        </Button>
+                        <span className="ml-2 text-xs text-[var(--color-ink-muted)]">
+                          Permanent. To turn {row.playerName} away but keep the record, reject
+                          instead.
+                        </span>
+                      </div>
                     </div>
                   </TableCell>
                 </TableRow>

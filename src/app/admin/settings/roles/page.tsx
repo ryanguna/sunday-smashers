@@ -2,8 +2,9 @@ import { requireAdmin } from '@/lib/auth'
 import { DemoModeNotice } from '@/components/auth'
 import { AdminDataErrorBanner } from '@/components/admin/AdminUI'
 import { RolesManager } from '@/components/settings'
+import { getAdminConsoleData } from '@/components/admin/data'
 import { loadSettingsPageData } from '../data'
-import { resetUserPasswordAction, updateRoleAction } from '../actions'
+import { deleteUserAction, resetUserPasswordAction, updateRoleAction } from '../actions'
 
 /**
  * Signed-in only: never prerender. Without this the auth check runs at build
@@ -19,6 +20,10 @@ export default async function SettingsRolesPage() {
   // stand-in organiser, so the console stays reviewable in CI.
   await requireAdmin('/admin/settings/roles')
   const { users, currentUserId, isDemo, error } = await loadSettingsPageData()
+  // Deleting an account destroys the entries and payments hanging off it, so
+  // the confirmation dialog needs to be able to name them. `cache()`d, and the
+  // admin console has usually loaded it already this request.
+  const { registrations } = await getAdminConsoleData()
 
   return (
     <div className="space-y-5">
@@ -29,6 +34,8 @@ export default async function SettingsRolesPage() {
         currentUserId={currentUserId}
         updateRole={updateRoleAction}
         resetPassword={resetUserPasswordAction}
+        deleteUser={deleteUserAction}
+        registrations={registrations}
       />
     </div>
   )
