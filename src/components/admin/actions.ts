@@ -11,6 +11,7 @@ import {
   derivePaymentStatus,
   PAYMENT_METHODS,
   REGISTRATION_STATUSES,
+  sumPaidCents,
   type AuditEntry,
   type PaymentMethod,
 } from '@/lib/admin'
@@ -59,6 +60,31 @@ async function writeAudit(entries: AuditEntry[]): Promise<void> {
   } catch {
     // Audit logging must never block the operational change it describes.
   }
+}
+
+/**
+ * Audit write that is allowed to fail the operation.
+ *
+ * `writeAudit` deliberately swallows errors, on the grounds that a missing log
+ * line should never stop a score being corrected. Deletes invert that: the
+ * audit row is the *only* surviving record that a payment was ever taken, so
+ * losing it silently is worse than refusing to delete. Callers write the entry
+ * first and stop if it does not land.
+ */
+async function writeAuditOrFail(entries: AuditEntry[]): Promise<string | null> {
+  if (entries.length === 0) return null
+  const supabase = await createClient()
+  const actor = await getCurrentUser()
+  const { error } = await supabase.from('audit_log').insert(
+    entries.map((entry) => ({
+      actor_id: actor?.id ?? null,
+      action: entry.action,
+      entity_type: entry.entity_type,
+      entity_id: entry.entity_id,
+      metadata: entry.metadata,
+    }))
+  )
+  return error ? error.message : null
 }
 
 function revalidateAdmin() {
@@ -232,8 +258,9 @@ export async function updatePaymentAction(input: PaymentUpdateInput): Promise<Ac
  *    deleting the entry, not a follow-up chore for the organiser.
  * 2. **Record the money before it cascades.** `payments.registration_id` is
  *    `on delete cascade`, so any recorded payment is destroyed with no trace.
- *    The amount goes into the audit metadata first, so a committee reconciling
- *    cash at the end of the day can still find what was taken and from whom.
+ *    The audit entry is therefore written *first* and is allowed to abort the
+ *    delete: a committee reconciling cash at the end of the day needs to find
+ *    what was taken and from whom, and after the cascade nothing else knows.
  */
 export async function deleteRegistrationsAction(
   registrationIds: string[]
@@ -260,11 +287,33 @@ export async function deleteRegistrationsAction(
     status: RegistrationStatus
     player_id: string
     division_id: string
-    payments: { amount_cents: number; amount_paid_cents: number }[] | null
+    payments: unknown
   }>
 
   if (found.length === 0) {
     return { ok: false, message: 'Those registrations have already been deleted.' }
+  }
+
+  // Written first, and allowed to stop the delete. Once the rows are gone this
+  // is the only place the amount paid still exists.
+  const auditError = await writeAuditOrFail(
+    found.map((row) => ({
+      action: 'registration.deleted',
+      entity_type: 'registration',
+      entity_id: row.id,
+      metadata: {
+        status: row.status,
+        player_id: row.player_id,
+        division_id: row.division_id,
+        amount_paid_cents: sumPaidCents(row.payments),
+      },
+    }))
+  )
+  if (auditError) {
+    return {
+      ok: false,
+      message: `Could not record the deletion in the audit log, so nothing was deleted: ${auditError}`,
+    }
   }
 
   const { error: membershipError } = await supabase
@@ -281,24 +330,6 @@ export async function deleteRegistrationsAction(
 
   const { error } = await supabase.from('registrations').delete().in('id', registrationIds)
   if (error) return { ok: false, message: `Could not delete: ${error.message}` }
-
-  await writeAudit(
-    found.map((row) => ({
-      action: 'registration.deleted',
-      entity_type: 'registration',
-      entity_id: row.id,
-      metadata: {
-        status: row.status,
-        player_id: row.player_id,
-        division_id: row.division_id,
-        // The payments row is gone by now; this is the only surviving record.
-        amount_paid_cents: (row.payments ?? []).reduce(
-          (total, payment) => total + (payment.amount_paid_cents ?? 0),
-          0
-        ),
-      },
-    }))
-  )
 
   revalidateAdmin()
   const count = found.length

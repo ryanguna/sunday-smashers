@@ -93,6 +93,25 @@ export interface AdminPaymentInfo {
   reference: string | null
 }
 
+/**
+ * Total paid across an embedded PostgREST `payments` selection.
+ *
+ * `payments.registration_id` carries a unique constraint, so PostgREST embeds
+ * it as a *single object or null*, not an array. Assuming an array threw
+ * `reduce is not a function` from inside a delete, after the rows had already
+ * been destroyed — the entry was gone and the record of what it had paid went
+ * with it. Accepting either shape means a change to that constraint cannot
+ * resurrect the same bug.
+ */
+export function sumPaidCents(payments: unknown): number {
+  if (!payments) return 0
+  const rows = Array.isArray(payments) ? payments : [payments]
+  return rows.reduce((total: number, row) => {
+    const paid = (row as { amount_paid_cents?: number } | null)?.amount_paid_cents
+    return total + (typeof paid === 'number' ? paid : 0)
+  }, 0)
+}
+
 export interface AdminRegistration {
   id: string
   playerId: string

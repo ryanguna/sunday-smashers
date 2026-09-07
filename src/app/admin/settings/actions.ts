@@ -50,6 +50,7 @@ import { slugify } from '@/lib/setup'
 import { blockerIsSuccess, settingsSaveBlocker } from '@/lib/settings-save-guard'
 import { withDemoHint } from '@/lib/demo-mode'
 import { analysePersonDeletion } from '@/lib/admin-delete'
+import { sumPaidCents } from '@/lib/admin'
 
 /**
  * Server Actions for `/admin/settings`.
@@ -826,7 +827,7 @@ export async function deleteUserAction(input: { targetUserId: string }): Promise
   const entries = (paid ?? []) as unknown as Array<{
     id: string
     division_id: string
-    payments: { amount_paid_cents: number }[] | null
+    payments: unknown
   }>
 
   await writeAudit(
@@ -838,12 +839,7 @@ export async function deleteUserAction(input: { targetUserId: string }): Promise
       roles: target?.roles ?? [],
       registration_ids: entries.map((entry) => entry.id),
       amount_paid_cents: entries.reduce(
-        (total, entry) =>
-          total +
-          (entry.payments ?? []).reduce(
-            (sum, payment) => sum + (payment.amount_paid_cents ?? 0),
-            0,
-          ),
+        (total, entry) => total + sumPaidCents(entry.payments),
         0,
       ),
     }),

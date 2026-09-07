@@ -7,7 +7,7 @@ import {
   CONFIRM_WORD,
   planRegistrationDeletion,
 } from './admin-delete'
-import type { AdminRegistration } from './admin'
+import { sumPaidCents, type AdminRegistration } from './admin'
 import type { ManagedUser } from './settings'
 
 const read = (relative: string) => readFileSync(join(process.cwd(), 'src', relative), 'utf8')
@@ -288,5 +288,51 @@ describe('the money trail survives both deletes', () => {
     const page = read('app/admin/settings/roles/page.tsx')
     expect(page).toContain('getAdminConsoleData')
     expect(page).toContain('registrations={registrations}')
+  })
+})
+
+describe('sumPaidCents survives the PostgREST embed shape', () => {
+  it('handles the to-one object PostgREST actually returns', () => {
+    // `payments.registration_id` is UNIQUE, so the embed is an object or null.
+    // Assuming an array crashed a live delete *after* the rows were destroyed.
+    expect(sumPaidCents({ amount_paid_cents: 5000 })).toBe(5000)
+  })
+
+  it('handles null, which is what an unpaid entry embeds as', () => {
+    expect(sumPaidCents(null)).toBe(0)
+    expect(sumPaidCents(undefined)).toBe(0)
+  })
+
+  it('still handles an array, so dropping the unique constraint cannot break it', () => {
+    expect(sumPaidCents([{ amount_paid_cents: 2500 }, { amount_paid_cents: 5000 }])).toBe(7500)
+    expect(sumPaidCents([])).toBe(0)
+  })
+
+  it('treats a missing or non-numeric amount as nothing paid', () => {
+    expect(sumPaidCents({})).toBe(0)
+    expect(sumPaidCents({ amount_paid_cents: null })).toBe(0)
+  })
+})
+
+describe('a delete never destroys the only record of the money', () => {
+  const adminActions = read('components/admin/actions.ts')
+
+  it('writes the audit entry before the rows are deleted', () => {
+    const body = adminActions.slice(adminActions.indexOf('deleteRegistrationsAction'))
+    expect(body.indexOf('writeAuditOrFail')).toBeLessThan(body.indexOf("from('registrations').delete()"))
+  })
+
+  it('aborts the delete when the audit entry cannot be written', () => {
+    // The fire-and-forget `writeAudit` is wrong here: after the cascade there
+    // is nothing else that knows a payment existed.
+    expect(adminActions).toContain('so nothing was deleted')
+    expect(adminActions).toContain('writeAuditOrFail')
+  })
+
+  it('uses the shared normaliser rather than assuming an array', () => {
+    expect(adminActions).toContain('sumPaidCents(row.payments)')
+    expect(adminActions).not.toContain('(row.payments ?? []).reduce')
+    const settingsActions = read('app/admin/settings/actions.ts')
+    expect(settingsActions).toContain('sumPaidCents(entry.payments)')
   })
 })
