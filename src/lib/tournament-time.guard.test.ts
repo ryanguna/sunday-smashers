@@ -154,3 +154,21 @@ describe('where the time is shown', () => {
     expect(migration).toContain('end_time')
   })
 })
+
+describe('the time reaches the surfaces where people commit', () => {
+  it('sits beside the date on the entry form', () => {
+    // The shell wraps /register, /status and the success page — everywhere
+    // somebody is deciding whether to give up a Sunday.
+    const shell = read('components/registration/RegistrationShell.tsx')
+    expect(shell).toContain('formatTournamentTimeRange(config.startTime, config.endTime)')
+    expect(shell).toContain('{timeRange}')
+  })
+
+  it('is in the link preview that gets pasted into the group chat', () => {
+    const layout = read('app/layout.tsx')
+    expect(layout).toContain('formatTournamentTimeRange(config.startTime, config.endTime)')
+    // Falls back to the bare day rather than trailing a comma when the
+    // committee has not set the hours.
+    expect(layout).toContain('timeRange ? `${dayLabel}, ${timeRange}` : dayLabel')
+  })
+})

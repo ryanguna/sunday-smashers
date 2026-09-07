@@ -7,7 +7,7 @@ import { SiteFooter } from '@/components/SiteFooter'
 import { loadSitePageVisibility } from '@/lib/site-pages-server'
 import { SITE_URL } from '@/lib/site'
 import { loadPublicTournamentConfig } from '@/lib/tournament-config'
-import { formatTournamentDateLabel } from '@/lib/tournament'
+import { formatTournamentDateLabel, formatTournamentTimeRange } from '@/lib/tournament'
 import './globals.css'
 
 // Heavy geometric sans for headings — bold, rounded, friendly.
@@ -49,8 +49,14 @@ const OG_IMAGE = '/brand/og-card.png'
  * add a database round trip per request.
  */
 export async function generateMetadata(): Promise<Metadata> {
-  const { dates } = await loadPublicTournamentConfig()
-  const label = formatTournamentDateLabel(dates.tournamentDate)
+  const config = await loadPublicTournamentConfig()
+  const { dates } = config
+  // The link preview is what people actually read when this is pasted into
+  // the group chat, so it carries the hours as well as the day. Falls back to
+  // the bare date when the times are not set, rather than trailing a comma.
+  const timeRange = formatTournamentTimeRange(config.startTime, config.endTime)
+  const dayLabel = formatTournamentDateLabel(dates.tournamentDate)
+  const label = timeRange ? `${dayLabel}, ${timeRange}` : dayLabel
 
   return {
   metadataBase: new URL(SITE_URL),

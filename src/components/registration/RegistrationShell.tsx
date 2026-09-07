@@ -2,7 +2,7 @@ import type { ReactNode } from 'react'
 import { Snowfall } from '@/components/ui'
 import { BaubleIcon, HollyIcon, ShuttlecockIcon, SnowflakeIcon } from '@/components/icons'
 import { cn } from '@/lib/cn'
-import { formatTournamentDateLabel } from '@/lib/tournament'
+import { formatTournamentDateLabel, formatTournamentTimeRange } from '@/lib/tournament'
 import { loadPublicTournamentConfig } from '@/lib/tournament-config'
 
 export interface RegistrationShellProps {
@@ -31,8 +31,12 @@ export async function RegistrationShell({
   aside,
   className,
 }: RegistrationShellProps) {
-  const { dates } = await loadPublicTournamentConfig()
+  const config = await loadPublicTournamentConfig()
+  const { dates } = config
   const dateLabel = formatTournamentDateLabel(dates.tournamentDate)
+  // Somebody about to enter is committing a Sunday. Saying which day but not
+  // which hours leaves them to find out afterwards that it runs until five.
+  const timeRange = formatTournamentTimeRange(config.startTime, config.endTime)
   return (
     <main className="relative overflow-hidden px-4 pt-10 pb-20 sm:pt-14">
       <Snowfall />
@@ -68,6 +72,14 @@ export async function RegistrationShell({
           <p className="mt-3 inline-flex flex-wrap items-center justify-center gap-2 rounded-[var(--radius-pill)] bg-white/80 px-4 py-1.5 text-sm font-semibold text-[var(--color-plum)] shadow-[var(--shadow-soft)]">
             <SnowflakeIcon size={16} className="text-[var(--color-brand-sky-dark)]" aria-hidden="true" />
             <span>{dateLabel}</span>
+            {timeRange && (
+              <span>
+                <span className="text-[var(--color-brand-lilac-dark)]" aria-hidden="true">
+                  ·{' '}
+                </span>
+                {timeRange}
+              </span>
+            )}
             <span>
               <span className="text-[var(--color-brand-lilac-dark)]" aria-hidden="true">
                 ·{' '}
