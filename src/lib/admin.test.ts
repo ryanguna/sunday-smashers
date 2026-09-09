@@ -1,5 +1,8 @@
+import { readFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
 import {
+  REGISTRATION_STATUS_ACTION_LABELS,
+  reviewStampFor,
   allowedRegistrationTransitions,
   buildAlerts,
   canTransitionRegistration,
@@ -395,5 +398,59 @@ describe('formatting', () => {
     expect(initials('Prince')).toBe('PR')
     expect(initials('  Mary Jane Watson ')).toBe('MW')
     expect(initials('')).toBe('?')
+  })
+})
+
+describe('undoing an approval', () => {
+  it('allows approved back to pending', () => {
+    expect(canTransitionRegistration('approved', 'pending')).toBe(true)
+    expect(allowedRegistrationTransitions('approved')).toContain('pending')
+  })
+
+  it('clears the review stamp when a decision is undone', () => {
+    expect(reviewStampFor('pending', 'actor-1')).toEqual({
+      reviewed_by: null,
+      reviewed_at: null,
+    })
+  })
+
+  it.each(['approved', 'waitlisted', 'rejected'] as const)(
+    'stamps the reviewer when deciding %s',
+    (status) => {
+      const stamp = reviewStampFor(status, 'actor-1')
+      expect(stamp.reviewed_by).toBe('actor-1')
+      expect(Number.isNaN(Date.parse(stamp.reviewed_at ?? ''))).toBe(false)
+    }
+  )
+
+  it('keeps a null actor null rather than inventing a reviewer', () => {
+    expect(reviewStampFor('approved', null).reviewed_by).toBeNull()
+  })
+
+  it('names the move back to pending as an undo, not a state', () => {
+    expect(REGISTRATION_STATUS_ACTION_LABELS.pending).toBe('Back to pending')
+    expect(REGISTRATION_STATUS_ACTION_LABELS.approved).toBe('Approve')
+  })
+})
+
+describe('undo wiring', () => {
+  const action = readFileSync('src/components/admin/actions.ts', 'utf8')
+  const client = readFileSync('src/components/admin/RegistrationsClient.tsx', 'utf8')
+
+  it('writes the status change through reviewStampFor', () => {
+    expect(action).toContain('reviewStampFor(nextStatus')
+    // The old unconditional stamp would leave a re-opened entry claiming a
+    // reviewer it no longer has.
+    expect(action).not.toContain('reviewed_at: new Date().toISOString()')
+  })
+
+  it('offers an undo button on every reviewed row', () => {
+    expect(client).toContain("tone=\"undo\"")
+    expect(client).toContain("applyStatus([row], 'pending')")
+    expect(client).toContain("disabled={pending || row.status === 'pending'}")
+  })
+
+  it('labels the bulk buttons as actions', () => {
+    expect(client).toContain('REGISTRATION_STATUS_ACTION_LABELS[status]')
   })
 })

@@ -154,6 +154,38 @@ const TRANSITIONS: Record<RegistrationStatus, readonly RegistrationStatus[]> = {
   rejected: ['approved', 'waitlisted', 'pending'],
 }
 
+/**
+ * Labels for the *action* of moving to a status, as opposed to the status
+ * itself.
+ *
+ * "Pending" names a state; as a button it reads like a filter, so an organiser
+ * who has just approved the wrong player does not recognise it as the way back.
+ * Everything else is the same word either way.
+ */
+export const REGISTRATION_STATUS_ACTION_LABELS: Record<RegistrationStatus, string> = {
+  pending: 'Back to pending',
+  approved: 'Approve',
+  waitlisted: 'Waitlist',
+  rejected: 'Reject',
+}
+
+/**
+ * The `reviewed_by` / `reviewed_at` pair to write alongside a status change.
+ *
+ * Returning a registration to `pending` is undoing the review, so the stamp is
+ * cleared rather than refreshed. Leaving it set would produce a row that sits
+ * in the "awaiting review" queue while still claiming somebody had decided it,
+ * and the organiser who has to look at it later cannot tell whether the
+ * decision was undone or never made.
+ */
+export function reviewStampFor(
+  status: RegistrationStatus,
+  actorId: string | null
+): { reviewed_by: string | null; reviewed_at: string | null } {
+  if (status === 'pending') return { reviewed_by: null, reviewed_at: null }
+  return { reviewed_by: actorId, reviewed_at: new Date().toISOString() }
+}
+
 export function allowedRegistrationTransitions(
   from: RegistrationStatus
 ): readonly RegistrationStatus[] {

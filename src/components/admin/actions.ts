@@ -11,6 +11,7 @@ import {
   derivePaymentStatus,
   PAYMENT_METHODS,
   REGISTRATION_STATUSES,
+  reviewStampFor,
   sumPaidCents,
   type AuditEntry,
   type PaymentMethod,
@@ -132,8 +133,9 @@ export async function updateRegistrationStatusAction(
     .from('registrations')
     .update({
       status: nextStatus,
-      reviewed_by: actor?.id ?? null,
-      reviewed_at: new Date().toISOString(),
+      // Cleared when going back to pending: that is undoing the review, not
+      // performing one.
+      ...reviewStampFor(nextStatus, actor?.id ?? null),
     })
     .in('id', registrationIds)
 

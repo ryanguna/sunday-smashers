@@ -25,6 +25,7 @@ import {
   PAYMENT_STATUS_LABELS,
   planBulkTransition,
   REGISTRATION_STATUS_CHEER,
+  REGISTRATION_STATUS_ACTION_LABELS,
   REGISTRATION_STATUS_LABELS,
   REGISTRATION_STATUSES,
   toRegistrationsCsv,
@@ -96,6 +97,27 @@ const ACTION_TONES = {
         strokeWidth="2.6"
         strokeLinecap="round"
       />
+    ),
+  },
+  undo: {
+    className:
+      'bg-[var(--color-brand-sky-light)] text-[var(--color-brand-sky-dark)] hover:bg-[var(--color-brand-sky-dark)] hover:text-white',
+    glyph: (
+      <>
+        <path
+          d="M4 10h6M4 10V4"
+          stroke="currentColor"
+          strokeWidth="2.3"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+        <path
+          d="M4.6 13.2a7.5 7.5 0 105.4-8.9"
+          stroke="currentColor"
+          strokeWidth="2.3"
+          strokeLinecap="round"
+        />
+      </>
     ),
   },
   details: {
@@ -319,7 +341,7 @@ export function RegistrationsClient({
               disabled={selectedRows.length === 0 || pending}
               onClick={() => applyStatus(selectedRows, status)}
             >
-              {REGISTRATION_STATUS_LABELS[status]}
+              {REGISTRATION_STATUS_ACTION_LABELS[status]}
             </Button>
           ))}
           <Button
@@ -499,6 +521,19 @@ export function RegistrationsClient({
                         tone="reject"
                         disabled={pending || row.status === 'rejected'}
                         onClick={() => applyStatus([row], 'rejected')}
+                      />
+                      <ActionButton
+                        // The way back from a mis-click. Only offered on a row
+                        // that has actually been decided — on a pending row
+                        // there is nothing to undo.
+                        label={
+                          row.status === 'pending'
+                            ? 'Not reviewed yet'
+                            : `Undo — put ${row.playerName} back to pending`
+                        }
+                        tone="undo"
+                        disabled={pending || row.status === 'pending'}
+                        onClick={() => applyStatus([row], 'pending')}
                       />
                       <ActionButton
                         label={isOpen ? 'Hide details' : 'Show details'}
